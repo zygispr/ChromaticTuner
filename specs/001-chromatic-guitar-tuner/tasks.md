@@ -72,25 +72,47 @@ user story depends on these.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T013 [P] Write failing note-math tests in `packages/core/tests/notes.test.ts`: `frequencyOf`/`midiFromFrequency` are exact inverses across A0–C8, `nearestNote(...).cents` always within ±50, `noteName` honours sharp/flat style, `octaveOf` correct at octave boundaries
-- [ ] T014 Implement note math in `packages/core/src/notes/frequency.ts` and `packages/core/src/notes/naming.ts` to pass T013; `noteName` MUST be the only place accidental style is applied (contract §1)
-- [ ] T015 [P] Write failing tests for `tuningStateOf` and `directionCue` in `packages/core/tests/tuning-state.test.ts`, covering the ±5 cent tolerance edges and the flat→tighten / sharp→loosen mapping
-- [ ] T016 Implement `tuningStateOf` and `directionCue` in `packages/core/src/notes/state.ts`; these are the single source of the direction cue (FR-007)
-- [ ] T017 [P] Define `TunerStatus`, `PitchReading`, `TuningState`, `AccidentalStyle` in `packages/core/src/types.ts` per [data-model.md](./data-model.md) §2–§4, with `TunerStatus` as a discriminated union
-- [ ] T018 [P] Define the `AudioSource` port in `packages/core/src/ports/audio-source.ts` per [contracts/platform-ports.md](./contracts/platform-ports.md) §1, including `AudioSourceError` and `AudioSourceInfo`
-- [ ] T019 [P] Define the `PreferencesStore` port in `packages/core/src/ports/preferences-store.ts`
-- [ ] T020 [P] Define the `WakeLock` port in `packages/core/src/ports/wake-lock.ts`
-- [ ] T021 [P] Implement `ScriptedAudioSource` test double in `packages/core/testing/scripted-audio-source.ts`: replays a `Float32Array` at a controlled rate and can inject any `AudioSourceError` on demand
-- [ ] T022 [P] Implement `InMemoryPreferencesStore` and `NoopWakeLock` doubles in `packages/core/testing/`
-- [ ] T023 [P] Implement synthetic signal generators in `packages/core/tests/fixtures/signals.ts`: pure sine, sawtooth, harmonically rich tone with a **deliberately weak fundamental**, and additive noise at a specified SNR
-- [ ] T024 [P] Define colour tokens with `{ light, dark }` variants for flat/sharp/in-tune/no-reading/background/text/line in `packages/tokens/src/colors.ts`
-- [ ] T025 [P] Define spacing, type scale, motion durations, and `a11y.minTouchTarget = 44` in `packages/tokens/src/space.ts`, `type.ts`, `motion.ts`, `a11y.ts`
-- [ ] T026 [P] Write the WCAG contrast test in `packages/tokens/tests/contrast.test.ts` asserting every state colour meets AA (4.5:1 text, 3:1 graphics) against its background in **both** themes — this is guarantee T1/T2, verified by test rather than by eye
-- [ ] T027 Add ESLint boundary rules to `eslint.config.js`: `packages/core` may not import `react`, `react-native`, or DOM globals; `apps/*` may not use literal colour/spacing/duration values (enforces Principle VI and FR-018)
-- [ ] T028 [P] Implement the shared, adapter-agnostic port contract suite in `packages/core/testing/port-contract-tests.ts` covering obligations A1–A7, P1–P4, W1–W3 from [contracts/platform-ports.md](./contracts/platform-ports.md) §5
-- [ ] T029 Create the public barrel export in `packages/core/src/index.ts` exposing only the surface named in [contracts/core-api.md](./contracts/core-api.md)
+- [X] T013 [P] Write failing note-math tests in `packages/core/tests/notes.test.ts`: `frequencyOf`/`midiFromFrequency` are exact inverses across A0–C8, `nearestNote(...).cents` always within ±50, `noteName` honours sharp/flat style, `octaveOf` correct at octave boundaries
+- [X] T014 Implement note math in `packages/core/src/notes/frequency.ts` and `packages/core/src/notes/naming.ts` to pass T013; `noteName` MUST be the only place accidental style is applied (contract §1)
+- [X] T015 [P] Write failing tests for `tuningStateOf` and `directionCue` in `packages/core/tests/tuning-state.test.ts`, covering the ±5 cent tolerance edges and the flat→tighten / sharp→loosen mapping
+- [X] T016 Implement `tuningStateOf` and `directionCue` in `packages/core/src/notes/state.ts`; these are the single source of the direction cue (FR-007)
+- [X] T017 [P] Define `TunerStatus`, `PitchReading`, `TuningState`, `AccidentalStyle` in `packages/core/src/types.ts` per [data-model.md](./data-model.md) §2–§4, with `TunerStatus` as a discriminated union
+- [X] T018 [P] Define the `AudioSource` port in `packages/core/src/ports/audio-source.ts` per [contracts/platform-ports.md](./contracts/platform-ports.md) §1, including `AudioSourceError` and `AudioSourceInfo`
+- [X] T019 [P] Define the `PreferencesStore` port in `packages/core/src/ports/preferences-store.ts`
+- [X] T020 [P] Define the `WakeLock` port in `packages/core/src/ports/wake-lock.ts`
+- [X] T021 [P] Implement `ScriptedAudioSource` test double in `packages/core/testing/scripted-audio-source.ts`: replays a `Float32Array` at a controlled rate and can inject any `AudioSourceError` on demand
+- [X] T022 [P] Implement `InMemoryPreferencesStore` and `NoopWakeLock` doubles in `packages/core/testing/`
+- [X] T023 [P] Implement synthetic signal generators in `packages/core/tests/fixtures/signals.ts`: pure sine, sawtooth, harmonically rich tone with a **deliberately weak fundamental**, and additive noise at a specified SNR
+- [X] T024 [P] Define colour tokens with `{ light, dark }` variants for flat/sharp/in-tune/no-reading/background/text/line in `packages/tokens/src/colors.ts`
+- [X] T025 [P] Define spacing, type scale, motion durations, and `a11y.minTouchTarget = 44` in `packages/tokens/src/space.ts`, `type.ts`, `motion.ts`, `a11y.ts`
+- [X] T026 [P] Write the WCAG contrast test in `packages/tokens/tests/contrast.test.ts` asserting every state colour meets AA (4.5:1 text, 3:1 graphics) against its background in **both** themes — this is guarantee T1/T2, verified by test rather than by eye
+- [X] T027 Add ESLint boundary rules to `eslint.config.js`: `packages/core` may not import `react`, `react-native`, or DOM globals; `apps/*` may not use literal colour/spacing/duration values (enforces Principle VI and FR-018)
+- [X] T028 [P] Implement the shared, adapter-agnostic port contract suite in `packages/core/testing/port-contract-tests.ts` covering obligations A1–A7, P1–P4, W1–W3 from [contracts/platform-ports.md](./contracts/platform-ports.md) §5
+- [X] T029 Create the public barrel export in `packages/core/src/index.ts` exposing only the surface named in [contracts/core-api.md](./contracts/core-api.md)
 
-**Checkpoint**: Note math and tokens are tested and green; ports and doubles exist; boundary lint passes. User stories can now begin.
+**Checkpoint**: ✅ **COMPLETE (2026-08-02)**. 95 tests across 5 files, all green in ~190 ms.
+`packages/core` coverage is **100% lines / 97.7% statements / 100% functions**, against the ≥90% gate.
+All eight checks pass: the six gates plus `pnpm build` and the mobile Jest suite.
+
+Two defects were caught by the tests rather than by review, which is the point of writing them first:
+
+- **The colour palette failed its own greyscale requirement.** The first palette separated flat/sharp/in-tune
+  by *hue* but not *luminance* (light-theme flat vs sharp differed by a ratio of 1.01), so in greyscale or with
+  colour-vision deficiency the three states were indistinguishable — a direct SC-009 failure. The palette was
+  rebuilt so the states are separated by lightness as well as hue, and `tests/contrast.test.ts` now asserts
+  both WCAG AA against the background *and* mutual luminance separation.
+- **The signal-fixture oracle was wrong.** The zero-crossing estimator quantised to whole periods, giving a
+  ~10 Hz error at 440 Hz. Replaced with a first-to-last-crossing measurement with sub-sample interpolation.
+
+Two deliberate deviations, both improvements on the task wording:
+
+- **T028's contract suite imports no test runner.** `packages/*` and `apps/web` run under Vitest while
+  `apps/mobile` runs under Jest; a suite tied to either could not be pointed at both real adapters, which
+  T045 requires. Each obligation is a plain async function that throws on violation, and the caller wraps it
+  in whatever `it()` it has.
+- **T027's boundary rules were verified by probe**, not assumed: temporary files importing React into
+  `packages/core` and hard-coding `#ff0000` in `apps/web` were confirmed to produce 5 lint errors, then
+  deleted. A boundary rule that does not actually fire is worse than none.
 
 ---
 
