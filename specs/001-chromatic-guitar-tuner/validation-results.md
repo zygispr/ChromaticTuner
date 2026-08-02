@@ -12,7 +12,7 @@ recorded below as outstanding rather than passed — see [Not verified](#not-ver
 | --- | --- |
 | Unit (`pnpm test`) | **414 passed**, 18 files, 5.3 s |
 | Mobile (`jest-expo`) | **42 passed**, 5 files, 1.2 s |
-| End-to-end (`pnpm test:e2e`) | **44 passed**, 29.5 s |
+| End-to-end (`pnpm test:e2e`) | **46 passed**, 27.7 s |
 | `packages/core` coverage | **100% lines**, 98.5% statements, 94.8% branches |
 | Eight quality gates | all green |
 
@@ -26,7 +26,7 @@ recorded below as outstanding rather than passed — see [Not verified](#not-ver
 | V2 | Reading stability | ✅ pass | Within ±2 cents over 5 s of a steady noisy tone. `stability.test.ts` |
 | V3 | No flicker at the boundary | ✅ pass | One name change per boundary crossing on an E2→D2 sweep, including at 20 dB SNR; **zero** changes while dithering ±2 cents on the midpoint. `filters.test.ts` |
 | V4 | Zero allocation in the hot path | ✅ pass | 10,000 push/analyze cycles, no steady-state heap growth, same `PitchReading` instance returned. `allocation.test.ts` |
-| V5 | End-to-end web tuning | ✅ pass | Real Chromium, fake microphone, three fixtures. `tuning-in-tune/-flat/-sharp.spec.ts` |
+| V5 | End-to-end web tuning | ✅ pass | Real Chromium, fake microphone, three fixtures. Marker **position** is now measured in pixels against the line, not inferred from the presence of a transform — see the note below. `tuning-in-tune/-flat/-sharp.spec.ts` |
 | V6 | Permission paths | ✅ pass | Denied shows explanation + platform recovery steps + retry; granting mid-session recovers with **no reload**. `permissions.spec.ts` |
 | V7 | Latency | ⚠️ **partial — misses the stated targets** | Measured, see [below](#v7-latency-in-detail). On-device leg not run. |
 | V8 | 60 fps under load | ⚠️ partial | Browser: frame time p50 **8.2 ms**, p95 **9.2 ms**, max **19.8 ms** over 20 s of live tuning; React does not re-render per reading. On-device leg not run. `performance.spec.ts` |
@@ -35,6 +35,40 @@ recorded below as outstanding rather than passed — see [Not verified](#not-ver
 | V11 | Accessibility | ⚠️ partial | Axe WCAG 2.1 A/AA clean on the tuner, the settings sheet and the explainer; every control labelled and ≥44 px; full keyboard operation with a visible focus ring. `a11y.spec.ts`. VoiceOver and TalkBack passes not performed. |
 | V12 | Reference pitch | ✅ pass | A4 = 432 reads +32 cents on a 440 Hz string; the indicator is visible; the setting survives a full reload. `settings.spec.ts` |
 | V13 | Thermal and battery | ❌ **not run** | Requires 30 minutes on a physical mid-range phone. |
+
+---
+
+## V5: the marker was in the wrong place, and V5 passed anyway
+
+Recorded here because it is the most important thing this validation run learned, and it was learned
+**after** the run was first written up as complete.
+
+The marker sat on the centre line at −20 cents. The note, the number, the colour and the direction cue were
+all correct; only the one element the whole product is built around was wrong. CSS `translateX(%)` resolves
+against the transformed element's own width, so applying it to the 6 px marker moved it 2.4 px where it
+should have moved 144 px. It had been that way since US1.
+
+**V5 passed throughout**, because the assertion was:
+
+```js
+expect(transform).not.toBe('none'); // satisfied by the centring translateX(-50%)
+```
+
+It checked that a mechanism had fired, not that the user saw the right thing. The same vacuous check had been
+copied into a second spec.
+
+It was found by launching the app, screenshotting it, and looking.
+
+The specs now measure the marker's rendered box against what the readout claims. Three attempts were needed
+to make that honest, and the reasons are properties of the design rather than of the test:
+
+- Reading the number and the geometry in separate round-trips compares two different instants of a marker
+  that moves 43×/second.
+- Even sampled in one frame, a single measurement showed **44 px of disagreement on correct code** — the
+  marker animates over 90 ms by design while the readout is throttled to 10 Hz, so it is legitimately
+  mid-flight most of the time.
+- It now samples across a second and asserts on the median: a transient spoils one sample, a scale error is
+  wrong in all eleven. Reintroducing the bug gives a 136.8 px median against a 20 px tolerance.
 
 ---
 

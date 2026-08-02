@@ -55,6 +55,20 @@ defect it produced was found by an actual offline load rather than shipped.
 UI existed, and the FR-011 flicker showed up as `[40, 39, 40, 39, …]` in a test rather than in someone's
 hands.
 
+**And the clearest evidence of its limit**, found after this review was first written: the marker sat on the
+centre line at −20 cents, and had done since US1. Principle III opens with "correctness MUST be demonstrated
+by automated tests, not by manual inspection" — here the automated tests demonstrated nothing, and manual
+inspection found it in about a second. The E2E assertion was `expect(transform).not.toBe('none')`, which the
+constant centring transform satisfies: it demonstrated that *a mechanism had fired*, not that *the user saw
+the right thing*.
+
+Nothing in this principle is violated by that — the tests exist, they run first, they are deterministic, and
+coverage is 100%. But it is worth stating plainly in the compliance record that **none of those properties
+implies the assertions are meaningful**, and that this project shipped a broken signature element through
+seven phases of them. The corrected specs measure rendered position; the general lesson is that a UI
+assertion phrased against a mechanism rather than an outcome is worth roughly nothing, and no coverage
+number will reveal that.
+
 ## IV. User Experience Consistency — ✅
 
 | Requirement | Evidence |
@@ -110,6 +124,7 @@ the hardware the constitution names. They are release-gate items, not code defec
 | 5 | iOS and Android development builds never compiled | Build verification | **Yes** — mobile is verified only under `jest-expo` with the native module mocked |
 | 6 | Settle time exceeds the quickstart's ~100 ms guidance | Product decision | No — the binding requirement is met; the alternative is measured and recorded |
 | 7 | PWA ships SVG icons only | Cosmetic | No — installability is not a stated requirement |
+| 8 | Audit the remaining UI assertions for the mechanism-vs-outcome flaw | Test quality | No, but it is the cheapest lesson available from this project |
 
 Items 1–5 all need hardware or a human. None is a code change, and none is blocked by anything in the
 repository.

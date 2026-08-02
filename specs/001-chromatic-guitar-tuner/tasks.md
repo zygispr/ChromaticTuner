@@ -439,7 +439,7 @@ final quality work.
 - [X] T100 Final constitution compliance review against v2.0.0 — [constitution-review.md](./constitution-review.md)
 
 **Checkpoint**: ⚠️ **COMPLETE EXCEPT FOR HARDWARE VERIFICATION (2026-08-02)**.
-**414 unit tests**, **42 mobile Jest tests**, and **44 Playwright E2E tests**, all green.
+**414 unit tests**, **42 mobile Jest tests**, and **46 Playwright E2E tests**, all green.
 `packages/core` coverage **100% lines** / 94.8% branches. All eight checks pass.
 
 **T095 is not done, and five other items are only half-done, because no physical phone was available.**
@@ -448,7 +448,34 @@ list is in [validation-results.md](./validation-results.md#not-verified) — on-
 cold start; the 30-minute thermal run; VoiceOver and TalkBack; and the iOS/Android development builds, which
 were never compiled. Mobile is verified only under `jest-expo` with the native module mocked.
 
-Three defects were found by the new automation, none of which review would have caught:
+Four defects were found, none of which review would have caught. **The most serious was not found by any
+test** — it was found by launching the app and looking at a screenshot, after this phase had already been
+recorded as complete with all eight gates green:
+
+- **The marker moved 2.4 px where it should have moved 144 px.** At −20 cents it sat on the centre line
+  while the readout said −20, the cue said TIGHTEN and the colour went blue. CSS `translateX(%)` resolves
+  against the *transformed element's own* width, not its parent's, and the transform was on the 6 px marker —
+  so `translateX(-40%)` was −2.4 px instead of 40% of the line. This is the product's signature element,
+  FR-005 and FR-006, and it had been broken since US1. Mobile was never affected: its Reanimated path
+  computes pixels directly.
+
+  **Every test passed it**, because the assertion was `expect(transform).not.toBe('none')` — satisfied by the
+  constant `translateX(-50%)` that centres the marker. It asserted that *a transform existed*, not that the
+  marker was *where it belonged*, and the same vacuous check had been copied into a second spec. No unit test
+  could have caught this; it exists only in CSS layout.
+
+  The replacement measures the rendered boxes against what the readout claims. Making it honest took three
+  attempts: reading the number and the geometry in separate round-trips compares two different instants of a
+  marker that moves 43×/second; and even sampled in one frame, a single measurement showed **44 px of
+  disagreement on correct code**, because the marker animates over 90 ms by design while the readout is
+  throttled to 10 Hz. It now samples across a second and asserts on the median — a transient spoils one
+  sample, a scale error is wrong in all eleven. Reintroducing the bug produces a 136.8 px median against a
+  20 px tolerance.
+
+  The lesson is the uncomfortable one: seven phases of test-first work, 100% core line coverage and an
+  Axe-clean accessibility pass did not catch a defect that was obvious within one second of looking at a
+  picture of the running app. **A test that asserts a mechanism fired is not a test that the user sees the
+  right thing.**
 
 - **`opacity: 0.55` on a correct colour token measured 3.9:1**, under the 4.5:1 AA floor for 12 px text. The
   words were FLAT and SHARP — two of FR-015's redundant channels, so "decorative" was not an available
