@@ -26,25 +26,34 @@ const MAJOR_TICKS = [-50, 0, 50];
  * second and break the 60 fps budget (Principle V, research D6, guarantee R1).
  */
 export function TuningLine({ state, subscribeToCents }: TuningLineProps) {
-  const markerRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const marker = markerRef.current;
-    if (!marker) return;
+    const track = trackRef.current;
+    if (!track) return;
 
     // FR-016: respect the platform's reduced-motion preference by dropping the
     // transition entirely rather than merely shortening it.
     const reduceMotion =
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    marker.style.transition = reduceMotion
+    track.style.transition = reduceMotion
       ? 'none'
       : `transform ${motion.markerMs}ms ${motion.easing}`;
 
     return subscribeToCents((cents) => {
       const clamped = Math.max(-DISPLAY_RANGE_CENTS, Math.min(DISPLAY_RANGE_CENTS, cents));
+      // Percentage translations resolve against the TRANSFORMED ELEMENT'S OWN
+      // width, not its parent's. Applying this to the 6px marker moved it 2.4px
+      // where it should have moved 144px — a marker that sat on the centre line
+      // no matter how far out of tune the string was, while the number beside
+      // it read -20. The transform therefore goes on this full-width track, for
+      // which a percentage means what it appears to mean.
+      //
+      // Half the track is 50 cents, so cents/50 of half-width is
+      // (cents/50) * 50% = exactly `cents`% of the track.
       const percent = (clamped / DISPLAY_RANGE_CENTS) * 50;
-      marker.style.transform = `translateX(-50%) translateX(${percent * 2}%)`;
+      track.style.transform = `translateX(${percent}%)`;
     });
   }, [subscribeToCents]);
 
@@ -102,23 +111,38 @@ export function TuningLine({ state, subscribeToCents }: TuningLineProps) {
         <TickMark key={`major-${cents}`} cents={cents} major />
       ))}
 
-      {/* The marker. Position is written imperatively; only its colour is React. */}
+      {/*
+        A full-width track carrying the marker. The transform is written
+        imperatively HERE rather than on the marker, because a percentage
+        translation is relative to the element's own width — see the effect
+        above. Only the marker's colour comes from React.
+      */}
       <div
-        ref={markerRef}
-        data-testid="tuning-marker"
+        ref={trackRef}
+        data-testid="tuning-track"
         style={{
           position: 'absolute',
-          left: '50%',
+          left: 0,
+          right: 0,
           top: '50%',
-          width: 6,
-          height: 72,
-          marginTop: -36,
-          borderRadius: 3,
-          background: stateColorVar[state],
-          transform: 'translateX(-50%)',
+          height: 0,
           willChange: 'transform',
         }}
-      />
+      >
+        <div
+          data-testid="tuning-marker"
+          style={{
+            position: 'absolute',
+            left: '50%',
+            width: 6,
+            height: 72,
+            marginTop: -36,
+            marginLeft: -3,
+            borderRadius: 3,
+            background: stateColorVar[state],
+          }}
+        />
+      </div>
 
       <div
         aria-hidden="true"

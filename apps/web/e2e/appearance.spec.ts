@@ -1,7 +1,7 @@
 import { color } from '@chromatic-tuner/tokens';
 import { expect, test, type Page } from '@playwright/test';
 
-import { audioArgs, waitForNote } from './helpers';
+import { audioArgs, markerOffsetPx, waitForNote } from './helpers';
 
 test.use(audioArgs('e2-in-tune.wav'));
 
@@ -84,10 +84,9 @@ test('the tuning state is legible without colour at all (V10, SC-009)', async ({
   await expect(page.getByTestId('direction-cue')).toContainText(/in tune|tighten|loosen/i);
   await expect(page.getByTestId('cents-readout')).toContainText(/-?\d/);
 
-  const transform = await page
-    .getByTestId('tuning-marker')
-    .evaluate((el) => getComputedStyle(el).transform);
-  expect(transform).not.toBe('none');
+  // Position, measured in pixels — the actual non-colour channel. Asserting
+  // that "a transform exists" would pass on a marker welded to the centre.
+  expect(Math.abs(await markerOffsetPx(page))).toBeLessThan(20);
 
   await client.send('Emulation.setEmulatedVisionDeficiency', { type: 'none' });
 });

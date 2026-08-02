@@ -32,10 +32,13 @@ test('the marker moves without re-rendering React (guarantee R1)', async ({ page
     const counts = { marker: 0, other: 0 };
     (window as unknown as { __counts: typeof counts }).__counts = counts;
 
-    const marker = document.querySelector('[data-testid="tuning-marker"]');
+    // The continuous channel writes to the TRACK carrying the marker, because a
+    // percentage translation resolves against the transformed element's own
+    // width — see TuningLine.
+    const track = document.querySelector('[data-testid="tuning-track"]');
     new MutationObserver((records) => {
       for (const record of records) {
-        if (record.target === marker) counts.marker += 1;
+        if (record.target === track) counts.marker += 1;
         else counts.other += 1;
       }
     }).observe(document.body, {

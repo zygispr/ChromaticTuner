@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { audioArgs, readCents, waitForNote } from './helpers';
+import { audioArgs, expectMarkerAtCents, markerOffsetPx, readCents, waitForNote } from './helpers';
 
 test.use(audioArgs('e2-flat-20.wav'));
 
@@ -15,15 +15,16 @@ test('a string 20 cents flat reads negative and says tighten', async ({ page }) 
   await expect(page.getByTestId('direction-cue')).toContainText(/tighten/i);
 });
 
-test('moves the marker left of centre via a transform, not React state', async ({ page }) => {
+test('puts the marker where the reading says it is (FR-005, FR-006)', async ({ page }) => {
   await page.goto('/');
   await waitForNote(page, 'E');
 
-  // The marker is positioned by writing `transform` directly to the node, so a
-  // non-identity matrix here is evidence the continuous channel is wired up
-  // (guarantee R1, research D6).
-  const transform = await page
-    .getByTestId('tuning-marker')
-    .evaluate((el) => getComputedStyle(el).transform);
-  expect(transform).not.toBe('none');
+  // Measured in pixels against the line, not asserted as "a transform exists".
+  // The earlier version of this test checked `transform !== 'none'`, which is
+  // satisfied by the constant centring transform — so a marker that never moved
+  // at all passed it for seven phases. See markerOffsetPx in ./helpers.
+  await expectMarkerAtCents(page);
+
+  // And it is genuinely on the flat side, not merely near the right number.
+  expect(await markerOffsetPx(page)).toBeLessThan(-20);
 });

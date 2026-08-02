@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { audioArgs, readCents, waitForNote } from './helpers';
+import { audioArgs, readCents, waitForNote, expectMarkerAtCents } from './helpers';
 
 test.use(audioArgs('e2-in-tune.wav'));
 
@@ -41,4 +41,17 @@ test('communicates tuning state through text as well as colour (FR-015)', async 
   // display is colour-dependent and fails SC-009 in greyscale.
   await expect(page.getByTestId('cents-readout')).not.toBeEmpty();
   await expect(page.getByTestId('direction-cue')).not.toBeEmpty();
+});
+
+test('centres the marker when the string is in tune', async ({ page }) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  // The complement of the flat and sharp cases: at ~0 cents the marker must sit
+  // on the centre line, which is the one position a broken implementation also
+  // produces — so it is asserted alongside them, never alone.
+  //
+  // 15px is about 2 cents at this width. Tighter than that and the test chases
+  // the reading's own jitter; the failure it exists to catch is off by 144px.
+  await expectMarkerAtCents(page);
 });
