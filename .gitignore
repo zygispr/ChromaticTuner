@@ -1,0 +1,52 @@
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Claude Code local settings
+.claude/settings.local.json
+.claude/*.local.json
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# Logs & temp
+*.log
+logs/
+tmp/
+temp/
+*.swp
+*~
+
+# Build output
+build/
+dist/
+target/
+bin/
+obj/
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
