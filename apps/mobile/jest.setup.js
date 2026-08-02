@@ -50,6 +50,14 @@ jest.mock('react-native-audio-api', () => {
   };
 });
 
+// AsyncStorage is a native module. The package ships its own in-memory mock,
+// which is exactly the right fidelity here: the adapter is thin, and what needs
+// proving is that it satisfies the port contract, not that the native store
+// works.
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
+
 jest.mock('expo-keep-awake', () => ({
   activateKeepAwakeAsync: jest.fn(async () => {}),
   deactivateKeepAwake: jest.fn(async () => {}),

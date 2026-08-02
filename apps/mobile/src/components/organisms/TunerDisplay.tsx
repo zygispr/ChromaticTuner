@@ -1,12 +1,15 @@
-import { useTuner } from '@chromatic-tuner/react';
+import { usePreferences, useTuner } from '@chromatic-tuner/react';
 import { space } from '@chromatic-tuner/tokens';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { CentsReadout } from '../atoms/CentsReadout';
 import { DirectionCue } from '../atoms/DirectionCue';
 import { NoteLabel } from '../atoms/NoteLabel';
+import { ReferenceBadge } from '../atoms/ReferenceBadge';
 import { StatusBanner } from '../molecules/StatusBanner';
 import { TuningLine } from '../molecules/TuningLine';
+import { SettingsScreen } from '../screens/SettingsScreen';
 
 /**
  * The whole tuner in one screen, mirroring the web organism exactly.
@@ -20,15 +23,27 @@ import { TuningLine } from '../molecules/TuningLine';
 export function TunerDisplay() {
   const { status, note, octave, tuningState, direction, cents, subscribeToCents, retry } =
     useTuner();
+  const { a4Hz, isNonStandardReference } = usePreferences();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <View testID="tuner-display" style={styles.container}>
+      {/* Above the note so a non-standard reference is read before the reading
+          it silently changes the meaning of (FR-022). */}
+      <ReferenceBadge
+        a4Hz={a4Hz}
+        isNonStandard={isNonStandardReference}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+
       <NoteLabel note={note} octave={octave} state={tuningState} />
       <CentsReadout cents={cents} subscribeToCents={subscribeToCents} />
       <TuningLine state={tuningState} subscribeToCents={subscribeToCents} />
       <DirectionCue direction={direction} state={tuningState} />
 
       <StatusBanner status={status} onRetry={retry} />
+
+      <SettingsScreen open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </View>
   );
 }

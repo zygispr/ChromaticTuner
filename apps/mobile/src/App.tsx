@@ -1,11 +1,13 @@
 import { TunerProvider } from '@chromatic-tuner/react';
 
+import { AsyncStoragePreferences } from './adapters/async-storage-preferences';
 import { ExpoWakeLock } from './adapters/expo-wake-lock';
 import { RNAudioSource } from './adapters/rn-audio-source';
 import { TunerScreen } from './components/screens/TunerScreen';
 
 const audioSource = new RNAudioSource();
 const wakeLock = new ExpoWakeLock();
+const preferences = new AsyncStoragePreferences();
 
 /**
  * autoStart is off because `TunerGate` decides when to open the microphone:
@@ -14,7 +16,12 @@ const wakeLock = new ExpoWakeLock();
  */
 export default function App() {
   return (
-    <TunerProvider audioSource={audioSource} wakeLock={wakeLock} autoStart={false}>
+    <TunerProvider
+      audioSource={audioSource}
+      wakeLock={wakeLock}
+      preferences={preferences}
+      autoStart={false}
+    >
       <TunerScreen />
     </TunerProvider>
   );

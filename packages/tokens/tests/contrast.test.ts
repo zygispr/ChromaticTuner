@@ -92,10 +92,22 @@ describe('state colours are distinguishable from each other', () => {
 
 describe('token shape', () => {
   it('defines every state colour in both themes', () => {
+    // Six digits, or eight where a token carries alpha — the scrim behind the
+    // settings sheet is the only one that does, and 8-digit hex is the one
+    // notation both CSS and React Native accept unchanged.
     for (const themed of Object.values(color)) {
       for (const theme of THEMES) {
-        expect(themed[theme]).toMatch(/^#[0-9a-fA-F]{6}$/);
+        expect(themed[theme]).toMatch(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/);
       }
+    }
+  });
+
+  it('keeps the scrim translucent, since an opaque one would hide the tuner', () => {
+    for (const theme of THEMES) {
+      const alpha = color.scrim[theme].slice(7);
+      expect(alpha).toHaveLength(2);
+      expect(parseInt(alpha, 16)).toBeGreaterThan(0);
+      expect(parseInt(alpha, 16)).toBeLessThan(255);
     }
   });
 

@@ -2,6 +2,7 @@ import { TunerProvider } from '@chromatic-tuner/react';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { LocalStoragePreferences } from './adapters/local-storage-preferences';
 import { WebAudioSource } from './adapters/web-audio-source';
 import { WebWakeLock } from './adapters/web-wake-lock';
 import { TunerPage } from './components/pages/TunerPage';
@@ -34,6 +35,7 @@ createRoot(container).render(
     <TunerProvider
       audioSource={new WebAudioSource()}
       wakeLock={new WebWakeLock()}
+      preferences={new LocalStoragePreferences()}
       autoStart={false}
     >
       <TunerPage />

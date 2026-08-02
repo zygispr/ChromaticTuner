@@ -46,6 +46,13 @@ export interface UseTunerResult {
 }
 
 export interface UseTunerOptions {
+  /**
+   * Override the user's stored accidental preference for this consumer only.
+   *
+   * Rarely wanted: FR-023 requires the choice to apply everywhere a note is
+   * shown, and the default already reads it from the provider. It exists for
+   * tests and for a hypothetical side-by-side comparison.
+   */
   readonly accidentalStyle?: AccidentalStyle;
 }
 
@@ -58,7 +65,10 @@ export function useTuner(options: UseTunerOptions = {}): UseTunerResult {
   }
 
   const { session } = context;
-  const accidentalStyle = options.accidentalStyle ?? 'sharp';
+  // Defaults to the user's stored choice rather than to 'sharp', so FR-023's
+  // "everywhere a note is shown" holds by construction: any screen using this
+  // hook already spells accidentals the way the user asked.
+  const accidentalStyle = options.accidentalStyle ?? context.preferences.accidentalStyle;
 
   const [status, setStatus] = useState<TunerStatus>(session.status);
 

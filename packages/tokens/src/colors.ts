@@ -34,6 +34,17 @@ export const color = {
   text: { light: '#16181D', dark: '#F2F4F8' },
   /** The horizontal line itself and its tick marks. */
   line: { light: '#7A818F', dark: '#6B7280' },
+
+  /**
+   * Dims the tuner behind the settings sheet.
+   *
+   * The only token carrying alpha, which is what a scrim is: 8-digit hex works
+   * verbatim in both CSS and React Native styles, so the two platforms dim by
+   * exactly the same amount rather than each picking a plausible-looking value
+   * (Principle IV, FR-018). Never a foreground colour, so the AA contrast rule
+   * does not apply to it.
+   */
+  scrim: { light: '#00000073', dark: '#00000099' },
 } as const satisfies Record<string, ThemedColor>;
 
 export type ColorToken = keyof typeof color;

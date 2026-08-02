@@ -162,4 +162,37 @@ describe('accuracy: reference pitch is honoured', () => {
     const at432 = analyzeSignal(analyzer, signal);
     expect(at432!.cents).toBeCloseTo(31.77, 0);
   });
+
+  it('does not blank the display while the reference pitch is being dragged (T086, N7)', () => {
+    // The user drags an A4 slider: dozens of changes a second, against a string
+    // that is still ringing. Discarding buffered audio on each one would make
+    // the note name flicker to nothing for the whole gesture — the display
+    // would be blank exactly while the user is watching it to judge the effect.
+    const analyzer = makeAnalyzer(440);
+    const signal = sine({ frequency: 440, sampleRate: SAMPLE_RATE, length: SETTLE_LENGTH });
+
+    // Fill the window and settle first, as a live session would be.
+    expect(analyzeSignal(analyzer, signal)).not.toBeNull();
+
+    let now = 1000;
+    for (let hz = 440; hz >= 415; hz -= 1) {
+      analyzer.setReferencePitch(hz);
+      analyzer.push(signal.subarray(0, 1024));
+      now += 23;
+
+      expect(analyzer.analyze(now), `reading lost at A4 = ${hz} Hz`).not.toBeNull();
+    }
+  });
+
+  it('reports the same physical pitch under any reference, only named differently', () => {
+    // A 440 Hz tone is a 440 Hz tone. Changing A4 changes what we CALL it, and
+    // must never change the frequency we claim to have measured.
+    const signal = sine({ frequency: 440, sampleRate: SAMPLE_RATE, length: SETTLE_LENGTH });
+
+    for (const a4Hz of [415, 432, 440, 466]) {
+      const reading = analyzeSignal(makeAnalyzer(a4Hz), signal);
+      expect(reading).not.toBeNull();
+      expect(reading!.frequency).toBeCloseTo(440, 0);
+    }
+  });
 });

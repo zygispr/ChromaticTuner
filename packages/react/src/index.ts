@@ -14,7 +14,8 @@ export type { TunerProviderProps } from './TunerProvider';
 export { useTuner } from './useTuner';
 export type { UseTunerOptions, UseTunerResult } from './useTuner';
 
-export { TunerContext } from './TunerContext';
-export type { TunerContextValue } from './TunerContext';
+export { usePreferences } from './usePreferences';
+export type { UsePreferencesResult } from './usePreferences';
 
-// Phase 6 adds: usePreferences (T083).
+export { TunerContext } from './TunerContext';
+export type { PreferencesContextValue, TunerContextValue } from './TunerContext';

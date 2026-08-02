@@ -359,21 +359,65 @@ visible, and the setting survives a restart. Toggle accidentals and confirm ever
 
 ### Tests for User Story 4 ⚠️ MUST FAIL FIRST
 
-- [ ] T080 [P] [US4] Write failing preferences tests in `packages/core/tests/preferences.test.ts`: out-of-range A4 clamps, corrupt or absent stored data resolves to defaults without throwing (obligation P1), and `schemaVersion` is written
-- [ ] T081 [P] [US4] Write failing reference-pitch tests in `packages/core/tests/accuracy.test.ts`: with A4 = 432, a 440 Hz tone reads ~+32 cents (V12)
+- [X] T080 [P] [US4] Write failing preferences tests in `packages/core/tests/preferences.test.ts`: out-of-range A4 clamps, corrupt or absent stored data resolves to defaults without throwing (obligation P1), and `schemaVersion` is written
+- [X] T081 [P] [US4] Write failing reference-pitch tests in `packages/core/tests/accuracy.test.ts`: with A4 = 432, a 440 Hz tone reads ~+32 cents (V12) — **note**: the ±32 cent assertion already existed and passed, because `setReferencePitch` shipped in US1; what was genuinely missing and is added here is that dragging the reference never blanks the display, and that the reported *frequency* is unchanged by the reference
 
 ### Implementation for User Story 4
 
-- [ ] T082 [US4] Implement the `Preferences` model with validation and defaulting in `packages/core/src/preferences.ts`, exposing the derived `isNonStandardReference` flag (data-model §6)
-- [ ] T083 [US4] Implement `usePreferences` in `packages/react/src/usePreferences.ts` with `setA4Hz` clamping rather than rejecting (guarantee R4)
-- [ ] T084 [P] [US4] Implement `LocalStoragePreferences` in `apps/web/src/adapters/local-storage-preferences.ts`
-- [ ] T085 [P] [US4] Implement `AsyncStoragePreferences` in `apps/mobile/src/adapters/async-storage-preferences.ts`
-- [ ] T086 [US4] Propagate `setReferencePitch` from preferences into the live analyzer without discarding buffered audio, so changing A4 does not blank the display (guarantee N7)
-- [ ] T087 [P] [US4] Implement the `SettingsSheet` organism in `apps/web/src/components/organisms/SettingsSheet.tsx`: A4 control across 415–466 Hz, accidental toggle, reset to defaults
-- [ ] T088 [P] [US4] Implement the settings screen in `apps/mobile/src/components/screens/SettingsScreen.tsx`
-- [ ] T089 [P] [US4] Add the persistent non-standard-reference indicator to the tuner screen in both apps (FR-022)
+- [X] T082 [US4] Implement the `Preferences` model with validation and defaulting in `packages/core/src/preferences.ts`, exposing the derived `isNonStandardReference` flag (data-model §6)
+- [X] T083 [US4] Implement `usePreferences` in `packages/react/src/usePreferences.ts` with `setA4Hz` clamping rather than rejecting (guarantee R4)
+- [X] T084 [P] [US4] Implement `LocalStoragePreferences` in `apps/web/src/adapters/local-storage-preferences.ts`
+- [X] T085 [P] [US4] Implement `AsyncStoragePreferences` in `apps/mobile/src/adapters/async-storage-preferences.ts`
+- [X] T086 [US4] Propagate `setReferencePitch` from preferences into the live analyzer without discarding buffered audio, so changing A4 does not blank the display (guarantee N7)
+- [X] T087 [P] [US4] Implement the `SettingsSheet` organism in `apps/web/src/components/organisms/SettingsSheet.tsx`: A4 control across 415–466 Hz, accidental toggle, reset to defaults
+- [X] T088 [P] [US4] Implement the settings screen in `apps/mobile/src/components/screens/SettingsScreen.tsx` — **deviation**: a stepper rather than a slider, because React Native ships no slider and a stepper is what can actually be operated to the hertz with a thumb
+- [X] T089 [P] [US4] Add the persistent non-standard-reference indicator to the tuner screen in both apps (FR-022)
 
-**Checkpoint**: All four user stories are independently functional.
+**Checkpoint**: ✅ **COMPLETE (2026-08-02)**. All four user stories are independently functional.
+**394 unit tests**, **42 mobile Jest tests**, and **23 Playwright E2E tests**, all green.
+`packages/core` coverage 98.8% lines / 91.1% branches. All eight checks pass.
+
+**Test-first was observed**: `preferences.test.ts` could not even resolve its import before `preferences.ts`
+existed, and its 21 assertions drove the model's shape.
+
+Two things the design had to reconcile rather than simply implement:
+
+- **Clamping and defaulting are different answers to different questions.** T080 asks for clamping, data-model
+  §6 asks for defaulting, and both are right: an out-of-range *number* (500) expresses a direction, so it
+  clamps to 466; a value that is not a finite number has no nearest valid value, so it falls back to 440.
+  `normalizePreferences` also repairs fields independently — a corrupt reference pitch is no reason to discard
+  a perfectly good accidental preference the user actually chose.
+- **Obligation P2 conflicts with Principle I unless the failure is reported.** "A save failure must not block
+  tuning" and "no silent catch" are only compatible if the outcome travels somewhere, so `savePreferences`
+  returns a boolean and `usePreferences` exposes `persistenceFailed`. Both settings screens say the choice
+  will not be remembered rather than lying by silence. This is a small, deliberate addition to the contract's
+  stated `usePreferences` shape.
+
+Three deliberate design decisions:
+
+- **Preference state lives in `TunerProvider`, not in `usePreferences`.** One source of truth means the
+  reference pitch the analyzer is using and the one the settings screen shows cannot drift, and it makes T086
+  fall out for free — the same state that renders the badge is the state pushed into the live analyzer.
+- **`useTuner` defaults its accidental style to the stored preference** rather than to `'sharp'`. FR-023's
+  "everywhere a note is shown" is then structural: any screen using the hook already spells accidentals the
+  way the user asked, with no per-screen wiring to forget.
+- **The web preferences adapter is verified by Playwright, not by the headless contract suite**, for the same
+  reason `WebAudioSource` is (T045): the Vitest projects cover `packages/*` only, and obligation P4 is
+  specifically about surviving a full restart — which only a real browser reload demonstrates. The mobile
+  adapter runs the shared suite under Jest.
+
+One defect and one long detour, both worth recording:
+
+- **A hard-coded modal scrim broke the T027 boundary rule**, which is the rule working: `rgba(0,0,0,0.45)` on
+  mobile and a `color-mix()` on web were two different values for the same thing. Added a `scrim` token —
+  the only one carrying alpha, since 8-digit hex is the one notation CSS and React Native both accept
+  unchanged — and the token-shape test now allows it.
+- **Consecutive state updates appear to stop working under `jest-expo`.** A settings stepper pressed twice
+  moved once: the second `setStored` was called with the right value and React never re-rendered. Wrapping
+  `fireEvent.press` in `act` fixes it, and the same interaction steps correctly in a real browser, which the
+  Playwright V12 spec exercises by setting the reference twice in one session. So it is an artifact of the
+  act environment, not the product — but it cost an hour to establish that, and the `press` helper in
+  `apps/mobile/__tests__/settings.test.tsx` documents it so the next person does not repeat the investigation.
 
 ---
 

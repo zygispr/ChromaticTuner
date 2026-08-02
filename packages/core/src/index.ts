@@ -64,6 +64,20 @@ export type { AnalyzerOptions } from './dsp/pitch-analyzer';
 
 // --- Session orchestration (contract §3) ---
 export { TunerSession } from './tuning/session';
-export type { ReadingHandler, StatusHandler, TunerSessionDeps } from './tuning/session';
+export type {
+  ReadingHandler,
+  ScheduleRetry,
+  StatusHandler,
+  TunerSessionDeps,
+} from './tuning/session';
 
-// Phase 6 adds: the Preferences model (data-model §6).
+// --- Preferences (data-model §6) ---
+export {
+  DEFAULT_PREFERENCES,
+  PREFERENCES_SCHEMA_VERSION,
+  clampA4Hz,
+  isNonStandardReference,
+  loadPreferences,
+  normalizePreferences,
+  savePreferences,
+} from './preferences';
