@@ -1,0 +1,7 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+# unrs-resolver is a native resolver used by the ESLint toolchain; its install
+# script unpacks the prebuilt binary for this platform.
+allowBuilds:
+  unrs-resolver: true

@@ -34,20 +34,34 @@ Monorepo per [plan.md](./plan.md#source-code-repository-root): `packages/core`, 
 
 **Purpose**: Monorepo scaffolding and the quality gates that every later task is measured against.
 
-- [ ] T001 Create pnpm workspace root: `pnpm-workspace.yaml` listing `packages/*` and `apps/*`, plus root `package.json` with the `lint`, `format:check`, `typecheck`, `test`, `test:coverage`, `test:e2e` scripts from quickstart.md
-- [ ] T002 [P] Create `tsconfig.base.json` at repo root with `strict: true`, `noUncheckedIndexedAccess`, ES2022 target, and workspace path aliases
-- [ ] T003 [P] Create base ESLint flat config in `eslint.config.js` with TypeScript rules; CI invocation must use `--max-warnings 0` (Principle I)
-- [ ] T004 [P] Create `.prettierrc` and `.prettierignore` at repo root
-- [ ] T005 [P] Scaffold `packages/core`: `package.json` (name `@chromatic-tuner/core`, dependency `pitchy@^4.1.0`), `tsconfig.json`, `vitest.config.ts`
-- [ ] T006 [P] Scaffold `packages/tokens`: `package.json` (name `@chromatic-tuner/tokens`, **zero runtime dependencies**), `tsconfig.json`, `vitest.config.ts`
-- [ ] T007 [P] Scaffold `packages/react`: `package.json` (name `@chromatic-tuner/react`, peer dep `react@^19`), `tsconfig.json`, `vitest.config.ts`
-- [ ] T008 Scaffold `apps/web`: Vite + React 19 + TypeScript in `apps/web/`, with workspace deps on core/tokens/react
-- [ ] T009 Scaffold `apps/mobile`: Expo SDK 57 project in `apps/mobile/`, pin `react-native-audio-api@0.13.2`, add its Expo config plugin to `app.json`, declare `NSMicrophoneUsageDescription` and `android.permission.RECORD_AUDIO`, and add `react-native-reanimated`
-- [ ] T010 [P] Configure Vitest coverage in `vitest.workspace.ts` with a ≥90% line threshold scoped to `packages/core`
-- [ ] T011 [P] Configure `jest-expo` preset in `apps/mobile/jest.config.js` with a module mock for `react-native-audio-api`
-- [ ] T012 Create CI workflow in `.github/workflows/ci.yml` running lint, format:check, typecheck, test, test:coverage, test:e2e — all six must pass to merge
+- [X] T001 Create pnpm workspace root: `pnpm-workspace.yaml` listing `packages/*` and `apps/*`, plus root `package.json` with the `lint`, `format:check`, `typecheck`, `test`, `test:coverage`, `test:e2e` scripts from quickstart.md
+- [X] T002 [P] Create `tsconfig.base.json` at repo root with `strict: true`, `noUncheckedIndexedAccess`, ES2022 target, and workspace path aliases
+- [X] T003 [P] Create base ESLint flat config in `eslint.config.js` with TypeScript rules; CI invocation must use `--max-warnings 0` (Principle I)
+- [X] T004 [P] Create `.prettierrc` and `.prettierignore` at repo root
+- [X] T005 [P] Scaffold `packages/core`: `package.json` (name `@chromatic-tuner/core`, dependency `pitchy@^4.1.0`), `tsconfig.json`, `vitest.config.ts`
+- [X] T006 [P] Scaffold `packages/tokens`: `package.json` (name `@chromatic-tuner/tokens`, **zero runtime dependencies**), `tsconfig.json`, `vitest.config.ts`
+- [X] T007 [P] Scaffold `packages/react`: `package.json` (name `@chromatic-tuner/react`, peer dep `react@^19`), `tsconfig.json`, `vitest.config.ts`
+- [X] T008 Scaffold `apps/web`: Vite + React 19 + TypeScript in `apps/web/`, with workspace deps on core/tokens/react
+- [X] T009 Scaffold `apps/mobile`: Expo SDK 57 project in `apps/mobile/`, pin `react-native-audio-api@0.13.2`, add its Expo config plugin to `app.json`, declare `NSMicrophoneUsageDescription` and `android.permission.RECORD_AUDIO`, and add `react-native-reanimated`
+- [X] T010 [P] Configure Vitest coverage in `vitest.config.ts` with a ≥90% line threshold scoped to `packages/core` — **deviation**: `vitest.workspace.ts` was removed in Vitest 4; the current equivalent is `test.projects` in the root `vitest.config.ts`
+- [X] T011 [P] Configure `jest-expo` preset in `apps/mobile/jest.config.js` with a module mock for `react-native-audio-api`
+- [X] T012 Create CI workflow in `.github/workflows/ci.yml` running lint, format:check, typecheck, test, test:coverage, test:e2e — all six must pass to merge
 
-**Checkpoint**: `pnpm install` succeeds and all six gate commands run (trivially) green.
+**Checkpoint**: ✅ **COMPLETE (2026-08-02)**. `pnpm install` resolves with **no peer dependency issues**, and
+all six gates plus `pnpm build` and the mobile Jest suite pass. Unit suite runs in ~1 s against the 60 s budget.
+
+Pinned versions resolved during setup: pnpm 11.18.0, TypeScript 5.9.3, ESLint 10.8.0, Prettier 3.9.6,
+Vitest 4.1.10, Vite 8.2.0, Expo 57.0.9, React Native 0.86.2, React 19.2.8, pitchy 4.1.0.
+
+Three dependency corrections were required against the plan's stated versions:
+
+- `react-native-reanimated` → **~4.5.3** (4.2.x peers `react-native 0.80–0.84`, which excludes RN 0.86)
+- `react-native-worklets` → **~0.10.3**, added explicitly — the only range satisfying both reanimated
+  (`0.10.x–0.11.x`) and `expo-modules-core` (`≤0.10.x`)
+- `jest` → **^29.7.0**, not 30 — `jest-expo@57` is built against Jest 29 throughout
+
+TypeScript is held at **5.9**, not the available 7.0: `typescript-eslint@8` declares `typescript <6.1.0`, so
+TS 7 would break the lint gate. This matches the plan's stated "TypeScript 5.x".
 
 ---
 

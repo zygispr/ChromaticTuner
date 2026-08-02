@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "types": ["jest"]
+  },
+  // metro.config.js and babel.config.js are excluded: their inferred types
+  // reference pnpm's nested store paths and cannot be named portably (TS2742).
+  // They remain covered by ESLint.
+  "include": ["src/**/*", "__tests__/**/*", "index.js"]
+}

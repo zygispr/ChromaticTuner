@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+coverage/
+.expo/
+playwright-report/
+test-results/
+pnpm-lock.yaml
+*.min.js
+
+# Spec Kit artifacts are hand-formatted prose; Prettier reflows them badly.
+specs/
+.specify/
+
+# Vendor-supplied agent skill definitions — not our source to reformat.
+.claude/
