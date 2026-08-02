@@ -46,7 +46,7 @@ export function TunerDisplay() {
       }}
     >
       <NoteLabel note={note} octave={octave} state={tuningState} />
-      <CentsReadout cents={cents} />
+      <CentsReadout cents={cents} subscribeToCents={subscribeToCents} />
       <TuningLine state={tuningState} subscribeToCents={subscribeToCents} />
       <DirectionCue direction={direction} state={tuningState} />
 

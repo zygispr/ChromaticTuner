@@ -148,7 +148,11 @@ export class PitchAnalyzer {
     const filtered = this.filter.accept(inRange ? candidate : null, now);
     if (filtered === null) return null;
 
-    const midi = Math.round(filtered.exactMidi);
+    // The displayed note comes from the filter's hysteresis stage, not from
+    // rounding: near a semitone boundary the two deliberately disagree, and
+    // deviation must be measured against the note actually being NAMED or the
+    // marker would contradict the label (FR-011).
+    const midi = filtered.displayedMidi;
     const cents = (filtered.exactMidi - midi) * 100;
 
     this.reading.frequency = filtered.frequency;

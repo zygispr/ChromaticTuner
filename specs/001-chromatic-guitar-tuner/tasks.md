@@ -206,18 +206,60 @@ midpoints, full-width marker sweep between changes, and zero name changes while 
 
 ### Tests for User Story 2 ⚠️ MUST FAIL FIRST
 
-- [ ] T057 [P] [US2] Write failing semitone-sweep tests in `packages/core/tests/filters.test.ts`: name changes once per boundary crossing on an E2→D2 sweep, and the marker sweeps the full ±50 cent width between changes (V3)
-- [ ] T058 [P] [US2] Write failing boundary-dither tests in `packages/core/tests/filters.test.ts`: a tone dithering ±2 cents around the E2/E♭2 midpoint produces **zero** name changes (FR-011)
-- [ ] T059 [P] [US2] Write failing octave-rejection tests in `packages/core/tests/filters.test.ts`: a weak-fundamental low-E tone never reports the harmonic or the wrong octave
+- [X] T057 [P] [US2] Write failing semitone-sweep tests in `packages/core/tests/filters.test.ts`: name changes once per boundary crossing on an E2→D2 sweep, and the marker sweeps the full ±50 cent width between changes (V3)
+- [X] T058 [P] [US2] Write failing boundary-dither tests in `packages/core/tests/filters.test.ts`: a tone dithering ±2 cents around the E2/E♭2 midpoint produces **zero** name changes (FR-011)
+- [X] T059 [P] [US2] Write failing octave-rejection tests in `packages/core/tests/filters.test.ts`: a weak-fundamental low-E tone never reports the harmonic or the wrong octave
 
 ### Implementation for User Story 2
 
-- [ ] T060 [US2] Add the `displayedMidi` hysteresis stage to `packages/core/src/tuning/filters.ts` — the displayed note changes only once the pitch crosses the midpoint by ~3 cents (research D7 stage 4, data-model §5)
-- [ ] T061 [US2] Add the octave sanity check to `packages/core/src/tuning/filters.ts` — reject a ±1200 cent jump from the previous confident reading unless clarity is decisively better (research D7 stage 2)
-- [ ] T062 [US2] Verify the direction cue stays unambiguous across a multi-semitone sweep and add the assertion to `packages/core/tests/tuning-state.test.ts` (SC-008)
-- [ ] T063 [P] [US2] Add a Playwright sweep E2E in `apps/web/e2e/retune.spec.ts` using a swept-tone WAV fixture covering E2→D2
+- [X] T060 [US2] Add the `displayedMidi` hysteresis stage to `packages/core/src/tuning/filters.ts` — the displayed note changes only once the pitch crosses the midpoint by ~3 cents (research D7 stage 4, data-model §5)
+- [X] T061 [US2] Add the octave sanity check to `packages/core/src/tuning/filters.ts` — reject a ±1200 cent jump from the previous confident reading unless clarity is decisively better (research D7 stage 2)
+- [X] T062 [US2] Verify the direction cue stays unambiguous across a multi-semitone sweep and add the assertion to `packages/core/tests/tuning-state.test.ts` (SC-008)
+- [X] T063 [P] [US2] Add a Playwright sweep E2E in `apps/web/e2e/retune.spec.ts` using a swept-tone WAV fixture covering E2→D2
 
-**Checkpoint**: Alternate tunings are reachable by ear-free retuning. US1 and US2 both work independently.
+**Checkpoint**: ✅ **COMPLETE (2026-08-02)**. Alternate tunings are reachable by ear-free retuning; US1 and US2
+both work independently. **331 unit tests**, 12 mobile Jest tests, and **10 Playwright E2E tests**, all green.
+`packages/core` coverage 98.6% lines, with `filters.ts` at **100% lines / 97.1% branches**. All eight checks pass.
+
+The filter chain is now the full five stages of research D7, in the order contract N4 specifies.
+
+**Test-first was observed**: 14 of the 19 new tests failed before the implementation landed. The dither case
+failed by producing `[40, 39, 40, 39, …]` — 24 name changes in three seconds, which is exactly the FR-011
+flicker in the raw.
+
+One defect was found, and only by driving the real browser:
+
+- **The numeric cents readout was frozen for most of a retune.** `useTuner().cents` comes from the *discrete*
+  status channel, which `TunerSession` republishes only when the note name or the flat/in-tune/sharp state
+  changes. So while a string swept from D♯ down through a full semitone, the marker travelled to the end of
+  the line while the number beside it still read **−5**. The E2E test measured a minimum of −5 cents where it
+  expected −50. Both readouts now follow the continuous channel, written imperatively on web exactly as the
+  marker transform is, and throttled to 10 Hz so the last digit does not strobe on a held note (FR-010). This
+  was latent from US1: no unit test could see it, because it only exists in the wiring between the session's
+  two channels and the DOM.
+
+Two deliberate deviations from the task and research wording:
+
+- **The octave check's tolerance is ±10 cents, not the ±2 research D7 names.** A harmonic lock lands on
+  precisely 2× or 0.5× the fundamental, so ±2 is right in the abstract — but the comparison is against the
+  previous frame one hop (~23 ms) earlier, and during a retune the pitch is genuinely moving while the
+  detector's own error differs between a clean frame and a locked one. At ±2 the check simply would not fire
+  on the signals it exists for. Ten cents is still far tighter than any interval a player reaches for.
+- **A rejected octave is treated as "no candidate this frame", not as a permanent veto.** A player who really
+  does move an octave would otherwise be stuck looking at the wrong note forever. Rejection therefore falls
+  through to the hold-then-release stage, so a sustained octave is accepted after ~400 ms while a two-frame
+  harmonic glitch never reaches the display. Both paths have a test.
+
+Two things worth recording because they shaped the tests rather than the code:
+
+- **A clean synthetic sweep does not test hysteresis at all** — it crosses each midpoint exactly once whether
+  or not the stage exists, and T057's sweep passed before the implementation. Noise is what makes the detector
+  jitter across a boundary, so the discriminating version of T057 adds 20 dB SNR; that one did fail first,
+  as `[40, 39, 40, 39, 38]`.
+- **Five of the first-draft unit tests failed for reasons that were the tests' fault**, not the code's: they
+  jumped the clock past the 400 ms hold, and they expected a single frame to change the displayed note when a
+  median-of-5 needs three. The rewrite drives the filter through a realistic hop clock, which makes the median's
+  latency an asserted property rather than an obstacle.
 
 ---
 

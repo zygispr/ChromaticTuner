@@ -155,6 +155,48 @@ export function sweep({
   return out;
 }
 
+/**
+ * A tone whose pitch alternates between +/-`cents` around a centre frequency.
+ *
+ * This is what a string parked on a semitone boundary actually does while the
+ * player rests a finger on the peg, and it is the signal FR-011 exists for: the
+ * displayed name must not flicker between two notes as it wobbles across the
+ * midpoint.
+ *
+ * The alternation is square rather than sinusoidal because a square one is
+ * harsher — it presents the detector with the largest possible pitch step at
+ * each turn — while phase accumulation keeps the waveform continuous, so there
+ * is no click for the detector to mistake for an onset.
+ */
+export function dither({
+  frequency,
+  sampleRate,
+  length,
+  cents = 2,
+  rateHz = 4,
+  amplitude = 0.8,
+}: {
+  readonly frequency: number;
+  readonly sampleRate: number;
+  readonly length: number;
+  readonly cents?: number;
+  readonly rateHz?: number;
+  readonly amplitude?: number;
+}): Float32Array {
+  const out = new Float32Array(length);
+  const halfPeriod = sampleRate / (2 * rateHz);
+  const high = frequency * Math.pow(2, cents / 1200);
+  const low = frequency * Math.pow(2, -cents / 1200);
+
+  let phase = 0;
+  for (let i = 0; i < length; i += 1) {
+    const above = Math.floor(i / halfPeriod) % 2 === 0;
+    phase += (2 * Math.PI * (above ? high : low)) / sampleRate;
+    out[i] = amplitude * Math.sin(phase);
+  }
+  return out;
+}
+
 function meanSquare(signal: Float32Array): number {
   let sum = 0;
   for (let i = 0; i < signal.length; i += 1) sum += signal[i]! * signal[i]!;

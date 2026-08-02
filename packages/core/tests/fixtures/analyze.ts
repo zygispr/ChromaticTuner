@@ -40,6 +40,40 @@ export function analyzeSignal(
   return last;
 }
 
+/**
+ * Push a signal through an analyzer and return EVERY reading it produced.
+ *
+ * User Story 2 is about behaviour over time — when the displayed name flips and
+ * how far the marker travels between flips — so its tests need the whole
+ * sequence, not just where the signal happened to end up.
+ */
+export function collectReadings(
+  analyzer: PitchAnalyzer,
+  signal: Float32Array,
+  hopSize = 1024
+): SettledReading[] {
+  const readings: SettledReading[] = [];
+  let now = 0;
+
+  for (let offset = 0; offset + hopSize <= signal.length; offset += hopSize) {
+    analyzer.push(signal.subarray(offset, offset + hopSize));
+    now += (hopSize / SAMPLE_RATE) * 1000;
+    const reading = analyzer.analyze(now);
+    if (reading) readings.push({ ...reading });
+  }
+
+  return readings;
+}
+
+/** The displayed MIDI notes in order, with consecutive duplicates collapsed. */
+export function noteSequence(readings: readonly SettledReading[]): number[] {
+  const sequence: number[] = [];
+  for (const reading of readings) {
+    if (sequence[sequence.length - 1] !== reading.midi) sequence.push(reading.midi);
+  }
+  return sequence;
+}
+
 /** Cents error between a detected reading and the note that was actually played. */
 export function centsError(reading: SettledReading, expectedMidi: number): number {
   return (reading.midi - expectedMidi) * 100 + reading.cents;

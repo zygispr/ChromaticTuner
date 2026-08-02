@@ -11,6 +11,11 @@ export const IN_TUNE_TOLERANCE_CENTS = 5;
  * Half-width of the horizontal line, in cents (FR-006). +/-50 means any pitch
  * is representable: the marker sweeps the full width between one note and the
  * next, which is what makes retuning across a semitone legible (User Story 2).
+ *
+ * Reported deviation can briefly exceed this by the note-name hysteresis margin
+ * (NOTE_HYSTERESIS_CENTS in tuning/filters.ts): near a boundary the pitch is
+ * deliberately held against the note still being named. The marker clamps to
+ * the end of the line there, which is the honest picture.
  */
 export const DISPLAY_RANGE_CENTS = 50;
 
