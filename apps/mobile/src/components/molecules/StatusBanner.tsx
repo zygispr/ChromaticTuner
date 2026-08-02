@@ -1,0 +1,155 @@
+import type { TunerStatus } from '@chromatic-tuner/core';
+import { a11y, space, type as typeTokens } from '@chromatic-tuner/tokens';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { useThemeColors } from '../../theme';
+
+export interface StatusBannerProps {
+  readonly status: TunerStatus;
+  readonly onRetry: () => void;
+}
+
+interface Recovery {
+  readonly title: string;
+  /** What the user should do next. Never absent for a failure (SC-014). */
+  readonly steps: string | null;
+  readonly canRetry: boolean;
+}
+
+/** Where the microphone permission actually lives on this OS. */
+const SETTINGS_PATH =
+  Platform.OS === 'ios'
+    ? 'Settings › Privacy & Security › Microphone'
+    : 'Settings › Apps › Chromatic Tuner › Permissions';
+
+/**
+ * Mirrors the web banner's structure exactly, with copy that names this
+ * platform's real settings path (FR-018 for the shape, FR-028 for the words).
+ *
+ * "Open Settings and allow the microphone" is useless advice if the user cannot
+ * find the switch, so the path is spelled out rather than gestured at.
+ */
+function recoveryFor(status: TunerStatus): Recovery | null {
+  switch (status.kind) {
+    case 'reading':
+      return null;
+
+    case 'listening':
+      return { title: 'Listening — play a string', steps: null, canRetry: false };
+
+    case 'idle':
+      return { title: 'Starting…', steps: null, canRetry: false };
+
+    case 'requesting-permission':
+      return { title: 'Waiting for microphone access…', steps: null, canRetry: false };
+
+    case 'permission-denied':
+      return {
+        title: 'Microphone access is blocked',
+        steps: `Open ${SETTINGS_PATH} and allow the microphone for Chromatic Tuner, then come back — the tuner picks up on its own.`,
+        canRetry: true,
+      };
+
+    case 'no-microphone':
+      return {
+        title: 'No microphone found',
+        steps:
+          'If a headset is connected, unplug it or check that its microphone is working, then try again.',
+        canRetry: true,
+      };
+
+    case 'microphone-busy':
+      return {
+        title: 'The microphone is in use',
+        steps:
+          'Another app has the microphone — a call, a voice memo, or a recorder. End it, then try again.',
+        canRetry: true,
+      };
+
+    case 'error':
+      return {
+        title: 'The tuner could not start',
+        steps: `${status.message} Restarting the app usually clears this.`,
+        canRetry: true,
+      };
+  }
+}
+
+/**
+ * Explains any non-tuning state and offers the way out of it.
+ *
+ * The session retries recoverable failures by itself (FR-029); the button is a
+ * shortcut, because waiting with no visible control reads as a hang.
+ */
+export function StatusBanner({ status, onRetry }: StatusBannerProps) {
+  const colors = useThemeColors();
+  const recovery = recoveryFor(status);
+  if (!recovery) return null;
+
+  return (
+    <View testID="status-banner" accessibilityLiveRegion="polite" style={styles.container}>
+      <Text
+        testID="tuner-status"
+        style={[
+          styles.title,
+          { color: colors.text, opacity: recovery.steps ? 1 : 0.7 },
+          recovery.steps ? styles.titleStrong : null,
+        ]}
+      >
+        {recovery.title}
+      </Text>
+
+      {recovery.steps !== null && (
+        <Text testID="recovery-steps" style={[styles.steps, { color: colors.text }]}>
+          {recovery.steps}
+        </Text>
+      )}
+
+      {recovery.canRetry && (
+        <Pressable
+          testID="retry-button"
+          accessibilityRole="button"
+          accessibilityLabel="Try the microphone again"
+          onPress={onRetry}
+          style={[styles.button, { backgroundColor: colors.text }]}
+        >
+          <Text style={[styles.buttonLabel, { color: colors.background }]}>Try again</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    gap: space.sm,
+    maxWidth: 420,
+  },
+  title: {
+    fontSize: typeTokens.labelSize,
+    textAlign: 'center',
+  },
+  titleStrong: {
+    fontWeight: '500',
+  },
+  steps: {
+    fontSize: typeTokens.labelSize,
+    lineHeight: typeTokens.labelSize * 1.5,
+    textAlign: 'center',
+    opacity: 0.75,
+  },
+  button: {
+    minHeight: a11y.minTouchTarget,
+    minWidth: a11y.minTouchTarget * 2,
+    marginTop: space.xs,
+    paddingHorizontal: space.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: space.sm,
+  },
+  buttonLabel: {
+    fontSize: typeTokens.labelSize,
+    fontWeight: '500',
+  },
+});

@@ -142,6 +142,30 @@ export default tseslint.config(
     },
   },
 
+  // Verification scripts are Node programs that drive a browser, so the bodies
+  // of their page.evaluate() callbacks are browser code living inside a Node
+  // file. Both sets of globals are legitimately in scope.
+  {
+    files: ['apps/web/scripts/*.mjs'],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.browser },
+    },
+  },
+
+  // The service worker runs in a ServiceWorkerGlobalScope, not a window, and
+  // the two build-time placeholders are substituted by the `precache` plugin in
+  // apps/web/vite.config.ts before the file is ever executed.
+  {
+    files: ['apps/web/sw-source.js'],
+    languageOptions: {
+      globals: {
+        ...globals.serviceworker,
+        __CACHE_VERSION__: 'readonly',
+        __PRECACHE_MANIFEST__: 'readonly',
+      },
+    },
+  },
+
   // Jest globals for the mobile test setup. ESLint 10 removed /* eslint-env */,
   // so the globals have to be declared here.
   {

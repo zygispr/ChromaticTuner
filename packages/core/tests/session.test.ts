@@ -246,7 +246,7 @@ describe('failure surfaces as a status, never a swallowed error', () => {
   });
 });
 
-describe('wake lock', () => {
+describe('wake lock lifecycle (T066, guarantee W2/S3)', () => {
   it('is held while active and released on stop', async () => {
     const lock = new NoopWakeLock();
     const source = new ScriptedAudioSource({ samples: toneOf(40) });
@@ -257,5 +257,87 @@ describe('wake lock', () => {
 
     await session.stop();
     expect(lock.held).toBe(false);
+  });
+
+  it('stays held across the listening -> reading transition', async () => {
+    // The lock is bound to "the tuner is active", not to a particular status.
+    // Dropping and re-taking it on every note change would let the screen dim
+    // in the gap.
+    const lock = new NoopWakeLock();
+    const source = new ScriptedAudioSource({ samples: toneOf(40) });
+    const session = makeSession(source, lock);
+
+    await session.start();
+    const acquiresWhileListening = lock.acquireCount;
+
+    source.pump(12);
+    expect(session.status.kind).toBe('reading');
+    expect(lock.held).toBe(true);
+    expect(lock.acquireCount).toBe(acquiresWhileListening);
+    expect(lock.releaseCount).toBe(0);
+
+    await session.stop();
+  });
+
+  it('is never taken when the microphone could not be opened', async () => {
+    const lock = new NoopWakeLock();
+    const source = new ScriptedAudioSource({
+      failWith: { kind: 'permission-denied', canRetry: true },
+    });
+    const session = makeSession(source, lock);
+
+    await session.start();
+
+    expect(session.status.kind).toBe('permission-denied');
+    expect(lock.held).toBe(false);
+    expect(lock.acquireCount).toBe(0);
+  });
+
+  it('is released when the session drops into an error state', async () => {
+    // A tuner showing "microphone busy" is not tuning anything, so holding the
+    // screen awake is just draining the battery (FR-034).
+    const lock = new NoopWakeLock();
+    const source = new ScriptedAudioSource({ samples: toneOf(40) });
+    const session = makeSession(source, lock);
+
+    await session.start();
+    expect(lock.held).toBe(true);
+
+    source.interrupt({ kind: 'microphone-busy' });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(lock.held).toBe(false);
+  });
+
+  it('is taken again when the session recovers', async () => {
+    const lock = new NoopWakeLock();
+    const source = new ScriptedAudioSource({ samples: toneOf(40) });
+    const session = makeSession(source, lock);
+
+    await session.start();
+    source.interrupt({ kind: 'microphone-busy' });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(lock.held).toBe(false);
+
+    await session.retry();
+
+    expect(session.status.kind).toBe('listening');
+    expect(lock.held).toBe(true);
+    await session.stop();
+  });
+
+  it('survives a platform with no wake lock at all (obligation W1)', async () => {
+    const lock = new NoopWakeLock(true);
+    const source = new ScriptedAudioSource({ samples: toneOf(40) });
+    const session = makeSession(source, lock);
+
+    await session.start();
+    source.pump(12);
+
+    // The tuner still works; only the screen behaviour degrades.
+    expect(session.status.kind).toBe('reading');
+    await session.stop();
   });
 });

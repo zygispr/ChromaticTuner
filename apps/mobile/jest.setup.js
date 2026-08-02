@@ -37,7 +37,17 @@ jest.mock('react-native-audio-api', () => {
     }
   }
 
-  return { AudioRecorder: MockAudioRecorder, AudioContext: class {} };
+  return {
+    AudioRecorder: MockAudioRecorder,
+    AudioContext: class {},
+    // Permission state drives whether the explainer is shown before the OS
+    // prompt (FR-028). Granted by default so tests exercise the tuner itself;
+    // the permission-gate test overrides it.
+    AudioManager: {
+      checkRecordingPermissions: jest.fn(async () => 'Granted'),
+      requestRecordingPermissions: jest.fn(async () => 'Granted'),
+    },
+  };
 });
 
 jest.mock('expo-keep-awake', () => ({

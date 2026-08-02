@@ -42,10 +42,14 @@ export function TunerProvider({
   }, [session, a4Hz]);
 
   useEffect(() => {
-    if (!autoStart) return;
-    void session.start();
-    // Releasing the microphone on unmount is part of FR-033; the same rule
-    // applies on backgrounding, which the apps wire up in US3 (T075).
+    if (autoStart) void session.start();
+
+    // The cleanup is registered unconditionally, and that is not a detail.
+    // Both apps run with autoStart off — TunerGate decides when to open the
+    // microphone (FR-028) — so an early return here would mean the session is
+    // never stopped on unmount: the microphone stays open against FR-033, and
+    // a session parked in a recoverable failure keeps its retry timer firing
+    // forever against a tree that no longer exists.
     return () => {
       void session.stop();
     };

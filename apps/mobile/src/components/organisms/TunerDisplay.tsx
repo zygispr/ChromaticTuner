@@ -1,36 +1,25 @@
 import { useTuner } from '@chromatic-tuner/react';
-import { space, type as typeTokens } from '@chromatic-tuner/tokens';
-import { StyleSheet, Text, View } from 'react-native';
+import { space } from '@chromatic-tuner/tokens';
+import { StyleSheet, View } from 'react-native';
 
-import { useThemeColors } from '../../theme';
 import { CentsReadout } from '../atoms/CentsReadout';
 import { DirectionCue } from '../atoms/DirectionCue';
 import { NoteLabel } from '../atoms/NoteLabel';
+import { StatusBanner } from '../molecules/StatusBanner';
 import { TuningLine } from '../molecules/TuningLine';
-
-const STATUS_TEXT: Record<string, string> = {
-  idle: 'Starting…',
-  'requesting-permission': 'Waiting for microphone access…',
-  'permission-denied': 'Microphone access is blocked.',
-  'no-microphone': 'No microphone found.',
-  'microphone-busy': 'The microphone is in use by another app.',
-  listening: 'Listening — play a string',
-  error: 'Something went wrong.',
-};
 
 /**
  * The whole tuner in one screen, mirroring the web organism exactly.
  *
  * Same three redundant channels as web — colour, marker position, and text —
- * so the two platforms speak one visual language (FR-018). The richer failure
- * states get their own molecules in US3 (T070).
+ * so the two platforms speak one visual language (FR-018). Every non-tuning
+ * state, including each way the microphone can fail, is rendered by
+ * `StatusBanner`, so no failure reaches the screen without a next step
+ * (SC-014).
  */
 export function TunerDisplay() {
-  const colors = useThemeColors();
-  const { status, note, octave, tuningState, direction, cents, subscribeToCents } = useTuner();
-
-  const statusText =
-    status.kind === 'reading' ? null : (STATUS_TEXT[status.kind] ?? 'Listening — play a string');
+  const { status, note, octave, tuningState, direction, cents, subscribeToCents, retry } =
+    useTuner();
 
   return (
     <View testID="tuner-display" style={styles.container}>
@@ -39,11 +28,7 @@ export function TunerDisplay() {
       <TuningLine state={tuningState} subscribeToCents={subscribeToCents} />
       <DirectionCue direction={direction} state={tuningState} />
 
-      {statusText !== null && (
-        <Text testID="tuner-status" style={[styles.status, { color: colors.text }]}>
-          {statusText}
-        </Text>
-      )}
+      <StatusBanner status={status} onRetry={retry} />
     </View>
   );
 }
@@ -54,10 +39,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: space.lg,
     width: '100%',
-  },
-  status: {
-    fontSize: typeTokens.labelSize,
-    opacity: 0.7,
-    textAlign: 'center',
   },
 });

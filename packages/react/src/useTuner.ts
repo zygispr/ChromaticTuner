@@ -33,6 +33,16 @@ export interface UseTunerResult {
 
   readonly start: () => void;
   readonly stop: () => void;
+
+  /**
+   * Try the microphone again after a failure.
+   *
+   * The session already retries on its own while a recoverable failure lasts
+   * (FR-029); this is the same path, exposed so a "Try again" control can skip
+   * the wait. Every failure state offers it, which is how SC-014's "zero dead
+   * ends" is satisfied rather than merely claimed.
+   */
+  readonly retry: () => void;
 }
 
 export interface UseTunerOptions {
@@ -70,6 +80,10 @@ export function useTuner(options: UseTunerOptions = {}): UseTunerResult {
     void session.stop();
   }, [session]);
 
+  const retry = useCallback(() => {
+    void session.retry();
+  }, [session]);
+
   // The session publishes an immutable copy on each discrete change, so these
   // derived values are stable snapshots — no consumer can observe a torn or
   // mutating reading (guarantee R2).
@@ -85,5 +99,6 @@ export function useTuner(options: UseTunerOptions = {}): UseTunerResult {
     subscribeToCents,
     start,
     stop,
+    retry,
   };
 }

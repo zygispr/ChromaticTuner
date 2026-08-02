@@ -1,21 +1,11 @@
 import { useTuner } from '@chromatic-tuner/react';
-import { space, type } from '@chromatic-tuner/tokens';
+import { space } from '@chromatic-tuner/tokens';
 
-import { themedVar } from '../../theme';
 import { CentsReadout } from '../atoms/CentsReadout';
 import { DirectionCue } from '../atoms/DirectionCue';
 import { NoteLabel } from '../atoms/NoteLabel';
+import { StatusBanner } from '../molecules/StatusBanner';
 import { TuningLine } from '../molecules/TuningLine';
-
-const STATUS_TEXT: Record<string, string> = {
-  idle: 'Starting…',
-  'requesting-permission': 'Waiting for microphone access…',
-  'permission-denied': 'Microphone access is blocked.',
-  'no-microphone': 'No microphone found.',
-  'microphone-busy': 'The microphone is in use by another app.',
-  listening: 'Listening — play a string',
-  error: 'Something went wrong.',
-};
 
 /**
  * The whole tuner in one screen.
@@ -25,13 +15,13 @@ const STATUS_TEXT: Record<string, string> = {
  * colour-vision-deficient users: colour (note and marker), position (marker on
  * the line), and text (cents readout and direction cue).
  *
- * The richer failure states get their own molecules in US3 (T069).
+ * Every non-tuning state — starting, listening, and each way the microphone can
+ * fail — is rendered by `StatusBanner`, which owns the recovery copy so no
+ * failure can reach the screen without a next step (SC-014).
  */
 export function TunerDisplay() {
-  const { status, note, octave, tuningState, direction, cents, subscribeToCents } = useTuner();
-
-  const statusText =
-    status.kind === 'reading' ? null : (STATUS_TEXT[status.kind] ?? 'Listening — play a string');
+  const { status, note, octave, tuningState, direction, cents, subscribeToCents, retry } =
+    useTuner();
 
   return (
     <section
@@ -50,20 +40,7 @@ export function TunerDisplay() {
       <TuningLine state={tuningState} subscribeToCents={subscribeToCents} />
       <DirectionCue direction={direction} state={tuningState} />
 
-      {statusText && (
-        <p
-          data-testid="tuner-status"
-          style={{
-            margin: 0,
-            color: themedVar('text'),
-            opacity: 0.7,
-            fontSize: `${type.labelSize}px`,
-            textAlign: 'center',
-          }}
-        >
-          {statusText}
-        </p>
-      )}
+      <StatusBanner status={status} onRetry={retry} />
     </section>
   );
 }

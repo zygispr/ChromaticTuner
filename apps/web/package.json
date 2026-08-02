@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:e2e": "node e2e/fixtures/generate.mjs && playwright test --pass-with-no-tests",
-    "e2e:fixtures": "node e2e/fixtures/generate.mjs"
+    "e2e:fixtures": "node e2e/fixtures/generate.mjs",
+    "verify:offline": "node scripts/verify-offline.mjs"
   },
   "dependencies": {
     "@chromatic-tuner/core": "workspace:*",

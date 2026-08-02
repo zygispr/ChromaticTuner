@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Chromatic Tuner">
+  <!-- Maskable: all meaningful content sits inside the safe zone (centre 80%). -->
+  <rect width="512" height="512" fill="#0B0B0F" />
+  <line x1="136" y1="256" x2="376" y2="256" stroke="#6B7280" stroke-width="8" stroke-linecap="round" />
+  <rect x="240" y="196" width="32" height="120" rx="16" fill="#34C46A" />
+  <circle cx="172" cy="256" r="12" fill="#4C93F0" />
+  <circle cx="340" cy="256" r="12" fill="#FFC978" />
+</svg>

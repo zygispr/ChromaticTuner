@@ -1,9 +1,18 @@
 import { PitchAnalyzer } from '../dsp/pitch-analyzer';
-import type { AudioSource } from '../ports/audio-source';
+import type { AudioSource, AudioSourceError } from '../ports/audio-source';
 import { isAudioSourceError } from '../ports/audio-source';
 import type { WakeLock } from '../ports/wake-lock';
 import type { TunerStatus } from '../types';
 import { statusForAudioError } from '../types';
+
+/**
+ * Schedules one deferred retry and returns a function that cancels it.
+ *
+ * Injected rather than assumed because `packages/core` compiles against `ES2022`
+ * alone — no DOM, no Node types — and because Principle III forbids tests that
+ * depend on the wall clock. Tests pass a manual scheduler and fire it by hand.
+ */
+export type ScheduleRetry = (callback: () => void, delayMs: number) => () => void;
 
 export interface TunerSessionDeps {
   readonly audioSource: AudioSource;
@@ -11,6 +20,9 @@ export interface TunerSessionDeps {
   readonly a4Hz: number;
   /** Requested capture rate; the source reports the actual one (obligation A5). */
   readonly sampleRate?: number;
+  /** How long to wait before re-attempting a recoverable failure. */
+  readonly retryDelayMs?: number;
+  readonly scheduleRetry?: ScheduleRetry;
 }
 
 export type StatusHandler = (status: TunerStatus) => void;
@@ -18,6 +30,48 @@ export type ReadingHandler = (cents: number, clarity: number) => void;
 
 const DEFAULT_SAMPLE_RATE = 44100;
 const HOP_SIZE = 1024;
+
+/**
+ * Long enough not to hammer the platform's permission machinery, short enough
+ * that a player who just granted access sees the tuner come alive rather than
+ * wondering whether to reload (FR-029).
+ */
+const DEFAULT_RETRY_DELAY_MS = 1000;
+
+/**
+ * Default scheduler, reaching through `globalThis` because core has no ambient
+ * timer types. Every host the app runs on — browser, React Native, Node —
+ * provides these; a host that does not simply gets manual retry only.
+ */
+const defaultScheduleRetry: ScheduleRetry = (callback, delayMs) => {
+  const host = globalThis as {
+    setTimeout?: (cb: () => void, ms: number) => unknown;
+    clearTimeout?: (handle: unknown) => void;
+  };
+  if (!host.setTimeout) return () => undefined;
+
+  const handle = host.setTimeout(callback, delayMs);
+  return () => host.clearTimeout?.(handle);
+};
+
+/**
+ * Can waiting and trying again plausibly fix this?
+ *
+ * Permission and device availability change while the app is open, so those are
+ * worth retrying — including a permission blocked in settings, because the user
+ * may be walking over to settings right now. An unsupported platform will still
+ * be unsupported in a second, and spinning on it only costs battery.
+ */
+function isRecoverable(status: TunerStatus): boolean {
+  switch (status.kind) {
+    case 'permission-denied':
+    case 'no-microphone':
+    case 'microphone-busy':
+      return true;
+    default:
+      return false;
+  }
+}
 
 /**
  * Owns the tuner's state machine and the two output channels.
@@ -49,15 +103,28 @@ export class TunerSession {
   /** Serialises start/stop; see enqueue(). */
   private pending: Promise<void> = Promise.resolve();
 
+  private readonly retryDelayMs: number;
+  private readonly scheduleRetryWith: ScheduleRetry;
+  private cancelRetry: (() => void) | null = null;
+  /** Mirrors the wake lock's real state, so it is never double-acquired. */
+  private wakeLockHeld = false;
+
   constructor(deps: TunerSessionDeps) {
     this.audioSource = deps.audioSource;
     this.wakeLock = deps.wakeLock;
     this.a4Hz = deps.a4Hz;
     this.requestedSampleRate = deps.sampleRate ?? DEFAULT_SAMPLE_RATE;
+    this.retryDelayMs = deps.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
+    this.scheduleRetryWith = deps.scheduleRetry ?? defaultScheduleRetry;
     this.analyzer = new PitchAnalyzer({
       sampleRate: this.requestedSampleRate,
       a4Hz: this.a4Hz,
     });
+
+    // Subscribed for the session's lifetime rather than per start, because the
+    // platform can revoke input at any moment and a handler attached only while
+    // running would miss the very event it exists for (obligation A6, FR-035).
+    this.audioSource.onInterrupted((error) => this.handleInterruption(error));
   }
 
   get status(): TunerStatus {
@@ -80,6 +147,17 @@ export class TunerSession {
   }
 
   /**
+   * Attempt to open the microphone again after a failure.
+   *
+   * Called automatically on a schedule while a recoverable failure persists,
+   * and directly by a "Try again" control. Both paths run the same code, so the
+   * button cannot drift from the automatic behaviour (SC-014).
+   */
+  retry(): Promise<void> {
+    return this.enqueue(() => this.doRetry());
+  }
+
+  /**
    * Serialise start/stop so they can never overlap.
    *
    * Without this, a stop() issued while start() is still awaiting getUserMedia
@@ -95,6 +173,23 @@ export class TunerSession {
 
   private async doStart(): Promise<void> {
     if (this.running) return;
+    await this.openSource();
+  }
+
+  private async doRetry(): Promise<void> {
+    this.cancelPendingRetry();
+    if (this.running) return;
+    await this.openSource();
+  }
+
+  /**
+   * Open the microphone and go live, or turn the failure into a status.
+   *
+   * The single path into `listening`, shared by the first start and by every
+   * recovery attempt, so a recovered session is indistinguishable from a fresh
+   * one — which is what "without requiring the user to restart" means (FR-029).
+   */
+  private async openSource(): Promise<void> {
     this.running = true;
     this.elapsedMs = 0;
 
@@ -115,11 +210,10 @@ export class TunerSession {
         this.analyzer = new PitchAnalyzer({ sampleRate: info.sampleRate, a4Hz: this.a4Hz });
       }
 
-      await this.wakeLock.acquire();
       this.setStatus({ kind: 'listening' });
     } catch (error) {
       this.running = false;
-      this.setStatus(
+      this.fail(
         isAudioSourceError(error)
           ? statusForAudioError(error)
           : { kind: 'error', message: error instanceof Error ? error.message : String(error) }
@@ -127,13 +221,60 @@ export class TunerSession {
     }
   }
 
-  private async doStop(): Promise<void> {
+  /**
+   * The platform took the microphone away mid-session (obligation A6, FR-035).
+   *
+   * The handler is deliberately thin and defers to the same queue as start and
+   * stop: an interruption arriving while a start is still in flight would
+   * otherwise tear down state that start is about to assign.
+   */
+  private handleInterruption(error: AudioSourceError): void {
+    if (!this.running) return;
+    void this.enqueue(() => this.doInterrupt(error));
+  }
+
+  private async doInterrupt(error: AudioSourceError): Promise<void> {
+    // Several interruptions can arrive in the same tick — a device change often
+    // ends and mutes every track at once. The first one ends the session; the
+    // rest would only re-arm the retry.
     if (!this.running) return;
     this.running = false;
 
+    // Release the handle rather than sitting on a dead one: the platform's
+    // recording indicator must clear, and another app must be able to take the
+    // device (obligation A4, FR-033).
     await this.audioSource.stop();
-    await this.wakeLock.release();
     this.analyzer.reset();
+    this.fail(statusForAudioError(error));
+  }
+
+  /** Publish a failure and line up a recovery attempt if one could help. */
+  private fail(status: TunerStatus): void {
+    this.setStatus(status);
+    this.cancelPendingRetry();
+    if (!isRecoverable(status)) return;
+    this.cancelRetry = this.scheduleRetryWith(() => {
+      void this.retry();
+    }, this.retryDelayMs);
+  }
+
+  private cancelPendingRetry(): void {
+    this.cancelRetry?.();
+    this.cancelRetry = null;
+  }
+
+  private async doStop(): Promise<void> {
+    // Cancel first and unconditionally: stopping while parked in an error state
+    // must not leave a retry armed to reopen the microphone behind the user's
+    // back, which is exactly what backgrounding the app relies on (FR-033).
+    this.cancelPendingRetry();
+
+    if (this.running) {
+      this.running = false;
+      await this.audioSource.stop();
+      this.analyzer.reset();
+    }
+
     this.setStatus({ kind: 'idle' });
   }
 
@@ -198,7 +339,30 @@ export class TunerSession {
   private setStatus(next: TunerStatus): void {
     if (!this.hasChanged(next)) return;
     this.currentStatus = next;
+    this.syncWakeLock(next);
     for (const handler of this.statusHandlers) handler(next);
+  }
+
+  /**
+   * Hold the wake lock exactly while the tuner is active (T074, guarantee W2).
+   *
+   * Deriving this from the status rather than calling acquire/release alongside
+   * start and stop is what makes it correct on the paths nobody thinks about:
+   * an interruption, a failed recovery, a permission revoked mid-session. A
+   * tuner showing "microphone busy" is not tuning anything, and holding the
+   * screen awake there is pure battery drain (FR-034).
+   */
+  private syncWakeLock(status: TunerStatus): void {
+    const shouldHold = status.kind === 'listening' || status.kind === 'reading';
+    if (shouldHold === this.wakeLockHeld) return;
+    this.wakeLockHeld = shouldHold;
+
+    const operation = shouldHold ? this.wakeLock.acquire() : this.wakeLock.release();
+    void operation.catch(() => {
+      // Obligation W1: no wake lock is a degraded screen, never a broken tuner.
+      // The port promises not to reject; this is belt and braces for an adapter
+      // that breaks that promise, and swallowing it here is the correct scope.
+    });
   }
 
   private hasChanged(next: TunerStatus): boolean {

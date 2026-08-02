@@ -273,27 +273,79 @@ separately deny microphone permission and confirm the recovery messaging and aut
 
 ### Tests for User Story 3 ⚠️ MUST FAIL FIRST
 
-- [ ] T064 [P] [US3] Write failing tests in `packages/core/tests/session-errors.test.ts`: each `AudioSourceError` variant maps to its matching `TunerStatus` with no dead ends (obligation A3, SC-014)
-- [ ] T065 [P] [US3] Write failing auto-recovery tests in `packages/core/tests/session-errors.test.ts`: granting permission or the device returning transitions back to `listening` with no restart (FR-029, guarantee S2)
-- [ ] T066 [P] [US3] Write failing wake-lock lifecycle tests in `packages/core/tests/session.test.ts`: the lock is held exactly while `listening` or `reading` (guarantee W2/S3)
+- [X] T064 [P] [US3] Write failing tests in `packages/core/tests/session-errors.test.ts`: each `AudioSourceError` variant maps to its matching `TunerStatus` with no dead ends (obligation A3, SC-014)
+- [X] T065 [P] [US3] Write failing auto-recovery tests in `packages/core/tests/session-errors.test.ts`: granting permission or the device returning transitions back to `listening` with no restart (FR-029, guarantee S2)
+- [X] T066 [P] [US3] Write failing wake-lock lifecycle tests in `packages/core/tests/session.test.ts`: the lock is held exactly while `listening` or `reading` (guarantee W2/S3)
 
 ### Implementation for User Story 3
 
-- [ ] T067 [US3] Map every `AudioSourceError` to its `TunerStatus` in `packages/core/src/tuning/session.ts`, surfacing errors as states and never swallowing them (Principle I, guarantee S1)
-- [ ] T068 [US3] Wire `onInterrupted` and automatic recovery in `packages/core/src/tuning/session.ts` (FR-029, FR-035)
-- [ ] T069 [P] [US3] Implement `StatusBanner` and `PermissionPrompt` molecules in `apps/web/src/components/molecules/` with platform-specific recovery steps for every failure state
-- [ ] T070 [P] [US3] Implement the equivalent molecules in `apps/mobile/src/components/molecules/`
-- [ ] T071 [P] [US3] Add the pre-permission explainer to both apps stating why the microphone is needed **and** that audio is never recorded or transmitted, shown before the system prompt (FR-028, FR-031)
-- [ ] T072 [P] [US3] Implement `WebWakeLock` in `apps/web/src/adapters/web-wake-lock.ts`, re-acquiring on `visibilitychange` (obligation W3)
-- [ ] T073 [P] [US3] Implement `ExpoWakeLock` in `apps/mobile/src/adapters/expo-wake-lock.ts` using `expo-keep-awake`
-- [ ] T074 [US3] Bind wake-lock acquire/release to session status in `packages/core/src/tuning/session.ts`
-- [ ] T075 [US3] Release the microphone on backgrounding — `visibilitychange`/`pagehide` in `apps/web/src/main.tsx`, `AppState` in `apps/mobile/src/App.tsx` — and resume promptly on return (FR-033)
-- [ ] T076 [P] [US3] Add PWA manifest and service worker precaching the full bundle in `apps/web/`, so a cold reload works offline (FR-030, SC-011)
-- [ ] T077 [US3] Measure and tune cold start to ≤2 s on the lowest supported device; record before/after numbers in the pull request (FR-026)
-- [ ] T078 [P] [US3] Add a Playwright E2E in `apps/web/e2e/permissions.spec.ts` covering denied → granted mid-session with no reload (V6)
-- [ ] T079 [P] [US3] Add a network-silence check in `apps/web/e2e/no-network.spec.ts` asserting zero outbound requests during a full tuning session (SC-015, V9)
+- [X] T067 [US3] Map every `AudioSourceError` to its `TunerStatus` in `packages/core/src/tuning/session.ts`, surfacing errors as states and never swallowing them (Principle I, guarantee S1)
+- [X] T068 [US3] Wire `onInterrupted` and automatic recovery in `packages/core/src/tuning/session.ts` (FR-029, FR-035)
+- [X] T069 [P] [US3] Implement `StatusBanner` and `PermissionPrompt` molecules in `apps/web/src/components/molecules/` with platform-specific recovery steps for every failure state
+- [X] T070 [P] [US3] Implement the equivalent molecules in `apps/mobile/src/components/molecules/`
+- [X] T071 [P] [US3] Add the pre-permission explainer to both apps stating why the microphone is needed **and** that audio is never recorded or transmitted, shown before the system prompt (FR-028, FR-031)
+- [X] T072 [P] [US3] Implement `WebWakeLock` in `apps/web/src/adapters/web-wake-lock.ts`, re-acquiring on `visibilitychange` (obligation W3)
+- [X] T073 [P] [US3] Implement `ExpoWakeLock` in `apps/mobile/src/adapters/expo-wake-lock.ts` using `expo-keep-awake`
+- [X] T074 [US3] Bind wake-lock acquire/release to session status in `packages/core/src/tuning/session.ts`
+- [X] T075 [US3] Release the microphone on backgrounding — `visibilitychange`/`pagehide` in `apps/web/src/main.tsx`, `AppState` in `apps/mobile/src/App.tsx` — and resume promptly on return (FR-033) — **deviation**: both live in a `useMicrophoneLifecycle` hook consumed by `TunerGate`, because the listener needs the session from `useTuner`, which is only reachable inside the provider
+- [X] T076 [P] [US3] Add PWA manifest and service worker precaching the full bundle in `apps/web/`, so a cold reload works offline (FR-030, SC-011)
+- [X] T077 [US3] Measure and tune cold start to ≤2 s on the lowest supported device; record before/after numbers in the pull request (FR-026) — **partial**: measured on a development Mac, not on the lowest supported device; the on-device measurement belongs to T093/T099
+- [X] T078 [P] [US3] Add a Playwright E2E in `apps/web/e2e/permissions.spec.ts` covering denied → granted mid-session with no reload (V6)
+- [X] T079 [P] [US3] Add a network-silence check in `apps/web/e2e/no-network.spec.ts` asserting zero outbound requests during a full tuning session (SC-015, V9)
 
-**Checkpoint**: The app is fast, offline, and has no dead ends. Release-quality on the reliability axis.
+**Checkpoint**: ✅ **COMPLETE (2026-08-02)**. The app is fast, offline, and has no dead ends.
+**359 unit tests**, **26 mobile Jest tests**, and **16 Playwright E2E tests**, all green.
+`packages/core` coverage 98.8% lines / 90.4% branches. All eight checks pass.
+
+**Cold start measured against the production build** (`scripts/verify-offline.mjs`, real Chromium, fake
+microphone, time from navigation to a reported note):
+
+| Start                          | Time to first reading | Budget  |
+| ------------------------------ | --------------------- | ------- |
+| Cold, no service worker        | **877 ms**            | 2000 ms |
+| Warm, service worker serving   | **307 ms**            | 2000 ms |
+| **Offline, network disabled**  | **306 ms**            | 2000 ms |
+
+These are development-machine numbers; FR-026's "mid-range device" measurement is T093/T099's job.
+
+**Test-first was observed**: 15 of the 21 new core tests failed before the implementation landed.
+
+Three defects were found, two of them only by running the thing:
+
+- **The service worker cached everything and served none of it.** Offline, the shell loaded but the JS bundle
+  failed with `ERR_FAILED` — while `caches.keys()` showed the asset present under exactly the right path. The
+  Cache API honours a stored response's `Vary` header when matching, Vite's preview server sends
+  `Vary: Origin`, and the `Origin` on a module-script request does not match the one the install-time
+  `addAll` fetch sent. Every precached asset missed. `caches.match(..., { ignoreVary: true })` fixes it. This
+  is invisible online — the network quietly covers for it — so only an actual offline load could catch it.
+- **`TunerProvider` never stopped the session when `autoStart` was false.** The cleanup was registered inside
+  an `if (!autoStart) return;`, which was harmless while both apps auto-started and became a real leak the
+  moment US3 moved them to `autoStart={false}`: the microphone was never released on unmount (against
+  FR-033) and a session parked in a recoverable failure kept its retry timer firing against a tree that no
+  longer existed. It surfaced as mobile tests hanging for five minutes.
+- **The build-time placeholder substitution replaced the wrong occurrence.** `String.replace` with a string
+  pattern replaces only the first match, and the first `__PRECACHE_MANIFEST__` in the worker source is the
+  one in its own doc comment — so the emitted worker referenced an undefined identifier and threw on install.
+  `replaceAll` fixes it.
+
+Three deliberate deviations:
+
+- **Retry scheduling is injected, not assumed.** `packages/core` compiles against `ES2022` alone — no DOM and
+  no Node types — so `setTimeout` is not in scope, and Principle III forbids tests that wait on the wall
+  clock. `TunerSessionDeps.scheduleRetry` defaults to a `globalThis` lookup and tests pass a manual scheduler
+  they fire by hand.
+- **Recovery is retried on a fixed 1 s interval, and only for failures that retrying can fix.**
+  `permission-denied` (including `canRetry: false`, since the user may be walking over to Settings),
+  `no-microphone`, and `microphone-busy` are retried; `unsupported` and `unknown` are not, because spinning
+  on them only costs battery and never changes the answer.
+- **The mobile UI tests render the molecules directly** rather than driving provider → gate → session.
+  React Native Testing Library 14's asynchronous `render` made the full-stack version a test of RNTL's
+  scheduling rather than of the recovery copy; the session already has 47 tests of its own. Two integration
+  tests still cover the one thing that genuinely needs the stack — whether the explainer or the tuner shows.
+
+One thing deferred deliberately: the PWA manifest ships **SVG icons only**. Nothing in the spec requires
+installability — FR-030 asks for offline function, which the service worker delivers and the table above
+verifies — and PNG icons for the install prompt are cosmetic polish, not a US3 requirement.
 
 ---
 

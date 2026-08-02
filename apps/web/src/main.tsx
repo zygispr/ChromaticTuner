@@ -3,7 +3,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { WebAudioSource } from './adapters/web-audio-source';
+import { WebWakeLock } from './adapters/web-wake-lock';
 import { TunerPage } from './components/pages/TunerPage';
+import { registerServiceWorker } from './register-sw';
 import { themeCss } from './theme';
 
 // Tokens are injected as CSS custom properties so components can reference
@@ -22,16 +24,21 @@ if (!container) {
   throw new Error('Root element #root not found in index.html');
 }
 
-// A single WakeLock no-op stands in until the real adapter lands in US3 (T072).
-const wakeLock = {
-  async acquire() {},
-  async release() {},
-};
-
 createRoot(container).render(
   <StrictMode>
-    <TunerProvider audioSource={new WebAudioSource()} wakeLock={wakeLock}>
+    {/*
+      autoStart is off because TunerGate decides when to open the microphone:
+      immediately when permission is already held, or after the explainer when a
+      browser prompt is still coming (FR-028).
+    */}
+    <TunerProvider
+      audioSource={new WebAudioSource()}
+      wakeLock={new WebWakeLock()}
+      autoStart={false}
+    >
       <TunerPage />
     </TunerProvider>
   </StrictMode>
 );
+
+registerServiceWorker();

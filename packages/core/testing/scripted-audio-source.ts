@@ -40,6 +40,16 @@ export class ScriptedAudioSource implements AudioSource {
   /** Number of times stop() has actually released the microphone. */
   public releaseCount = 0;
 
+  /** Number of times start() has been attempted, successfully or not. */
+  public startCount = 0;
+
+  /**
+   * Current failure, if any. Mutable so a test can model a microphone that
+   * becomes available again — which is the whole of FR-029 and cannot be
+   * expressed with a failure fixed at construction.
+   */
+  private failure: AudioSourceError | null = null;
+
   private resolveStarted!: () => void;
   /**
    * Resolves once start() has completed.
@@ -51,6 +61,7 @@ export class ScriptedAudioSource implements AudioSource {
 
   constructor(options: ScriptedAudioSourceOptions = {}) {
     this.options = options;
+    this.failure = options.failWith ?? null;
     this.startedPromise = new Promise<void>((resolve) => {
       this.resolveStarted = resolve;
     });
@@ -60,12 +71,23 @@ export class ScriptedAudioSource implements AudioSource {
     return this.running;
   }
 
+  /**
+   * Change what the next `start()` does. Pass null to model the microphone
+   * becoming available — permission granted, the other app releasing it, or the
+   * device being plugged back in (FR-029).
+   */
+  setFailure(error: AudioSourceError | null): void {
+    this.failure = error;
+  }
+
   async start(
     config: AudioSourceConfig,
     onFrames: (frames: Float32Array) => void
   ): Promise<AudioSourceInfo> {
-    if (this.options.failWith) {
-      throw this.options.failWith;
+    this.startCount += 1;
+
+    if (this.failure) {
+      throw this.failure;
     }
     if (this.running) {
       // Obligation A7: never open a second stream.

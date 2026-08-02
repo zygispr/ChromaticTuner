@@ -2,7 +2,7 @@ import { space } from '@chromatic-tuner/tokens';
 import { SafeAreaView, StatusBar, StyleSheet } from 'react-native';
 
 import { useAppearance, useThemeColors } from '../../theme';
-import { TunerDisplay } from '../organisms/TunerDisplay';
+import { TunerGate } from '../organisms/TunerGate';
 
 /**
  * Full-screen, centred, no scrolling — the player's hands are on the
@@ -15,7 +15,7 @@ export function TunerScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={appearance === 'dark' ? 'light-content' : 'dark-content'} />
-      <TunerDisplay />
+      <TunerGate />
     </SafeAreaView>
   );
 }
