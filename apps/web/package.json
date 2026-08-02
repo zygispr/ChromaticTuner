@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:e2e": "playwright test --pass-with-no-tests"
+    "test:e2e": "node e2e/fixtures/generate.mjs && playwright test --pass-with-no-tests",
+    "e2e:fixtures": "node e2e/fixtures/generate.mjs"
   },
   "dependencies": {
     "@chromatic-tuner/core": "workspace:*",

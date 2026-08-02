@@ -127,38 +127,72 @@ tolerance. No settings, no permissions UX, no persistence required.
 
 ### Tests for User Story 1 ⚠️ MUST FAIL FIRST
 
-- [ ] T030 [P] [US1] Write failing accuracy tests in `packages/core/tests/accuracy.test.ts`: sweep every semitone E1–E6 with sine, sawtooth, and weak-fundamental tones at 20 dB SNR, plus deliberate ±1/±20/±49 cent offsets; assert within ±1 cent and correct note+octave (SC-004, V1)
-- [ ] T031 [P] [US1] Write failing graceful-degradation tests in `packages/core/tests/accuracy-range.test.ts`: outside E1–E6 down to A0 and up to C8, assert the analyzer returns **no reading** rather than a confident wrong one (Constitution v2.0.0 accuracy clause)
-- [ ] T032 [P] [US1] Write failing stability test in `packages/core/tests/stability.test.ts`: 5 s of a steady noisy tone varies by no more than ±2 cents (SC-005, V2)
-- [ ] T033 [P] [US1] Write failing allocation test in `packages/core/tests/allocation.test.ts`: 10,000 push/analyze cycles show no steady-state heap growth from core code and return the same reused `PitchReading` instance (Principle V, V4)
-- [ ] T034 [P] [US1] Write failing `RingBuffer` tests in `packages/core/tests/ring-buffer.test.ts`: wraparound correctness, window extraction order, and no allocation on write
-- [ ] T035 [P] [US1] Write failing `TunerSession` tests in `packages/core/tests/session.test.ts` using `ScriptedAudioSource`: idempotent start/stop, `idle → listening → reading` transitions, and that `onStatusChange` suppresses equal consecutive statuses (guarantee S4)
-- [ ] T036 [P] [US1] Write failing `useTuner` tests in `packages/react/tests/use-tuner.test.tsx`: `subscribeToCents` never triggers a React render (R1), values are immutable snapshots (R2), and use outside a provider throws (R3)
+- [X] T030 [P] [US1] Write failing accuracy tests in `packages/core/tests/accuracy.test.ts`: sweep every semitone E1–E6 with sine, sawtooth, and weak-fundamental tones at 20 dB SNR, plus deliberate ±1/±20/±49 cent offsets; assert within ±1 cent and correct note+octave (SC-004, V1)
+- [X] T031 [P] [US1] Write failing graceful-degradation tests in `packages/core/tests/accuracy-range.test.ts`: outside E1–E6 down to A0 and up to C8, assert the analyzer returns **no reading** rather than a confident wrong one (Constitution v2.0.0 accuracy clause)
+- [X] T032 [P] [US1] Write failing stability test in `packages/core/tests/stability.test.ts`: 5 s of a steady noisy tone varies by no more than ±2 cents (SC-005, V2)
+- [X] T033 [P] [US1] Write failing allocation test in `packages/core/tests/allocation.test.ts`: 10,000 push/analyze cycles show no steady-state heap growth from core code and return the same reused `PitchReading` instance (Principle V, V4)
+- [X] T034 [P] [US1] Write failing `RingBuffer` tests in `packages/core/tests/ring-buffer.test.ts`: wraparound correctness, window extraction order, and no allocation on write
+- [X] T035 [P] [US1] Write failing `TunerSession` tests in `packages/core/tests/session.test.ts` using `ScriptedAudioSource`: idempotent start/stop, `idle → listening → reading` transitions, and that `onStatusChange` suppresses equal consecutive statuses (guarantee S4)
+- [X] T036 [P] [US1] Write failing `useTuner` tests in `packages/react/tests/use-tuner.test.tsx`: `subscribeToCents` never triggers a React render (R1), values are immutable snapshots (R2), and use outside a provider throws (R3)
 
 ### Implementation for User Story 1
 
-- [ ] T037 [US1] Implement `RingBuffer` in `packages/core/src/dsp/ring-buffer.ts` with a preallocated 4096-sample `Float32Array` and allocation-free writes
-- [ ] T038 [US1] Implement `PitchAnalyzer` in `packages/core/src/dsp/pitch-analyzer.ts` wrapping `pitchy` with a preallocated `PitchDetector`, 4096 window / 1024 hop, `setReferencePitch`, and a **reused** `PitchReading` object (contract §2, research D3/D5)
-- [ ] T039 [US1] Implement the clarity gate, median-of-5 filter, and hold-then-release (~400 ms) stages in `packages/core/src/tuning/filters.ts` (research D7 stages 1, 3, 5 — stages 2 and 4 land in US2)
-- [ ] T040 [US1] Implement the `TunerSession` state machine in `packages/core/src/tuning/session.ts` with `onStatusChange` (discrete) and `onReading` (continuous) channels
-- [ ] T041 [US1] Implement `TunerProvider` and `useTuner` in `packages/react/src/TunerProvider.tsx` and `packages/react/src/useTuner.ts`, copying the reused reading into an immutable snapshot exactly once at this boundary
-- [ ] T042 [US1] Implement `subscribeToCents` in `packages/react/src/useTuner.ts` as a subscription that bypasses React state entirely (research D6)
-- [ ] T043 [P] [US1] Implement `WebAudioSource` in `apps/web/src/adapters/web-audio-source.ts` and the PCM worklet in `apps/web/src/worklets/pcm-capture.worklet.ts`; `getUserMedia` MUST set `echoCancellation`, `noiseSuppression`, and `autoGainControl` to `false` — browser voice-processing defaults distort sustained tones and silently skew readings
-- [ ] T044 [P] [US1] Implement `RNAudioSource` in `apps/mobile/src/adapters/rn-audio-source.ts` using `AudioRecorder.onAudioReady({ sampleRate, bufferLength: 1024, channelCount: 1 })`, unwrapping `buffer.getChannelData(0)`
-- [ ] T045 [US1] Run the T028 port contract suite against `WebAudioSource` and `RNAudioSource`; both MUST report the **actual** sample rate, not the requested one (obligation A5)
-- [ ] T046 [P] [US1] Implement web atoms in `apps/web/src/components/atoms/`: `NoteLabel`, `CentsReadout`, `DirectionCue`, `TickMark` — all styled from `@chromatic-tuner/tokens`
-- [ ] T047 [US1] Implement `TuningLine` molecule in `apps/web/src/components/molecules/TuningLine.tsx`: ±50 cent span, visible ±5 cent centre zone, marker driven by CSS `transform: translateX()` from `subscribeToCents` (never React state)
-- [ ] T048 [US1] Implement `TunerDisplay` organism in `apps/web/src/components/organisms/TunerDisplay.tsx` composing note name, cents readout, direction cue, and tuning line, with colour keyed off `TuningState`
-- [ ] T049 [US1] Implement `TunerLayout` template and `TunerPage` page in `apps/web/src/components/templates/` and `apps/web/src/components/pages/`, and wire `TunerProvider` with the web adapters in `apps/web/src/main.tsx`
-- [ ] T050 [P] [US1] Implement mobile atoms in `apps/mobile/src/components/atoms/` mirroring T046, using RN primitives and the same tokens
-- [ ] T051 [US1] Implement `TuningLine` molecule in `apps/mobile/src/components/molecules/TuningLine.tsx` driving the marker transform from a **Reanimated shared value** so motion stays on the UI thread (research D6)
-- [ ] T052 [US1] Implement `TunerDisplay` organism in `apps/mobile/src/components/organisms/TunerDisplay.tsx`
-- [ ] T053 [US1] Implement the tuner screen in `apps/mobile/src/components/screens/TunerScreen.tsx` and wire `TunerProvider` with the mobile adapters in `apps/mobile/src/App.tsx`
-- [ ] T054 [US1] Honour the platform reduced-motion preference in both `TuningLine` implementations, falling back to 0 ms transitions (FR-016, token guarantee T4)
-- [ ] T055 [P] [US1] Add Playwright E2E in `apps/web/e2e/tuning.spec.ts` with fixtures `e2-in-tune.wav`, `e2-flat-20.wav`, `e2-sharp-20.wav`, launched via `--use-fake-device-for-media-stream --use-file-for-fake-audio-capture` (V5)
-- [ ] T056 [P] [US1] Add a `jest-expo` integration test in `apps/mobile/__tests__/tuner-flow.test.tsx` covering the primary flow with the native module mocked
+- [X] T037 [US1] Implement `RingBuffer` in `packages/core/src/dsp/ring-buffer.ts` with a preallocated 4096-sample `Float32Array` and allocation-free writes
+- [X] T038 [US1] Implement `PitchAnalyzer` in `packages/core/src/dsp/pitch-analyzer.ts` wrapping `pitchy` with a preallocated `PitchDetector`, 4096 window / 1024 hop, `setReferencePitch`, and a **reused** `PitchReading` object (contract §2, research D3/D5)
+- [X] T039 [US1] Implement the clarity gate, median-of-5 filter, and hold-then-release (~400 ms) stages in `packages/core/src/tuning/filters.ts` (research D7 stages 1, 3, 5 — stages 2 and 4 land in US2)
+- [X] T040 [US1] Implement the `TunerSession` state machine in `packages/core/src/tuning/session.ts` with `onStatusChange` (discrete) and `onReading` (continuous) channels
+- [X] T041 [US1] Implement `TunerProvider` and `useTuner` in `packages/react/src/TunerProvider.tsx` and `packages/react/src/useTuner.ts`, copying the reused reading into an immutable snapshot exactly once at this boundary
+- [X] T042 [US1] Implement `subscribeToCents` in `packages/react/src/useTuner.ts` as a subscription that bypasses React state entirely (research D6)
+- [X] T043 [P] [US1] Implement `WebAudioSource` in `apps/web/src/adapters/web-audio-source.ts` and the PCM worklet in `apps/web/src/worklets/pcm-capture.worklet.ts`; `getUserMedia` MUST set `echoCancellation`, `noiseSuppression`, and `autoGainControl` to `false` — browser voice-processing defaults distort sustained tones and silently skew readings
+- [X] T044 [P] [US1] Implement `RNAudioSource` in `apps/mobile/src/adapters/rn-audio-source.ts` using `AudioRecorder.onAudioReady({ sampleRate, bufferLength: 1024, channelCount: 1 })`, unwrapping `buffer.getChannelData(0)`
+- [X] T045 [US1] Run the T028 port contract suite against `RNAudioSource` in `apps/mobile/__tests__/rn-audio-source.contract.test.ts`, with the mock returning 48 kHz for a 44.1 kHz request to prove obligation A5 — **partial**: `WebAudioSource` needs a real `AudioWorklet`, which jsdom does not provide, so it is covered end-to-end by the Playwright specs instead of by the abstract suite
+- [X] T046 [P] [US1] Implement web atoms in `apps/web/src/components/atoms/`: `NoteLabel`, `CentsReadout`, `DirectionCue`, `TickMark` — all styled from `@chromatic-tuner/tokens`
+- [X] T047 [US1] Implement `TuningLine` molecule in `apps/web/src/components/molecules/TuningLine.tsx`: ±50 cent span, visible ±5 cent centre zone, marker driven by CSS `transform: translateX()` from `subscribeToCents` (never React state)
+- [X] T048 [US1] Implement `TunerDisplay` organism in `apps/web/src/components/organisms/TunerDisplay.tsx` composing note name, cents readout, direction cue, and tuning line, with colour keyed off `TuningState`
+- [X] T049 [US1] Implement `TunerLayout` template and `TunerPage` page in `apps/web/src/components/templates/` and `apps/web/src/components/pages/`, and wire `TunerProvider` with the web adapters in `apps/web/src/main.tsx`
+- [X] T050 [P] [US1] Implement mobile atoms in `apps/mobile/src/components/atoms/` mirroring T046, using RN primitives and the same tokens
+- [X] T051 [US1] Implement `TuningLine` molecule in `apps/mobile/src/components/molecules/TuningLine.tsx` driving the marker transform from a **Reanimated shared value** so motion stays on the UI thread (research D6)
+- [X] T052 [US1] Implement `TunerDisplay` organism in `apps/mobile/src/components/organisms/TunerDisplay.tsx`
+- [X] T053 [US1] Implement the tuner screen in `apps/mobile/src/components/screens/TunerScreen.tsx` and wire `TunerProvider` with the mobile adapters in `apps/mobile/src/App.tsx`
+- [X] T054 [US1] Honour the platform reduced-motion preference in both `TuningLine` implementations, falling back to 0 ms transitions (FR-016, token guarantee T4)
+- [X] T055 [P] [US1] Add Playwright E2E in `apps/web/e2e/tuning.spec.ts` with fixtures `e2-in-tune.wav`, `e2-flat-20.wav`, `e2-sharp-20.wav`, launched via `--use-fake-device-for-media-stream --use-file-for-fake-audio-capture` (V5)
+- [X] T056 [P] [US1] Add a `jest-expo` integration test in `apps/mobile/__tests__/tuner-flow.test.tsx` covering the primary flow with the native module mocked
 
-**Checkpoint**: A working chromatic tuner on web and mobile. This is the MVP — it can be demoed and shipped.
+**Checkpoint**: ✅ **COMPLETE (2026-08-02)**. A working chromatic tuner on web and mobile — the MVP.
+**309 unit tests**, 12 mobile Jest tests, and **7 Playwright E2E tests driving a real Chromium with a fake
+microphone**, all green. `packages/core` coverage 96.3% statements / 97.0% lines. All eight checks pass.
+
+Accuracy measured against generated reference signals: **±1 cent across all 61 semitones E1–E6** for sine,
+sawtooth, and weak-fundamental tones, and at 20 dB SNR. Stability holds within ±2 cents over 5 seconds.
+
+Four defects were found by tests or by driving the real browser, none of which review would have caught:
+
+- **MPM alone missed ±1 cent at the top of the band** (1.3–1.9 cents at MIDI 83/88 on harmonically rich
+  tones), because its NSDF peak interpolation degrades when the lag is only ~44 samples. Added a phase-advance
+  refinement across the window. A first attempt made things *worse* below 172 Hz — the negative-frequency
+  image sits under four bins away at 41 Hz and contaminates the phase — so refinement is now gated to
+  frequencies where the images separate, using MPM below and phase above. A Hann window on the demodulation
+  was then needed for weak-fundamental tones, where the loud second harmonic leaked through the rectangular
+  window's sidelobes.
+- **`TunerStatus` aliased the reused reading object**, so the change comparison compared an object with
+  itself and a genuine note change would never have emitted an event. Now compares first, then publishes a
+  copy — so the suppressed case still allocates nothing.
+- **`TunerSession.start`/`stop` raced.** React StrictMode's double-invoked effect (start → stop → start) left
+  an orphaned audio stream feeding a session whose `running` flag was false: frames arrived, the tuner showed
+  "listening" forever. Only surfaced when driving the real browser. Both operations are now serialised
+  through a promise queue.
+- **A zero-output `AudioWorkletNode` is never pulled by Chrome**, because it is unreachable from the
+  destination — `process` was simply never called. It now has one silent output routed through a muted gain
+  node to the destination.
+
+Two deliberate deviations from the task wording:
+
+- **T043's worklet is a Blob URL, not a bundler URL import.** `?worker&url` resolves differently in Vite dev
+  and in a production build, and an `AudioWorkletGlobalScope` cannot execute ESM imports. A Blob URL behaves
+  identically in dev, in the built bundle, and under Playwright.
+- **T055's specs are one file per audio fixture.** Playwright rejects `launchOptions` inside a `describe`
+  because it forces a new worker, so each fake-microphone WAV needs its own spec file with a top-level
+  `test.use`. Fixtures are generated by `e2e/fixtures/generate.mjs` rather than committed as 2 MB of binaries.
 
 ---
 

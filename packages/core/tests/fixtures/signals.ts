@@ -55,9 +55,13 @@ export function sawtooth({
   length,
   amplitude = 0.8,
   phase = 0,
-}: ToneOptions): Float32Array {
+  maxHarmonics = 24,
+}: ToneOptions & { readonly maxHarmonics?: number }): Float32Array {
   const out = new Float32Array(length);
-  const maxHarmonic = Math.floor(sampleRate / 2 / frequency);
+  // Capped as well as band-limited: a real plucked string has negligible energy
+  // above ~24 harmonics, and summing 500+ of them at E1 makes the accuracy
+  // sweep take minutes instead of seconds.
+  const maxHarmonic = Math.min(maxHarmonics, Math.floor(sampleRate / 2 / frequency));
   for (let h = 1; h <= maxHarmonic; h += 1) {
     const step = (2 * Math.PI * frequency * h) / sampleRate;
     const weight = amplitude / h;

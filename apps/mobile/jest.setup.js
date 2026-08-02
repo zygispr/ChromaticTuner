@@ -15,7 +15,10 @@ jest.mock('react-native-audio-api', () => {
 
     async start() {
       this.started = true;
-      return { sampleRate: 44100 };
+      // Deliberately NOT the rate the caller asked for. iOS substitutes 48 kHz
+      // on some routes, and an adapter that echoes the requested rate back
+      // would skew every reading by a fixed ratio (obligation A5).
+      return { sampleRate: 48000 };
     }
 
     async stop() {
@@ -41,3 +44,32 @@ jest.mock('expo-keep-awake', () => ({
   activateKeepAwakeAsync: jest.fn(async () => {}),
   deactivateKeepAwake: jest.fn(async () => {}),
 }));
+
+// Reanimated drives the marker on the UI thread, which has no equivalent under
+// Jest. Its own shipped mock still initialises react-native-worklets, whose
+// native module does not exist in this environment, so it cannot be used here.
+//
+// TuningLine uses exactly five APIs from this package, so they are mocked
+// directly: animations resolve to their target value immediately, which is the
+// right semantics for an integration test that asserts on rendered content
+// rather than on intermediate animation frames.
+jest.mock('react-native-reanimated', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+
+  const AnimatedView = React.forwardRef((props, ref) =>
+    React.createElement(View, { ...props, ref })
+  );
+  AnimatedView.displayName = 'Animated.View';
+
+  const easingFn = () => 0;
+
+  return {
+    __esModule: true,
+    default: { View: AnimatedView },
+    useSharedValue: (initial) => ({ value: initial }),
+    useAnimatedStyle: (factory) => factory(),
+    withTiming: (target) => target,
+    Easing: { out: () => easingFn, quad: easingFn, linear: easingFn },
+  };
+});

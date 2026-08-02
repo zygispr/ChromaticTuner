@@ -40,8 +40,20 @@ export class ScriptedAudioSource implements AudioSource {
   /** Number of times stop() has actually released the microphone. */
   public releaseCount = 0;
 
+  private resolveStarted!: () => void;
+  /**
+   * Resolves once start() has completed.
+   *
+   * Consumers such as TunerProvider start the source inside an effect, so tests
+   * need a deterministic point to await rather than guessing with timers.
+   */
+  public readonly startedPromise: Promise<void>;
+
   constructor(options: ScriptedAudioSourceOptions = {}) {
     this.options = options;
+    this.startedPromise = new Promise<void>((resolve) => {
+      this.resolveStarted = resolve;
+    });
   }
 
   get isRunning(): boolean {
@@ -64,6 +76,7 @@ export class ScriptedAudioSource implements AudioSource {
     this.onFrames = onFrames;
     this.readIndex = 0;
     this.scratch = new Float32Array(config.bufferLength);
+    this.resolveStarted();
 
     return { sampleRate: this.options.actualSampleRate ?? config.sampleRate };
   }

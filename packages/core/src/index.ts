@@ -57,5 +57,13 @@ export type {
 export type { PreferencesStore, StoredPreferences } from './ports/preferences-store';
 export type { WakeLock } from './ports/wake-lock';
 
-// Phase 3 adds: RingBuffer, PitchAnalyzer (contract §2), TunerSession (§3).
+// --- DSP (contract §2) ---
+export { RingBuffer } from './dsp/ring-buffer';
+export { PitchAnalyzer } from './dsp/pitch-analyzer';
+export type { AnalyzerOptions } from './dsp/pitch-analyzer';
+
+// --- Session orchestration (contract §3) ---
+export { TunerSession } from './tuning/session';
+export type { ReadingHandler, StatusHandler, TunerSessionDeps } from './tuning/session';
+
 // Phase 6 adds: the Preferences model (data-model §6).

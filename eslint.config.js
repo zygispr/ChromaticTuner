@@ -128,7 +128,12 @@ export default tseslint.config(
   // Node-context config and tooling files. These are CommonJS by necessity —
   // Metro, Babel, and Jest all load their config through require().
   {
-    files: ['**/*.config.{js,ts,mjs,cjs}', '**/jest.setup.js', 'apps/mobile/index.js'],
+    files: [
+      '**/*.config.{js,ts,mjs,cjs}',
+      '**/jest.setup.js',
+      'apps/mobile/index.js',
+      'apps/web/e2e/fixtures/*.mjs',
+    ],
     languageOptions: {
       globals: { ...globals.node },
     },

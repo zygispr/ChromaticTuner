@@ -1,19 +1,20 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { TunerProvider } from '@chromatic-tuner/react';
 
-// Phase 1 placeholder. TunerProvider wiring with the mobile adapters lands in
-// T053; the component tree lands in T050-T053.
+import { RNAudioSource } from './adapters/rn-audio-source';
+import { TunerScreen } from './components/screens/TunerScreen';
+
+// A no-op stands in until the real wake lock lands in US3 (T073).
+const wakeLock = {
+  async acquire() {},
+  async release() {},
+};
+
+const audioSource = new RNAudioSource();
+
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>ChromaticTuner</Text>
-    </View>
+    <TunerProvider audioSource={audioSource} wakeLock={wakeLock}>
+      <TunerScreen />
+    </TunerProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

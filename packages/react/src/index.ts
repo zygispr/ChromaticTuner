@@ -5,9 +5,16 @@
  * per-platform presentation. Everything down to and including useTuner() is
  * shared; components below it are written once per platform.
  *
- * React only: MUST NOT import DOM or react-native primitives.
- *
- * Populated in Phase 3 (T041-T042) and Phase 6 (T083).
+ * React only: no DOM, no react-native primitives (lint-enforced).
  */
 
-export {};
+export { TunerProvider } from './TunerProvider';
+export type { TunerProviderProps } from './TunerProvider';
+
+export { useTuner } from './useTuner';
+export type { UseTunerOptions, UseTunerResult } from './useTuner';
+
+export { TunerContext } from './TunerContext';
+export type { TunerContextValue } from './TunerContext';
+
+// Phase 6 adds: usePreferences (T083).
