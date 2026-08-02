@@ -1,29 +1,34 @@
 <!--
 Sync Impact Report
 ==================
-Version change: (uninitialized template) → 1.0.0
-Bump rationale: Initial ratification. All placeholder tokens replaced with concrete,
-testable governance content; no prior version existed to be incompatible with.
+Version change: 1.0.0 → 2.0.0
+Bump rationale: MAJOR. The versioning policy classifies "a binding budget is loosened" as
+MAJOR, and this amendment narrows the range over which the ±1 cent accuracy guarantee holds
+from A0-C8 to E1-E6. The tolerance itself is unchanged; the set of inputs it covers shrinks,
+which is a weakening of a binding requirement and therefore not a PATCH.
+
+Reason for the change: ±1 cent across A0-C8 is not physically attainable at the top of the
+range. At C8 (4186 Hz) ±1 cent is ±2.42 Hz, sitting at an autocorrelation lag of ~10.5 samples
+at 44.1 kHz; holding it would demand ~0.4% lag precision from a noisy real-world signal. At E6
+(1318.5 Hz) the lag is ~33 samples and the target is met with margin. Every note a guitar can
+produce falls inside E1-E6. The original figure was written before the physics was checked.
+Full derivation: specs/001-chromatic-guitar-tuner/research.md D4 and plan.md Complexity
+Tracking C2.
 
 Modified principles:
-  [PRINCIPLE_1_NAME] → I. Code Quality Is Non-Negotiable
-  [PRINCIPLE_2_NAME] → II. Simplicity Over Cleverness
-  [PRINCIPLE_3_NAME] → III. Testing Standards (NON-NEGOTIABLE)
-  [PRINCIPLE_4_NAME] → IV. User Experience Consistency
-  [PRINCIPLE_5_NAME] → V. Performance Is A Feature
-  (added)            → VI. Scalability By Design
+  III. Testing Standards - reference-signal accuracy range A0-C8 → E1-E6 guaranteed,
+       with an added requirement to also test outside the band for graceful degradation
+  V. Performance Is A Feature - zero-allocation rule scoped to first-party code, with the
+       platform-boundary exception stated explicitly
 
-Added sections:
-  - Quality & Performance Standards (was [SECTION_2_NAME])
-  - Development Workflow & Quality Gates (was [SECTION_3_NAME])
+Modified sections:
+  Quality & Performance Standards - Accuracy block rewritten; TODO(TECH_STACK) resolved and
+       replaced with the concrete toolchain fixed by the first /speckit-plan
 
+Added sections: none
 Removed sections: none
 
-Deferred TODOs:
-  - TODO(TECH_STACK): Target platforms, languages, and frameworks are not yet chosen.
-    Sections marked "stack-neutral" MUST be revisited (PATCH or MINOR amendment) once
-    the first `/speckit-plan` fixes the stack, so that tool-specific gates (linter,
-    formatter, coverage tool, profiler) can be named explicitly.
+Deferred TODOs: none. TODO(TECH_STACK) from v1.0.0 is resolved by this amendment.
 -->
 
 # ChromaticTuner Constitution
@@ -77,8 +82,12 @@ Correctness MUST be demonstrated by automated tests, not by manual inspection.
   temperaments, transposition — MUST have unit tests written before or alongside the
   implementation, and those tests MUST fail before the implementation exists.
 - Pitch-detection accuracy MUST be verified against generated reference signals (sine, sawtooth,
-  and harmonically rich tones) across the instrument range A0–C8, asserting detected pitch within
-  the accuracy budget defined in Quality & Performance Standards.
+  and harmonically rich tones, including tones with a deliberately weak fundamental) across the
+  guaranteed range E1–E6, asserting detected pitch within the accuracy budget defined in Quality
+  & Performance Standards.
+- Detection MUST also be exercised outside the guaranteed range, down to A0 and up to C8, to prove
+  it degrades gracefully — returning no reading rather than a confident wrong one. Accuracy
+  assertions outside E1–E6 are best-effort and MUST NOT gate merge.
 - Every bug fix MUST add a regression test that fails on the unfixed code.
 - Line coverage of core logic modules (DSP, note math, state machines) MUST be ≥ 90%. UI shells
   and platform glue are exempt from the numeric target but MUST have at least one integration
@@ -129,7 +138,10 @@ Real-time responsiveness is a correctness requirement, not an optimization goal.
 - The UI MUST sustain 60 fps during continuous tuning; no frame budget overrun above 16.7 ms may
   be introduced knowingly.
 - The audio processing path MUST NOT allocate memory, lock, or perform I/O per audio callback.
-  Buffers MUST be pre-allocated and reused.
+  Buffers MUST be pre-allocated and reused. This binds all first-party code from the point audio
+  enters our boundary inward, and MUST be enforced by an automated test asserting no steady-state
+  allocation growth. Buffer objects that the host platform allocates before handing them to us are
+  outside our control and are exempt.
 - Cold start to a usable tuning display MUST be ≤ 2 seconds on the lowest supported target
   device.
 - Performance claims MUST be backed by measurement. Any change to the DSP path or render loop
@@ -171,8 +183,17 @@ changing a number is a constitution amendment, not a pull-request decision.
 
 **Accuracy**
 
-- Pitch detection accuracy: within ±1 cent for steady tones, A0 (27.5 Hz) through C8 (4186 Hz),
-  at signal-to-noise ratios of 20 dB or better.
+- Pitch detection accuracy: within ±1 cent for steady tones across the **guaranteed range E1
+  (41.2 Hz) through E6 (1318.5 Hz)**, at signal-to-noise ratios of 20 dB or better. This band
+  covers every note a guitar can produce, from a heavily detuned low string to the 24th fret of
+  the high E.
+- Outside E1–E6, detection remains functional on a best-effort basis down to A0 and up to C8. In
+  that region the binding requirement is honesty, not precision: the app MUST return no reading
+  rather than a confident wrong one. ±1 cent is not guaranteed and MUST NOT gate merge there.
+- Rationale for the bounded guarantee: ±1 cent at C8 is ±2.42 Hz at an autocorrelation lag of
+  ~10.5 samples at 44.1 kHz, requiring ~0.4% lag precision from a noisy signal — not reliably
+  attainable. Widening the sample rate to chase it would double CPU and battery cost for notes no
+  guitar plays, which Principle II forbids.
 - Readout stability: displayed cents value MUST NOT oscillate by more than ±2 cents on a stable
   input tone.
 - Reference pitch MUST be user-configurable across at least 415–466 Hz for A4.
@@ -185,7 +206,7 @@ changing a number is a constitution amendment, not a pull-request decision.
 | Sustained frame rate while tuning | 60 fps | 60 fps |
 | Cold start to usable display | 2 s | 1 s |
 | Default test suite runtime | 60 s | 20 s |
-| Per-audio-callback allocations | 0 | 0 |
+| Per-frame allocations in first-party audio code | 0 | 0 |
 
 **Quality gates**
 
@@ -194,9 +215,26 @@ changing a number is a constitution amendment, not a pull-request decision.
 - No new dependency without written justification.
 - Accessibility: WCAG 2.1 AA contrast, labeled controls, 44 pt minimum touch targets.
 
-**Stack-neutral note**: TODO(TECH_STACK) — concrete tool names (linter, formatter, coverage and
-profiling tools, target OS versions and minimum device) MUST be recorded here once the first
-`/speckit-plan` selects the stack.
+**Toolchain** (fixed by the first `/speckit-plan`, 2026-08-02; resolves v1.0.0's TODO(TECH_STACK)):
+
+| Concern | Tool |
+|---|---|
+| Language | TypeScript 5.x, `strict: true` |
+| Linter | ESLint (flat config), CI runs `--max-warnings 0` |
+| Formatter | Prettier, checked in CI |
+| Unit tests | Vitest (`packages/*`, `apps/web`) |
+| Mobile tests | Jest + `jest-expo` (`apps/mobile`) |
+| Coverage | Vitest V8 coverage; ≥ 90% on `packages/core` |
+| End-to-end | Playwright with Chromium fake audio capture |
+| Profiling | Chrome DevTools Performance (web); Flipper / RN Perf Monitor (mobile) |
+| Package manager | pnpm workspaces |
+
+**Supported targets**: iOS 15+, Android 8+, and evergreen desktop and mobile browsers. The
+"lowest supported target device" against which the cold-start and frame-rate budgets are measured
+is a mid-range phone of roughly the last five years.
+
+Changing any entry in this table is a MINOR amendment; adding a tool that replaces a listed gate
+requires updating the Quality gates above in the same change.
 
 ## Development Workflow & Quality Gates
 
@@ -248,4 +286,4 @@ this project. Where a style guide, tool default, or habit conflicts with it, thi
 - Repeated violations of the same principle are a signal to amend the principle or fix the
   tooling that permits the violation — not to silently ignore it.
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-02 | **Last Amended**: 2026-08-02
+**Version**: 2.0.0 | **Ratified**: 2026-08-02 | **Last Amended**: 2026-08-02
