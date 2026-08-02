@@ -1,4 +1,4 @@
-import { usePreferences, useTuner } from '@chromatic-tuner/react';
+import { readingAnnouncement, usePreferences, useTuner } from '@chromatic-tuner/react';
 import { space } from '@chromatic-tuner/tokens';
 import { useState } from 'react';
 
@@ -6,6 +6,7 @@ import { CentsReadout } from '../atoms/CentsReadout';
 import { DirectionCue } from '../atoms/DirectionCue';
 import { NoteLabel } from '../atoms/NoteLabel';
 import { ReferenceBadge } from '../atoms/ReferenceBadge';
+import { ScreenReaderAnnouncer } from '../atoms/ScreenReaderAnnouncer';
 import { StatusBanner } from '../molecules/StatusBanner';
 import { TuningLine } from '../molecules/TuningLine';
 import { SettingsSheet } from './SettingsSheet';
@@ -54,6 +55,11 @@ export function TunerDisplay() {
       <DirectionCue direction={direction} state={tuningState} />
 
       <StatusBanner status={status} onRetry={retry} />
+
+      {/* The one thing assistive technology reads for a live reading. Every
+          visual channel above is aria-hidden; this speaks all of them once,
+          on discrete change only (FR-020). */}
+      <ScreenReaderAnnouncer message={readingAnnouncement(status, note, octave)} />
 
       <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </section>

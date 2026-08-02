@@ -14,6 +14,8 @@ export type { TunerProviderProps } from './TunerProvider';
 export { useTuner } from './useTuner';
 export type { UseTunerOptions, UseTunerResult } from './useTuner';
 
+export { readingAnnouncement, spellNoteForSpeech } from './announcement';
+
 export { usePreferences } from './usePreferences';
 export type { UsePreferencesResult } from './usePreferences';
 

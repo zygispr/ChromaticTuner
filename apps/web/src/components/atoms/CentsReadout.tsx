@@ -62,6 +62,9 @@ export function CentsReadout({ cents, subscribeToCents }: CentsReadoutProps) {
   return (
     <div
       data-testid="cents-readout"
+      // Hidden from assistive technology: the number is rewritten 10 times a
+      // second, and the announcer speaks the deviation once per change.
+      aria-hidden="true"
       style={{
         color: themedVar('text'),
         fontSize: `${type.centsSize}px`,

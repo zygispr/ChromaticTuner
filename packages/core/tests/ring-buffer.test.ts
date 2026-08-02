@@ -131,3 +131,18 @@ describe('RingBuffer', () => {
     expect(growth).toBeLessThan(5 * 1024 * 1024);
   });
 });
+
+describe('RingBuffer construction', () => {
+  it('rejects a capacity that could never hold a window', () => {
+    // A zero or fractional capacity would produce a buffer that silently never
+    // fills, so the tuner would sit in "listening" forever with perfectly good
+    // audio arriving — a failure with no visible cause. Better to refuse it.
+    for (const capacity of [0, -1, 1.5, Number.NaN]) {
+      expect(() => new RingBuffer(capacity), `capacity ${capacity}`).toThrow(/positive integer/);
+    }
+  });
+
+  it('accepts the window size the analyzer actually uses', () => {
+    expect(() => new RingBuffer(4096)).not.toThrow();
+  });
+});

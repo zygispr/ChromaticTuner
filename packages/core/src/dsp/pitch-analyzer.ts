@@ -114,6 +114,20 @@ export class PitchAnalyzer {
   /**
    * Analyse the current window.
    *
+   * **Complexity: O(n log n) per call**, n = windowSize (Principle VI, contract
+   * N6). The terms, in order of cost:
+   *
+   * - `readInto` — O(n), two `Float32Array.set` calls over the ring.
+   * - `findPitch` — O(n log n). MPM computes its NSDF via autocorrelation,
+   *   which `pitchy` evaluates with an FFT; this dominates.
+   * - `refine` — O(n), one pass with incremental complex rotation rather than
+   *   per-sample trigonometry.
+   * - the filter chain — O(1) amortised; the median sorts at most 5 elements.
+   *
+   * Allocation: none. Every buffer involved is preallocated in the constructor
+   * and the returned reading is reused (Principle V, verified by
+   * `tests/allocation.test.ts`).
+   *
    * @param now milliseconds since analysis started
    * @returns the reused PitchReading, or null when there is no confident
    *          reading. Copy it if you need to retain it beyond this call.

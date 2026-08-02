@@ -17,6 +17,10 @@ export function NoteLabel({ note, octave, state }: NoteLabelProps) {
   return (
     <div
       data-testid="note-label"
+      // Hidden from assistive technology on purpose: this is one of four
+      // visual channels for the same reading, and ScreenReaderAnnouncer
+      // speaks all of them as a single sentence instead (FR-020).
+      aria-hidden="true"
       style={{
         display: 'flex',
         alignItems: 'baseline',

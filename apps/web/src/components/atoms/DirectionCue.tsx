@@ -26,8 +26,10 @@ export function DirectionCue({ direction, state }: DirectionCueProps) {
   return (
     <div
       data-testid="direction-cue"
-      role="status"
-      aria-live="polite"
+      // Was a live region of its own. It announced "TIGHTEN" with no note to
+      // attach it to, and competed with the status banner's region — so the
+      // single announcer now owns all tuning speech (FR-020).
+      aria-hidden="true"
       style={{
         color: stateColorVar[state],
         fontSize: `${type.labelSize}px`,

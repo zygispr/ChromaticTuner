@@ -9,6 +9,7 @@ import {
   preferencesStoreContract,
   wakeLockContract,
 } from '../testing/port-contract-tests';
+import { isAudioSourceError } from '../src/ports/audio-source';
 import { statusForAudioError } from '../src/types';
 import { sine } from './fixtures/signals';
 
@@ -197,5 +198,34 @@ describe('statusForAudioError', () => {
     const unsupported = statusForAudioError({ kind: 'unsupported' });
     expect(unsupported.kind).toBe('error');
     expect(unsupported.kind === 'error' && unsupported.message.length).toBeGreaterThan(0);
+  });
+});
+
+describe('isAudioSourceError (obligation A3 at the adapter boundary)', () => {
+  it('accepts every variant the port defines', () => {
+    for (const error of ALL_AUDIO_SOURCE_ERRORS) {
+      expect(isAudioSourceError(error), JSON.stringify(error)).toBe(true);
+    }
+  });
+
+  it('rejects anything that is not a typed port error', () => {
+    // Adapters catch whatever the platform throws — DOMExceptions, strings,
+    // undefined. The guard is what stops one of those being treated as a
+    // TunerStatus and rendering a banner with no message in it.
+    const impostors: unknown[] = [
+      null,
+      undefined,
+      'permission-denied',
+      42,
+      [],
+      new Error('permission-denied'),
+      {},
+      { kind: 'something-else' },
+      { kind: 42 },
+    ];
+
+    for (const value of impostors) {
+      expect(isAudioSourceError(value), JSON.stringify(value)).toBe(false);
+    }
   });
 });

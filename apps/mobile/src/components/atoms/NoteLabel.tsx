@@ -16,7 +16,16 @@ export function NoteLabel({ note, octave, state }: NoteLabelProps) {
   const tint = stateColor(state, appearance);
 
   return (
-    <View style={styles.row} testID="note-label" accessibilityRole="header">
+    // Hidden from assistive technology on purpose: this is one of four visual
+    // channels for the same reading, and TunerAnnouncer speaks all of them as
+    // a single sentence instead (FR-020). Left visible, it reads as "E" then
+    // "2" — two fragments for one note.
+    <View
+      style={styles.row}
+      testID="note-label"
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
+    >
       <Text style={[styles.note, { color: tint }]}>{note ?? '–'}</Text>
       {octave !== null && <Text style={[styles.octave, { color: tint }]}>{octave}</Text>}
     </View>

@@ -56,7 +56,14 @@ export function CentsReadout({ cents, subscribeToCents }: CentsReadoutProps) {
   const shown = cents === null ? null : (live ?? cents);
 
   return (
-    <Text testID="cents-readout" style={[styles.text, { color: colors.text }]}>
+    // Hidden from assistive technology: the number changes 10 times a second,
+    // and the announcer speaks the deviation once per change.
+    <Text
+      testID="cents-readout"
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
+      style={[styles.text, { color: colors.text }]}
+    >
       {shown === null ? '–' : format(shown)}
     </Text>
   );

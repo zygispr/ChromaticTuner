@@ -16,6 +16,36 @@ style.textContent = `
   *, *::before, *::after { box-sizing: border-box; }
   html, body, #root { margin: 0; padding: 0; height: 100%; }
   body { -webkit-font-smoothing: antialiased; }
+
+  /*
+   * Visible focus, as Principle IV requires of every interactive element.
+   * The controls here set their own background and border, which in several
+   * browsers suppresses or camouflages the default focus ring — so the ring is
+   * stated explicitly, in the theme's text colour, with an offset that keeps it
+   * legible against both the light and dark background.
+   *
+   * :focus-visible rather than :focus, so a pointer user does not get a ring
+   * they did not ask for while a keyboard user always does.
+   */
+  :focus-visible {
+    outline: 3px solid var(--ct-text);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /*
+   * FR-016: honour the platform's reduced-motion preference globally, not just
+   * in the marker. A transition the user has asked not to see is not a detail
+   * to apply selectively.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
   ${themeCss}
 `;
 document.head.appendChild(style);

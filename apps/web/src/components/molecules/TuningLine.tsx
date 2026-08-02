@@ -53,8 +53,9 @@ export function TuningLine({ state, subscribeToCents }: TuningLineProps) {
   return (
     <div
       data-testid="tuning-line"
-      role="img"
-      aria-label="Tuning position, flat on the left and sharp on the right"
+      // The marker's position is the same information the announcer speaks,
+      // and it moves ~43 times a second. Announcing it too would be noise.
+      aria-hidden="true"
       style={{
         position: 'relative',
         width: '100%',
@@ -130,7 +131,14 @@ export function TuningLine({ state, subscribeToCents }: TuningLineProps) {
           justifyContent: 'space-between',
           padding: `0 ${space.xs}px`,
           color: themedVar('text'),
-          opacity: 0.55,
+          // 0.7, not the 0.55 this started at: Axe measured the composited
+          // result at 3.9:1 against the background, under the 4.5:1 AA floor
+          // for 12px text. The token was correct and the opacity defeated it —
+          // which the tokens package's own contrast test cannot see, because it
+          // checks the palette rather than what lands on the page.
+          // These words are one of FR-015's redundant channels, so "decorative"
+          // is not an available excuse for them being hard to read.
+          opacity: 0.7,
           fontSize: 12,
           letterSpacing: '0.1em',
         }}

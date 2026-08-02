@@ -26,7 +26,11 @@ export function DirectionCue({ direction, state }: DirectionCueProps) {
   return (
     <Text
       testID="direction-cue"
-      accessibilityLiveRegion="polite"
+      // Was a live region of its own. It announced "TIGHTEN" with no note to
+      // attach it to, and competed with the status banner's region — so the
+      // single announcer now owns all tuning speech (FR-020).
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
       style={[styles.text, { color: stateColor(state, appearance) }]}
     >
       {text}

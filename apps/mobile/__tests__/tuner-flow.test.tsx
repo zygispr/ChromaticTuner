@@ -8,6 +8,13 @@ import { TunerScreen } from '../src/components/screens/TunerScreen';
 /**
  * Primary-flow integration test for the mobile app (T056).
  *
+ * The note label, cents readout, tuning line and direction cue are deliberately
+ * hidden from assistive technology — `ScreenReaderAnnouncer` speaks all four as
+ * one sentence instead (FR-020, T090) — so the queries below opt in explicitly
+ * with `includeHiddenElements`. They are asserting the VISUAL rendering, which
+ * is exactly the thing that is hidden. The announcer's own wording is covered
+ * in packages/react.
+ *
  * Constitution Principle III exempts UI shells from the 90% numeric target but
  * requires at least one integration test covering the primary user flow. The
  * native audio module is mocked at the port boundary — this exercises the real
@@ -44,7 +51,7 @@ describe('mobile tuner flow', () => {
     });
 
     expect(screen.getByTestId('tuner-display')).toBeTruthy();
-    expect(screen.getByTestId('tuning-line')).toBeTruthy();
+    expect(screen.getByTestId('tuning-line', { includeHiddenElements: true })).toBeTruthy();
   });
 
   it('names the played note and reports it as in tune', async () => {
@@ -59,8 +66,12 @@ describe('mobile tuner flow', () => {
     });
 
     // Note name and octave are rendered as separate Text nodes (FR-003).
-    expect(screen.getByTestId('note-label')).toHaveTextContent(/^E2$/);
-    expect(screen.getByTestId('direction-cue')).toHaveTextContent(/in tune/i);
+    expect(screen.getByTestId('note-label', { includeHiddenElements: true })).toHaveTextContent(
+      /^E2$/
+    );
+    expect(screen.getByTestId('direction-cue', { includeHiddenElements: true })).toHaveTextContent(
+      /in tune/i
+    );
   });
 
   it('tells the player to tighten when the string is flat', async () => {
@@ -80,8 +91,12 @@ describe('mobile tuner flow', () => {
       source.pump(12);
     });
 
-    expect(screen.getByTestId('direction-cue')).toHaveTextContent(/tighten/i);
-    expect(screen.getByTestId('cents-readout')).toHaveTextContent(/-\d+/);
+    expect(screen.getByTestId('direction-cue', { includeHiddenElements: true })).toHaveTextContent(
+      /tighten/i
+    );
+    expect(screen.getByTestId('cents-readout', { includeHiddenElements: true })).toHaveTextContent(
+      /-\d+/
+    );
   });
 
   it('releases the microphone when the tree unmounts (FR-033)', async () => {

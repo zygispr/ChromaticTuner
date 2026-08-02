@@ -1,0 +1,142 @@
+# Chromatic Tuner
+
+A chromatic guitar tuner for the web, iOS, and Android. Pluck a string; it names the note and shows how far
+off you are on one horizontal line — flat to the left, sharp to the right — and tells you which way to turn
+the peg.
+
+Accuracy is **±1 cent across E1–E6** (the guitar's range plus headroom), verified on every commit against
+generated reference signals rather than by ear. All analysis happens on the device: no account, no network,
+no audio ever leaves the machine.
+
+---
+
+## ⚠️ Expo Go will not work
+
+`react-native-audio-api` ships native code, so the mobile app **requires a development build**:
+
+```bash
+pnpm --filter @chromatic-tuner/mobile ios      # or: android
+```
+
+The first run compiles native code and takes a while. Opening the project in Expo Go instead will fail in a
+way that looks like a JavaScript error, and this is the single most likely cause of a confusing first-run
+failure. If you see a missing-native-module error, this is why.
+
+---
+
+## Prerequisites
+
+| Tool           | Version          | Needed for           |
+| -------------- | ---------------- | -------------------- |
+| Node           | 20 LTS or newer  | everything           |
+| pnpm           | 9+               | everything           |
+| Xcode          | 16+              | iOS builds           |
+| Android Studio | Ladybug or newer | Android builds       |
+| Watchman       | latest           | recommended on macOS |
+
+```bash
+corepack enable        # provides pnpm
+pnpm install
+```
+
+## Running
+
+```bash
+# Web — http://localhost:5173
+pnpm --filter @chromatic-tuner/web dev
+
+# Mobile — development build, not Expo Go (see above)
+pnpm --filter @chromatic-tuner/mobile ios
+pnpm --filter @chromatic-tuner/mobile android
+```
+
+Browsers only grant microphone access on a **secure origin**. `localhost` counts; your dev machine's LAN IP
+does not, so testing from a phone against `http://192.168.x.x:5173` will fail the permission request with no
+useful error. Tunnel over HTTPS instead.
+
+## Quality gates
+
+All eight must pass before merge. CI runs them on every pull request.
+
+```bash
+pnpm lint              # ESLint, --max-warnings 0
+pnpm format:check      # Prettier
+pnpm typecheck         # tsc --noEmit, strict, every package
+pnpm test              # Vitest — packages/*
+pnpm test:coverage     # packages/core must stay >= 90% lines
+pnpm test:e2e          # Playwright against a real Chromium with a fake microphone
+pnpm build             # production web bundle + service worker
+pnpm --filter @chromatic-tuner/mobile test    # jest-expo
+```
+
+Deleting or skipping a failing test to unblock a merge is prohibited by the project constitution.
+
+### Checks that need a real browser or a real device
+
+Two things cannot run under the normal suite:
+
+```bash
+# Offline behaviour and cold start, against the production build.
+# The dev server does not emit the service worker, so this cannot be a normal spec.
+pnpm build
+pnpm --filter @chromatic-tuner/web preview --port 4173 &
+pnpm --filter @chromatic-tuner/web verify:offline
+```
+
+Thermal and battery behaviour over 30 minutes of continuous use (quickstart V13) needs a physical mid-range
+phone and remains a manual release-gate check. See
+[specs/001-chromatic-guitar-tuner/quickstart.md](specs/001-chromatic-guitar-tuner/quickstart.md).
+
+---
+
+## Layout
+
+```
+packages/core      pure TypeScript: DSP, note math, the tuner state machine, the ports
+packages/tokens    colour, spacing, type scale, motion — the single source of design truth
+packages/react     TunerProvider, useTuner, usePreferences — the shared React seam
+apps/web           Vite + React 19, Web Audio + AudioWorklet
+apps/mobile        Expo + React Native, react-native-audio-api + Reanimated
+```
+
+Dependencies point inward only. `packages/core` cannot import React, React Native, or touch a DOM global —
+that is a lint error, not a convention, so the core stays testable headlessly and portable to a third
+platform.
+
+The apps are deliberately thin: every platform difference lives behind one of three ports
+(`AudioSource`, `PreferencesStore`, `WakeLock`), and a shared contract suite runs against every
+implementation of them, including the test doubles, so an adapter cannot quietly diverge.
+
+---
+
+## Testing approach
+
+Tests are written before the code they cover and are observed failing first — a constitutional requirement
+here rather than a preference. Three things about the suite are worth knowing:
+
+- **Accuracy is measured, not asserted by eye.** `packages/core/tests/fixtures/signals.ts` generates sines,
+  sawtooths, tones with a deliberately weak fundamental (the low-E failure mode that makes naive tuners
+  report an octave high), and additive noise at a controlled SNR. Every semitone E1–E6 is swept.
+- **The end-to-end tests drive a real browser with a fake microphone.** Chromium replays a WAV file as the
+  capture device, so `getUserMedia`, the AudioWorklet, the analyzer, React, and the DOM all run for real.
+  Fixtures are generated by `apps/web/e2e/fixtures/generate.mjs` rather than committed as binaries.
+- **Performance budgets are tests.** Latency and the no-allocation rule are asserted in
+  `packages/core/tests/`, and frame timing and render behaviour in `apps/web/e2e/performance.spec.ts`, so a
+  regression fails a build instead of being noticed later on a slow phone.
+
+---
+
+## Documentation
+
+The specification, plan, and validation guide live in `specs/001-chromatic-guitar-tuner/`:
+
+| Document                                                        | What it is                                           |
+| --------------------------------------------------------------- | ---------------------------------------------------- |
+| [spec.md](specs/001-chromatic-guitar-tuner/spec.md)             | requirements and success criteria                    |
+| [plan.md](specs/001-chromatic-guitar-tuner/plan.md)             | architecture and technology choices                  |
+| [research.md](specs/001-chromatic-guitar-tuner/research.md)     | why MPM, why a 4096 window, why this filter chain    |
+| [contracts/](specs/001-chromatic-guitar-tuner/contracts/)       | the core API and the platform ports, with guarantees |
+| [quickstart.md](specs/001-chromatic-guitar-tuner/quickstart.md) | the V1–V13 validation suite                          |
+| [tasks.md](specs/001-chromatic-guitar-tuner/tasks.md)           | the build log, including every defect and deviation  |
+
+`.specify/memory/constitution.md` holds the engineering principles the whole project is measured against.

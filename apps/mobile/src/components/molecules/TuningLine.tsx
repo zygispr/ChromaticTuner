@@ -74,8 +74,10 @@ export function TuningLine({ state, subscribeToCents }: TuningLineProps) {
   return (
     <View
       testID="tuning-line"
-      accessibilityRole="image"
-      accessibilityLabel="Tuning position, flat on the left and sharp on the right"
+      // The marker's position is the same information the announcer speaks,
+      // and it moves ~43 times a second. Announcing it too would be noise.
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
       style={[styles.container, { width: LINE_WIDTH }]}
     >
       <View

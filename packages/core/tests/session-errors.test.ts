@@ -301,3 +301,68 @@ describe('automatic recovery without a restart (T065, FR-029, guarantee S2)', ()
     expect(scheduler.pendingCount).toBe(1);
   });
 });
+
+describe('status changes that are easy to swallow', () => {
+  it('re-publishes when only canRetry changes', async () => {
+    // permission-denied → permission-denied with a different canRetry is a
+    // genuinely different screen: one offers a retry button, the other sends
+    // the user to settings. Comparing only `kind` would suppress it.
+    const source = new ScriptedAudioSource({
+      failWith: { kind: 'permission-denied', canRetry: true },
+    });
+    const session = makeSession(source, manualScheduler());
+
+    const seen: TunerStatus[] = [];
+    session.onStatusChange((status) => seen.push(status));
+
+    await session.start();
+    source.setFailure({ kind: 'permission-denied', canRetry: false });
+    await session.retry();
+
+    const denials = seen.filter((status) => status.kind === 'permission-denied');
+    expect(denials).toHaveLength(2);
+    expect(denials.map((s) => s.kind === 'permission-denied' && s.canRetry)).toEqual([true, false]);
+  });
+
+  it('re-publishes when only the error message changes', async () => {
+    // Two different failures must not collapse into one event, or the second
+    // one is invisible and the banner keeps showing the first one's cause.
+    const source = new ScriptedAudioSource({
+      failWith: { kind: 'unknown', message: 'first failure' },
+    });
+    const session = makeSession(source, manualScheduler());
+
+    const messages: string[] = [];
+    session.onStatusChange((status) => {
+      if (status.kind === 'error') messages.push(status.message);
+    });
+
+    await session.start();
+    source.setFailure({ kind: 'unknown', message: 'second failure' });
+    await session.retry();
+
+    expect(messages).toEqual(['first failure', 'second failure']);
+  });
+
+  it('adopts the sample rate the source actually reports (obligation A5)', async () => {
+    // The platform substitutes rates freely. Using the requested one would put
+    // every reading off by a fixed ratio — 48/44.1 is about 147 cents, more
+    // than a semitone, so the tuner would name the wrong note entirely.
+    const source = new ScriptedAudioSource({
+      actualSampleRate: 48000,
+      samples: sine({ frequency: 440, sampleRate: 48000, length: 48000 }),
+    });
+    const session = makeSession(source, manualScheduler(), new NoopWakeLock());
+
+    await session.start();
+    source.pump(16);
+
+    expect(session.status.kind).toBe('reading');
+    if (session.status.kind === 'reading') {
+      // Detected correctly only if the analyzer was rebuilt at 48 kHz.
+      expect(session.status.reading.midi).toBe(69);
+      expect(Math.abs(session.status.reading.cents)).toBeLessThan(5);
+    }
+    await session.stop();
+  });
+});
