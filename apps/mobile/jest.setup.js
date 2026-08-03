@@ -46,6 +46,11 @@ jest.mock('react-native-audio-api', () => {
     AudioManager: {
       checkRecordingPermissions: jest.fn(async () => 'Granted'),
       requestRecordingPermissions: jest.fn(async () => 'Granted'),
+      // The iOS session defaults to a playback-only category that silently
+      // records nothing, so the adapter must configure and activate it before
+      // capturing. Mocked as spies because that call is the thing under test.
+      setAudioSessionOptions: jest.fn(),
+      setAudioSessionActivity: jest.fn(async () => {}),
     },
   };
 });

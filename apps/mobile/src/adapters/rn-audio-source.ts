@@ -1,4 +1,4 @@
-import { AudioRecorder } from 'react-native-audio-api';
+import { AudioManager, AudioRecorder } from 'react-native-audio-api';
 
 import type {
   AudioSource,
@@ -39,6 +39,8 @@ export class RNAudioSource implements AudioSource {
     }
 
     try {
+      await this.openSession();
+
       const recorder = new AudioRecorder();
       this.recorder = recorder;
 
@@ -80,6 +82,47 @@ export class RNAudioSource implements AudioSource {
       // Already stopped, or the session was torn down by the OS. Nothing to
       // recover — but the handle is released either way, which is what A4 asks.
     }
+
+    try {
+      // Stopping the recorder does not surrender the audio session. Leaving it
+      // active keeps the OS recording indicator lit and keeps other apps ducked
+      // after the tuner is done, which is precisely what A4 and FR-033 forbid.
+      await AudioManager.setAudioSessionActivity(false);
+    } catch {
+      // Deactivation fails when something else already claimed the session.
+      // The tuner is stopped regardless, and that is all stop() promises.
+    }
+  }
+
+  /**
+   * Put iOS into a state where the microphone actually produces samples.
+   *
+   * `react-native-audio-api` defaults its session to `Playback`
+   * (AudioSessionManager.mm), a category that cannot record. Nothing fails
+   * loudly when a recorder is started under it — `start()` resolves, frames
+   * arrive, and every sample is zero — so the tuner sits in `listening`
+   * forever and the defect reads as "the app does not hear my guitar".
+   *
+   * The library's own NativeAudioRecorder notes that recording is only valid
+   * once the session is active, and it never activates the session itself.
+   * That makes this the adapter's job.
+   */
+  private async openSession(): Promise<void> {
+    AudioManager.setAudioSessionOptions({
+      // `record` rather than `playAndRecord`: this app never plays audio —
+      // reference tones are explicitly out of scope — so requesting output
+      // would interrupt whatever the user is listening to for no benefit.
+      iosCategory: 'record',
+      // The reason this is not `default`. `measurement` disables the input
+      // chain iOS otherwise applies: automatic gain control, noise
+      // suppression, and EQ. All three reshape the waveform, and the ±1 cent
+      // accuracy budget is measured on the waveform — AGC in particular
+      // pumps the amplitude of a decaying plucked string, which is the exact
+      // signal this app exists to analyse.
+      iosMode: 'measurement',
+    });
+
+    await AudioManager.setAudioSessionActivity(true);
   }
 
   onInterrupted(handler: (error: AudioSourceError) => void): () => void {
