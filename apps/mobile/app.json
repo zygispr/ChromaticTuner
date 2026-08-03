@@ -8,8 +8,8 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.chromatictuner.app",
-      "deploymentTarget": "15.1",
+      "bundleIdentifier": "com.prielaidas.chromatictuner",
+      "deploymentTarget": "16.4",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "ChromaticTuner listens to your instrument to show which note you are playing. Audio is analysed entirely on this device and is never recorded, stored, or sent anywhere."
       }

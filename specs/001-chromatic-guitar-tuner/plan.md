@@ -38,8 +38,9 @@ AsyncStorage on mobile, behind a `PreferencesStore` port. No database, no server
 Chromium fake audio capture for web E2E. Accuracy verified against synthesised reference signals — no
 microphone needed in CI.
 
-**Target Platform**: iOS 15+, Android 8+ (Expo development build — **not** Expo Go), and evergreen desktop
-and mobile browsers. Installable PWA on web.
+**Target Platform**: iOS 16.4+, Android 8+ (Expo development build — **not** Expo Go), and evergreen desktop
+and mobile browsers. Installable PWA on web. The iOS floor is imposed by `expo-modules-core`'s podspec
+(`:ios => '16.4'`); see Constitution v3.0.0, Supported targets.
 
 **Project Type**: Offline-first cross-platform client application. Monorepo: 3 shared packages, 2 apps.
 

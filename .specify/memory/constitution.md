@@ -1,34 +1,39 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.0.0 → 2.0.0
-Bump rationale: MAJOR. The versioning policy classifies "a binding budget is loosened" as
-MAJOR, and this amendment narrows the range over which the ±1 cent accuracy guarantee holds
-from A0-C8 to E1-E6. The tolerance itself is unchanged; the set of inputs it covers shrinks,
-which is a weakening of a binding requirement and therefore not a PATCH.
+Version change: 2.0.0 → 3.0.0
+Bump rationale: MAJOR, on the same reading as the 1.0.0 → 2.0.0 amendment. Raising the iOS
+floor from 15 to 16.4 does not change any budget, but it shrinks the set of devices on which
+every guarantee in this document is promised to hold. A commitment that covers fewer inputs is
+a weakened binding requirement, which the versioning policy places above PATCH; the MINOR rule
+immediately below the Toolchain table governs that table only, not Supported targets.
 
-Reason for the change: ±1 cent across A0-C8 is not physically attainable at the top of the
-range. At C8 (4186 Hz) ±1 cent is ±2.42 Hz, sitting at an autocorrelation lag of ~10.5 samples
-at 44.1 kHz; holding it would demand ~0.4% lag precision from a noisy real-world signal. At E6
-(1318.5 Hz) the lag is ~33 samples and the target is met with margin. Every note a guitar can
-produce falls inside E1-E6. The original figure was written before the physics was checked.
-Full derivation: specs/001-chromatic-guitar-tuner/research.md D4 and plan.md Complexity
-Tracking C2.
+Reason for the change: iOS 15 was never attainable with the stack this project already pins.
+`expo@57` and its `expo-modules-core` declare `:ios => '16.4'` in their podspecs, so at a 15.1
+deployment target Expo autolinking silently skips EVERY Expo module. The visible symptom is a
+`pod install` failure — "Unable to find a specification for `ExpoModulesCore` depended upon by
+`ExpoKeepAwake`" — because ExpoKeepAwake survives autolinking with a dependency nothing
+satisfies. No iOS build of apps/mobile has ever succeeded at 15.1, so this amendment documents
+a constraint the dependency choice imposed rather than giving ground that was ever held.
 
-Modified principles:
-  III. Testing Standards - reference-signal accuracy range A0-C8 → E1-E6 guaranteed,
-       with an added requirement to also test outside the band for graceful degradation
-  V. Performance Is A Feature - zero-allocation rule scoped to first-party code, with the
-       platform-boundary exception stated explicitly
+iOS 16.4 (March 2023) runs on iPhone 8 and later, which remains inside the "mid-range phone of
+roughly the last five years" the performance budgets are measured against, so no budget in this
+document needs restating.
+
+Modified principles: none. No principle text changes.
 
 Modified sections:
-  Quality & Performance Standards - Accuracy block rewritten; TODO(TECH_STACK) resolved and
-       replaced with the concrete toolchain fixed by the first /speckit-plan
+  Quality & Performance Standards - Supported targets: iOS 15+ → iOS 16.4+, with the reason
+       recorded inline so the number is not silently lowered again
 
 Added sections: none
 Removed sections: none
 
-Deferred TODOs: none. TODO(TECH_STACK) from v1.0.0 is resolved by this amendment.
+Migration note: apps/mobile/app.json sets ios.deploymentTarget to 16.4. Regenerate the native
+project (`expo prebuild -p ios --clean`) after pulling this change; an ios/ directory generated
+at 15.1 keeps the broken autolinking result until it is rebuilt.
+
+Deferred TODOs: none.
 -->
 
 # ChromaticTuner Constitution
@@ -229,9 +234,14 @@ changing a number is a constitution amendment, not a pull-request decision.
 | Profiling | Chrome DevTools Performance (web); Flipper / RN Perf Monitor (mobile) |
 | Package manager | pnpm workspaces |
 
-**Supported targets**: iOS 15+, Android 8+, and evergreen desktop and mobile browsers. The
+**Supported targets**: iOS 16.4+, Android 8+, and evergreen desktop and mobile browsers. The
 "lowest supported target device" against which the cold-start and frame-rate budgets are measured
 is a mid-range phone of roughly the last five years.
+
+The iOS floor is set by `expo-modules-core`, whose podspec declares `:ios => '16.4'`. Below it,
+Expo autolinking skips every Expo module and the iOS build fails at `pod install` rather than at
+runtime, so this number cannot be lowered without changing the Expo SDK — it is a property of the
+dependency set, not a policy choice. iOS 16.4 covers iPhone 8 and later.
 
 Changing any entry in this table is a MINOR amendment; adding a tool that replaces a listed gate
 requires updating the Quality gates above in the same change.
@@ -286,4 +296,4 @@ this project. Where a style guide, tool default, or habit conflicts with it, thi
 - Repeated violations of the same principle are a signal to amend the principle or fix the
   tooling that permits the violation — not to silently ignore it.
 
-**Version**: 2.0.0 | **Ratified**: 2026-08-02 | **Last Amended**: 2026-08-02
+**Version**: 3.0.0 | **Ratified**: 2026-08-02 | **Last Amended**: 2026-08-03

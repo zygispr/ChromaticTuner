@@ -5,3 +5,20 @@ packages:
 # script unpacks the prebuilt binary for this platform.
 allowBuilds:
   unrs-resolver: true
+
+# React Native's Metro bundler does not reliably resolve pnpm's symlinked store.
+# Hoisting the workspace node_modules is the configuration Expo documents for
+# monorepos.
+#
+# This MUST live here rather than in .npmrc, which is where it used to sit and
+# where it did nothing at all: pnpm reads core settings only from
+# pnpm-workspace.yaml (or the global config), and .npmrc now covers auth and
+# registry alone. `pnpm config get node-linker` returned `undefined` for as long
+# as the setting lived there, so the tree was symlinked despite the repo
+# declaring otherwise. Moving it here is what makes the declaration true.
+#
+# Note this was NOT the cause of the first failed iOS build — that was the iOS
+# deployment target (see the Supported targets note in the constitution). Pods
+# still resolve some podspecs through .pnpm paths even when hoisted, so treat
+# this as Expo's documented monorepo setting rather than a proven build fix.
+nodeLinker: hoisted
