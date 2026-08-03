@@ -6,7 +6,7 @@ import { themedVar } from '../../theme';
 export interface CentsReadoutProps {
   /** Latest discrete snapshot; null when there is no reading. */
   readonly cents: number | null;
-  readonly subscribeToCents: (handler: (cents: number) => void) => () => void;
+  readonly subscribeToCents: (handler: (cents: number | null) => void) => () => void;
 }
 
 /**
@@ -18,6 +18,9 @@ export interface CentsReadoutProps {
  * turns a peg, so nothing about a retune is lost.
  */
 const REFRESH_MS = 100;
+
+/** Shown when there is no reading to show. */
+const PLACEHOLDER = '–';
 
 function format(cents: number): string {
   return `${cents > 0 ? '+' : ''}${cents.toFixed(0)}`;
@@ -47,10 +50,18 @@ export function CentsReadout({ cents, subscribeToCents }: CentsReadoutProps) {
       const node = valueRef.current;
       if (!node) return;
 
-      const now = performance.now();
-      if (now - lastWrittenAt < REFRESH_MS) return;
+      // A lapsed reading must clear the digits, not print "null". React also
+      // re-renders this to the placeholder when the discrete status drops to
+      // `listening`, but the imperative write is what owns the text node — so
+      // it has to agree (guarantee R3).
+      const text = next === null ? PLACEHOLDER : format(next);
 
-      const text = format(next);
+      const now = performance.now();
+      // The throttle exists to stop the last digit strobing on a held note. A
+      // lapse is a one-off edge, so it skips the throttle: waiting up to 100 ms
+      // to stop showing a number the tuner no longer stands behind is the wrong
+      // trade.
+      if (next !== null && now - lastWrittenAt < REFRESH_MS) return;
       if (text === lastText) return;
 
       lastWrittenAt = now;
@@ -73,7 +84,7 @@ export function CentsReadout({ cents, subscribeToCents }: CentsReadoutProps) {
         textAlign: 'center',
       }}
     >
-      <span ref={valueRef}>{cents === null ? '–' : format(cents)}</span>
+      <span ref={valueRef}>{cents === null ? PLACEHOLDER : format(cents)}</span>
       {cents !== null && (
         <span style={{ fontSize: `${type.labelSize}px`, opacity: 0.7 }}> cents</span>
       )}

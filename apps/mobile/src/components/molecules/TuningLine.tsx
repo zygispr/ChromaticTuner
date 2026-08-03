@@ -18,7 +18,7 @@ import { TickMark } from '../atoms/TickMark';
 
 export interface TuningLineProps {
   readonly state: TuningState;
-  readonly subscribeToCents: (handler: (cents: number) => void) => () => void;
+  readonly subscribeToCents: (handler: (cents: number | null) => void) => () => void;
 }
 
 const TICKS = [-40, -30, -20, -10, 10, 20, 30, 40];
@@ -56,7 +56,16 @@ export function TuningLine({ state, subscribeToCents }: TuningLineProps) {
   useEffect(
     () =>
       subscribeToCents((cents) => {
-        const clamped = Math.max(-DISPLAY_RANGE_CENTS, Math.min(DISPLAY_RANGE_CENTS, cents));
+        // A lapsed reading returns the marker to rest rather than leaving it
+        // asserting a position the tuner can no longer justify (FR-043, R3).
+        // Travelling back through `withTiming` rather than snapping, so a lapse
+        // reads as the marker letting go.
+        //
+        // Written out rather than left to `Math.min(50, null)`, which coerces
+        // to 0 and happens to land on the right answer. Correct by accident is
+        // not correct.
+        const requested = cents === null ? 0 : cents;
+        const clamped = Math.max(-DISPLAY_RANGE_CENTS, Math.min(DISPLAY_RANGE_CENTS, requested));
         const target = (clamped / DISPLAY_RANGE_CENTS) * (LINE_WIDTH / 2);
         offset.value = reduceMotion
           ? target

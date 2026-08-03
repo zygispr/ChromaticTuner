@@ -7,7 +7,7 @@ import { useThemeColors } from '../../theme';
 export interface CentsReadoutProps {
   /** Latest discrete snapshot; null when there is no reading. */
   readonly cents: number | null;
-  readonly subscribeToCents: (handler: (cents: number) => void) => () => void;
+  readonly subscribeToCents: (handler: (cents: number | null) => void) => () => void;
 }
 
 /**
@@ -45,14 +45,24 @@ export function CentsReadout({ cents, subscribeToCents }: CentsReadoutProps) {
 
     return subscribeToCents((next) => {
       const now = Date.now();
-      if (now - lastWrittenAt < REFRESH_MS) return;
+      // The throttle exists to stop the last digit strobing on a held note. A
+      // lapse is a one-off edge, so it skips the throttle: waiting up to 100 ms
+      // to stop showing a number the tuner no longer stands behind is the wrong
+      // trade (guarantee R3).
+      if (next !== null && now - lastWrittenAt < REFRESH_MS) return;
       lastWrittenAt = now;
       setLive(next);
     });
   }, [subscribeToCents]);
 
-  // A null discrete snapshot means the signal is gone, which the continuous
-  // channel cannot say on its own — it simply stops arriving.
+  // Gated on the DISCRETE snapshot, not on `live`. A lapse sets `live` to null,
+  // but so does the initial state before any reading has arrived, and those two
+  // must not render the same way — testing `live` here would show the
+  // placeholder on the first frame of a perfectly good reading.
+  //
+  // The snapshot is sufficient: a lapse drives the status to `listening` in the
+  // same frame it fires on the continuous channel (guarantee R3), so `cents`
+  // goes null alongside it.
   const shown = cents === null ? null : (live ?? cents);
 
   return (

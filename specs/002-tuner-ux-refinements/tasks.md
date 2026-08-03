@@ -159,24 +159,83 @@ decision is the whole point of the design and is easy to undo by accident.
 
 ### Tests (write first, observe failing)
 
-- [ ] T016 [P] [US2] Add lapse tests to `packages/core/tests/session.test.ts`: a lapse fires the reading handler exactly once with `(null, 0)`; a second lapse with no intervening reading fires nothing; re-acquisition then lapsing fires again (guarantee R3). **Before the fix**: no lapse event is emitted at all, so all three fail
-- [ ] T017 [US2] Add the negative cases to `packages/core/tests/session.test.ts`: a tone sustained past `holdMs` never fires a lapse (FR-045), and a dropout shorter than `holdMs` never fires one (FR-046). **Before the fix**: these pass vacuously — no event exists to fire wrongly — so write them to fail by asserting against a spy that also counts live readings, or they will not be testing anything
-- [ ] T018 [P] [US2] Extend `packages/core/tests/allocation.test.ts` to run 10,000 cycles across live→lapse→live transitions and assert no steady-state heap growth (Principle V)
-- [ ] T019 [P] [US2] Extend `packages/core/tests/latency.test.ts` to assert re-acquisition after a lapse is no slower than first detection (FR-047)
-- [ ] T020 [P] [US2] Write `apps/web/e2e/marker-rest.spec.ts` using `apps/web/e2e/helpers.ts:markerOffsetPx` to assert the marker returns to its startup coordinate within 1 second of the tone stopping (FR-043, FR-044, SC-018). **Before the fix**: the marker holds its displaced position indefinitely, so the measured offset stays non-zero. Do **not** weaken `markerOffsetPx` to make this pass — it samples across a second and takes a median precisely because a single sample disagreed by 44 px on correct code
-- [ ] T021 [P] [US2] Add a mobile equivalent to `apps/mobile/__tests__/tuner-flow.test.tsx` asserting the shared value returns to 0 on lapse
+- [X] T016 [P] [US2] Add lapse tests to `packages/core/tests/session.test.ts`: a lapse fires the reading handler exactly once with `(null, 0)`; a second lapse with no intervening reading fires nothing; re-acquisition then lapsing fires again (guarantee R3). **Before the fix**: no lapse event is emitted at all, so all three fail
+- [X] T017 [US2] Add the negative cases to `packages/core/tests/session.test.ts`: a tone sustained past `holdMs` never fires a lapse (FR-045), and a dropout shorter than `holdMs` never fires one (FR-046). **Before the fix**: these pass vacuously — no event exists to fire wrongly — so write them to fail by asserting against a spy that also counts live readings, or they will not be testing anything
+- [X] T018 [P] [US2] Extend `packages/core/tests/allocation.test.ts` to run 10,000 cycles across live→lapse→live transitions and assert no steady-state heap growth (Principle V)
+- [X] T019 [P] [US2] Extend `packages/core/tests/latency.test.ts` to assert re-acquisition after a lapse is no slower than first detection (FR-047)
+- [X] T020 [P] [US2] Write `apps/web/e2e/marker-rest.spec.ts` using `apps/web/e2e/helpers.ts:markerOffsetPx` to assert the marker returns to its startup coordinate within 1 second of the tone stopping (FR-043, FR-044, SC-018). **Before the fix**: the marker holds its displaced position indefinitely, so the measured offset stays non-zero. Do **not** weaken `markerOffsetPx` to make this pass — it samples across a second and takes a median precisely because a single sample disagreed by 44 px on correct code
+- [X] T021 [P] [US2] Add a mobile equivalent to `apps/mobile/__tests__/tuner-flow.test.tsx` asserting the shared value returns to 0 on lapse
 
 ### Implementation
 
-- [ ] T022 [US2] Widen `ReadingHandler` to `(cents: number | null, clarity: number)` in `packages/core/src/tuning/session.ts` and wherever it is re-exported from `packages/core/src/types.ts`
-- [ ] T023 [US2] Emit the lapse event in `packages/core/src/tuning/session.ts` — in `handleFrames`, when `analyze()` returns `null`, call every reading handler once with `(null, 0)`, tracking the transition so it fires on the edge and not per frame (guarantee R3)
-- [ ] T024 [US2] Widen the `subscribeToCents` handler type in `packages/react/src/useTuner.ts` to match; the hook forwards and needs no behavioural change
-- [ ] T025 [P] [US2] Handle `null` in `apps/web/src/components/molecules/TuningLine.tsx` by animating the track to the rest transform through the same path a real reading takes, so a lapse reads as a return rather than a jump
-- [ ] T026 [P] [US2] Handle `null` in `apps/mobile/src/components/molecules/TuningLine.tsx` by setting the shared value to 0 through the same `withTiming` path, honouring the existing reduced-motion branch
-- [ ] T027 [US2] Update `packages/core/src/tuning/session.ts`'s class-level contract comment to cite guarantee R3, so the code states the new behaviour rather than leaving it only in `contracts/`
-- [ ] T028 [US2] Measure and record after-numbers for latency and frame time in this file, against the T002/T003 baselines (Principle V requires both in the PR)
+- [X] T022 [US2] Widen `ReadingHandler` to `(cents: number | null, clarity: number)` in `packages/core/src/tuning/session.ts` and wherever it is re-exported from `packages/core/src/types.ts`
+- [X] T023 [US2] Emit the lapse event in `packages/core/src/tuning/session.ts` — in `handleFrames`, when `analyze()` returns `null`, call every reading handler once with `(null, 0)`, tracking the transition so it fires on the edge and not per frame (guarantee R3)
+- [X] T024 [US2] Widen the `subscribeToCents` handler type in `packages/react/src/useTuner.ts` to match; the hook forwards and needs no behavioural change
+- [X] T025 [P] [US2] Handle `null` in `apps/web/src/components/molecules/TuningLine.tsx` by animating the track to the rest transform through the same path a real reading takes, so a lapse reads as a return rather than a jump
+- [X] T026 [P] [US2] Handle `null` in `apps/mobile/src/components/molecules/TuningLine.tsx` by setting the shared value to 0 through the same `withTiming` path, honouring the existing reduced-motion branch
+- [X] T027 [US2] Update `packages/core/src/tuning/session.ts`'s class-level contract comment to cite guarantee R3, so the code states the new behaviour rather than leaving it only in `contracts/`
+- [X] T028 [US2] Measure and record after-numbers for latency and frame time in this file, against the T002/T003 baselines (Principle V requires both in the PR)
 
-**Checkpoint**: US2 is independently shippable and does not depend on US1.
+**Checkpoint**: ✅ **US2 COMPLETE (2026-08-03)**. **425 unit** (+8), **52 mobile Jest** (+3), **53
+Playwright** (+3), all green. Lint, format, typecheck clean. `packages/core` coverage **100% lines**,
+94.81% branches — above every threshold.
+
+### T028 — Principle V before/after
+
+| Measurement | Before (T002/T003) | After | Verdict |
+| --- | --- | --- | --- |
+| First marker movement | 66.576 ms | **66.576 ms** | identical |
+| Settle | 136.236 ms | **136.236 ms** | identical |
+| Frame time p50 | 8.3 ms | **8.1 ms** | no regression |
+| Frame time p95 | 9.2 ms | **9.3 ms** | no regression |
+| Frame time max | 13.6 ms | 15.5 ms | scatter — see T003's note; both well inside 16.7 ms |
+
+Latency is unchanged **to the digit**, which is the expected and desirable result: US2 changes when the
+session *publishes*, not how the analyzer *computes*. A latency movement here would have meant the lapse
+tracking had leaked into the DSP path.
+
+### What this phase found
+
+- **Both `TuningLine` implementations already handled `null` — by accident.**
+  `Math.min(50, null)` coerces to `0`, so the clamp landed on the rest position without anyone having
+  considered the case. The end-to-end defect was entirely that the session never *sent* a lapse. Both
+  components now say `cents === null ? 0 : cents` explicitly: correct-by-coercion is indistinguishable
+  from correct-by-intent to the next reader, and only one of them survives a refactor.
+
+- **`CentsReadout` would have printed the string "null".** Not in the plan. It writes the readout
+  imperatively from the continuous channel, so the widened type reached it too. Both platforms now render
+  the placeholder on a lapse, and both **skip the 10 Hz throttle for it** — that throttle exists to stop
+  the last digit strobing on a held note, and waiting up to 100 ms to stop showing a number the tuner no
+  longer stands behind is the wrong trade.
+
+- **A near-miss in the mobile readout.** The first attempt gated the display on `live === null`, which is
+  also the initial state before any reading arrives — it would have shown the placeholder over a perfectly
+  good first frame. Reverted to gating on the discrete snapshot, which is sufficient because a lapse drives
+  the status to `listening` in the same frame it fires on the continuous channel.
+
+### Two test-quality notes
+
+- **T019's tests passed on first run, and that is correct here.** FR-047 is a non-regression requirement —
+  re-acquisition must not become slower — and the existing filter already satisfied it. They are guard
+  tests, and they would fail if the implementation reset more state than the filter already does. Worth
+  distinguishing from a *vacuous* test: these assert real measured behaviour that merely happened to
+  already hold.
+
+- **The first mobile marker test was vacuous and had to be rewritten twice.** Draft one asserted the
+  rendered `transform`, which cannot work: the marker's position lives in a Reanimated shared value written
+  from the continuous channel, and that channel deliberately never triggers a render (guarantee R1) — so
+  the rendered style reflects the last render, not the lapse. Draft two used an in-tune tone, so the marker
+  never left rest and the assertion was trivially true. The final version (`marker-rest.test.tsx`, a
+  **deviation** from T021's stated file, because it needs a file-local Reanimated mock) spies on
+  `withTiming` and asserts on the targets requested, after first proving the marker was displaced.
+
+### Process note, recorded because it cost work
+
+Extracting the latency numbers uses the T002 workaround — assert them into a failing diff, then restore the
+file. **On this run `git checkout --` also wiped the uncommitted T019 tests from the same file**, which had
+to be rewritten. The workaround is only safe on a file with no pending changes. This is the second time the
+missing measurement output has cost real time; the durable fix remains making `latency.test.ts` report its
+own numbers.
 
 ---
 

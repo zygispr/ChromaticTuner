@@ -83,8 +83,24 @@ function writeWav(name, samples) {
   console.log(`wrote ${name} (${(buffer.length / 1024).toFixed(0)} KB)`);
 }
 
+/**
+ * A tone that stops, for the US2 marker-rest spec.
+ *
+ * Chromium loops the fixture, so the silence has to live INSIDE the file: the
+ * marker must be observed resting during the quiet stretch and tracking again
+ * when the tone comes back round. The silent half is 3 s — far past the filter
+ * chain's 400 ms hold, with room for the e2e sampling window on top.
+ */
+function toneThenSilence(frequency, toneSeconds = 3, silentSeconds = 3) {
+  const sounding = tone(frequency, toneSeconds);
+  const out = new Float32Array(sounding.length + Math.floor(SAMPLE_RATE * silentSeconds));
+  out.set(sounding, 0);
+  return out;
+}
+
 const e2 = freq(40); // 82.41 Hz, guitar low E
 writeWav('e2-in-tune.wav', tone(e2));
 writeWav('e2-flat-20.wav', tone(detune(e2, -20)));
 writeWav('e2-sharp-20.wav', tone(detune(e2, 20)));
 writeWav('e2-to-d2-sweep.wav', sweep(e2, freq(38)));
+writeWav('e2-then-silence.wav', toneThenSilence(detune(e2, -20)));

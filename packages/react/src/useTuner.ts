@@ -27,9 +27,12 @@ export interface UseTunerResult {
    * callback must not set React state — drive a transform or a Reanimated
    * shared value directly (guarantee R1, research D6).
    *
+   * `cents` is `null` when the reading has lapsed: fired once, on the edge, so
+   * the consumer can return its marker to rest (guarantee R3).
+   *
    * @returns an unsubscribe function.
    */
-  readonly subscribeToCents: (handler: (cents: number) => void) => () => void;
+  readonly subscribeToCents: (handler: (cents: number | null) => void) => () => void;
 
   readonly start: () => void;
   readonly stop: () => void;
@@ -78,7 +81,7 @@ export function useTuner(options: UseTunerOptions = {}): UseTunerResult {
   }, [session]);
 
   const subscribeToCents = useCallback(
-    (handler: (cents: number) => void) => session.onReading((cents) => handler(cents)),
+    (handler: (cents: number | null) => void) => session.onReading((cents) => handler(cents)),
     [session]
   );
 

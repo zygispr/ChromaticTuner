@@ -147,3 +147,63 @@ describe('latency (V7, SC-002, FR-027)', () => {
     }
   });
 });
+
+/**
+ * US2 (T019): a marker that has rested must re-acquire as fast as a cold one.
+ *
+ * FR-047. The concern is concrete: the filter chain calls `reset()` when it
+ * releases, clearing the median history — so re-acquisition after a lapse is a
+ * cold start of the median window, not a warm continuation. If the reset ever
+ * did more than that, this is where it would surface as a second-class response
+ * that the first note of a session never suffers.
+ */
+function measureAcquisition(midi: number, silentSamplesBefore: number): number {
+  const hz = frequencyOf(midi, 440);
+  const total = silentSamplesBefore + SAMPLE_RATE * 2;
+  const signal = new Float32Array(total);
+
+  let phase = 0;
+  for (let i = silentSamplesBefore; i < total; i += 1) {
+    phase += (2 * Math.PI * hz) / SAMPLE_RATE;
+    signal[i] = 0.8 * Math.sin(phase);
+  }
+
+  const analyzer = new PitchAnalyzer({ sampleRate: SAMPLE_RATE, a4Hz: 440 });
+  let now = 0;
+
+  for (let offset = 0; offset + HOP <= signal.length; offset += HOP) {
+    analyzer.push(signal.subarray(offset, offset + HOP));
+    now += HOP_MS;
+    const reading = analyzer.analyze(now);
+    if (!reading) continue;
+
+    const hopEndSample = offset + HOP;
+    if (hopEndSample <= silentSamplesBefore) continue;
+
+    return ((hopEndSample - silentSamplesBefore) / SAMPLE_RATE) * 1000;
+  }
+
+  return Number.NaN;
+}
+
+describe('re-acquisition after a lapse (FR-047)', () => {
+  it('is no slower than acquiring from a cold start', () => {
+    // Cold: the analyzer has never seen anything.
+    const cold = measureAcquisition(40, 0);
+
+    // After a lapse: a full second of silence, comfortably past the 400 ms
+    // hold, so the filter has released and reset before the tone arrives.
+    const afterLapse = measureAcquisition(40, SAMPLE_RATE);
+
+    expect(cold).not.toBeNaN();
+    expect(afterLapse).not.toBeNaN();
+
+    // Equal in principle; the tolerance is one hop, because the tone's onset
+    // does not land on a hop boundary in both cases.
+    expect(afterLapse).toBeLessThanOrEqual(cold + HOP_MS);
+  });
+
+  it('still meets the first-movement budget after a lapse', () => {
+    expect(measureAcquisition(40, SAMPLE_RATE)).toBeLessThanOrEqual(FIRST_MOVEMENT_BUDGET_MS);
+  });
+});

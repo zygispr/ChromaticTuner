@@ -26,7 +26,13 @@ export interface TunerSessionDeps {
 }
 
 export type StatusHandler = (status: TunerStatus) => void;
-export type ReadingHandler = (cents: number, clarity: number) => void;
+/**
+ * The continuous channel's payload.
+ *
+ * `cents` is `null` when the reading has LAPSED — see guarantee R3 on
+ * `TunerSession`. Consumers must return their position indicator to rest.
+ */
+export type ReadingHandler = (cents: number | null, clarity: number) => void;
 
 const DEFAULT_SAMPLE_RATE = 44100;
 const HOP_SIZE = 1024;
@@ -82,7 +88,10 @@ function isRecoverable(status: TunerStatus): boolean {
  *   onStatusChange — DISCRETE. Note name, tuning state, permission problems.
  *                    Fires only on genuine change, so React re-renders rarely.
  *   onReading      — CONTINUOUS. ~43 times a second. Drives the marker
- *                    transform directly and never touches React state.
+ *                    transform directly and never touches React state. Also
+ *                    fires ONCE with `(null, 0)` when a reading lapses, so a
+ *                    consumer can return its marker to rest rather than hold a
+ *                    position the tuner can no longer justify (guarantee R3).
  *
  * Contract: specs/001-chromatic-guitar-tuner/contracts/core-api.md §3
  */
@@ -99,6 +108,15 @@ export class TunerSession {
 
   private currentStatus: TunerStatus = { kind: 'idle' };
   private running = false;
+  /**
+   * Whether a reading is currently live, so the lapse fires on the EDGE.
+   *
+   * Firing per silent frame would spend the frame budget re-asserting a
+   * transform that is already correct, ~43 times a second, and would put a
+   * handler call into the steady state of silence that `allocation.test.ts`
+   * asserts is empty (guarantee R3).
+   */
+  private hasLiveReading = false;
   private elapsedMs = 0;
   /** Serialises start/stop; see enqueue(). */
   private pending: Promise<void> = Promise.resolve();
@@ -192,6 +210,7 @@ export class TunerSession {
   private async openSource(): Promise<void> {
     this.running = true;
     this.elapsedMs = 0;
+    this.hasLiveReading = false;
 
     // Reset BEFORE the source can deliver anything. Resetting afterwards would
     // silently discard the first frames, which on a fast-starting source is
@@ -271,6 +290,7 @@ export class TunerSession {
 
     if (this.running) {
       this.running = false;
+      this.hasLiveReading = false;
       await this.audioSource.stop();
       this.analyzer.reset();
     }
@@ -303,9 +323,24 @@ export class TunerSession {
     const reading = this.analyzer.analyze(this.elapsedMs);
 
     if (reading === null) {
+      // The continuous channel has no other way to say "nothing here", so
+      // without this the marker keeps its last position forever while the
+      // discrete channel below already clears the note name and cents readout.
+      //
+      // `null` rather than `0`: zero cents is a real and frequent reading — a
+      // string that is perfectly in tune — and the marker rests at the same
+      // coordinate for both. Encoding "I have nothing" as the value meaning
+      // "you are exactly right" would rebuild the defect inside its own fix.
+      if (this.hasLiveReading) {
+        this.hasLiveReading = false;
+        for (const handler of this.readingHandlers) handler(null, 0);
+      }
+
       this.setStatus({ kind: 'listening' });
       return;
     }
+
+    this.hasLiveReading = true;
 
     // Continuous channel first: the marker should move even when the discrete
     // status is unchanged.

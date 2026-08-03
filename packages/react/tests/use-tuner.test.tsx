@@ -108,7 +108,7 @@ describe('subscribeToCents (guarantee R1)', () => {
   it('never triggers a React render', async () => {
     const source = new ScriptedAudioSource({ samples: tone(40) });
     let renders = 0;
-    const centsSeen: number[] = [];
+    const centsSeen: Array<number | null> = [];
 
     function Subscriber() {
       const { subscribeToCents } = useTuner();
@@ -142,7 +142,7 @@ describe('subscribeToCents (guarantee R1)', () => {
 
   it('returns a working unsubscribe', async () => {
     const source = new ScriptedAudioSource({ samples: tone(40) });
-    const seen: number[] = [];
+    const seen: Array<number | null> = [];
 
     function Subscriber() {
       const { subscribeToCents } = useTuner();
