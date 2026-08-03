@@ -14,7 +14,7 @@ Six refinements found by using the shipped tuner on real devices. Five correct b
 never pinned down; one (US1) is a genuinely new capability. None touch the DSP path, the accuracy budget,
 or the two-output-channel design.
 
-This spec continues the numbering of `001-chromatic-guitar-tuner` — **FR-034 onward, SC-014 onward** —
+This spec continues the numbering of `001-chromatic-guitar-tuner` — **FR-036 onward, SC-016 onward** —
 rather than restarting at FR-001. Requirement numbers in this project are cited by number in code comments
 and in `contracts/`, so a second FR-005 meaning something different would silently corrupt those
 references.
@@ -184,84 +184,88 @@ only the sheet slides, matching web.
 
 **Microphone control (US1)**
 
-- **FR-034**: The tuner MUST present a persistent control for microphone capture, visible in both the
+- **FR-036**: The tuner MUST present a persistent control for microphone capture, visible in both the
   listening and the stopped state, rather than a one-shot control that disappears once used.
-- **FR-035**: Users MUST be able to stop microphone capture at any time while listening, and the system
+- **FR-037**: Users MUST be able to stop microphone capture at any time while listening, and the system
   MUST release the microphone so the operating-system recording indicator clears.
-- **FR-036**: Users MUST be able to resume microphone capture after stopping it, without reloading the page
+- **FR-038**: Users MUST be able to resume microphone capture after stopping it, without reloading the page
   or restarting the app.
-- **FR-037**: The control's label MUST state what activating it will do, and the screen MUST make the
+- **FR-039**: The control's label MUST state what activating it will do, and the screen MUST make the
   current capture state unambiguous — distinguishable from listening-but-hearing-nothing.
-- **FR-038**: A user-initiated stop MUST persist across backgrounding and returning; lifecycle handling
+- **FR-040**: A user-initiated stop MUST persist across backgrounding and returning; lifecycle handling
   MUST NOT silently resume capture the user switched off.
-- **FR-039**: The first-run explainer and permission flow MUST be preserved when starting capture for the
+- **FR-041**: The first-run explainer and permission flow MUST be preserved when starting capture for the
   first time.
-- **FR-040**: The control MUST expose its current state to assistive technology, and state changes MUST be
+- **FR-042**: The control MUST expose its current state to assistive technology, and state changes MUST be
   announced without announcing at reading frequency.
 
 **Stale readings (US2)**
 
-- **FR-041**: When no pitch has been detected for a bounded period, the tuning indicator MUST return to its
+- **FR-043**: When no pitch has been detected for a bounded period, the tuning indicator MUST return to its
   resting position and the readout MUST stop asserting a note.
-- **FR-042**: The resting position after a stale reset MUST be identical to the resting position at
+- **FR-044**: The resting position after a stale reset MUST be identical to the resting position at
   startup, so a reset is never readable as a measurement.
-- **FR-043**: Continuously sounding notes MUST NOT trigger a reset regardless of duration.
-- **FR-044**: Brief dropouts shorter than the stale threshold MUST NOT cause a visible reset, and the reset
+- **FR-045**: Continuously sounding notes MUST NOT trigger a reset regardless of duration.
+- **FR-046**: Brief dropouts shorter than the stale threshold MUST NOT cause a visible reset, and the reset
   boundary MUST NOT produce repeated reset/re-acquire flicker.
-- **FR-045**: Re-acquisition after a reset MUST NOT be slower than normal first detection (FR-027).
+- **FR-047**: Re-acquisition after a reset MUST NOT be slower than normal first detection (FR-027).
 
 **Sheet dismissal (US3)**
 
-- **FR-046**: The settings sheet MUST close only when a backdrop press both begins and ends on the
+- **FR-048**: The settings sheet MUST close only when a backdrop press both begins and ends on the
   backdrop; a press originating inside the sheet MUST NOT dismiss it wherever it is released.
-- **FR-047**: The settings sheet MUST close when the backdrop is pressed on mobile, matching web.
-- **FR-048**: Existing dismissal routes — the "Done" control and Escape — MUST continue to work unchanged.
-- **FR-049**: Values adjusted during an interaction that ends outside the sheet MUST be retained.
+- **FR-049**: The settings sheet MUST close when the backdrop is pressed on mobile, matching web.
+- **FR-050**: Existing dismissal routes — the "Done" control and Escape — MUST continue to work unchanged.
+- **FR-051**: Values adjusted during an interaction that ends outside the sheet MUST be retained.
 
 **Reference-pitch affordance (US4)**
 
-- **FR-050**: The reference-pitch indicator MUST be visually identifiable as an interactive control in its
+- **FR-052**: The reference-pitch indicator MUST be visually identifiable as an interactive control in its
   default, standard-pitch state.
-- **FR-051**: The non-standard state MUST remain visually more prominent than the standard state, so
+- **FR-053**: The non-standard state MUST remain visually more prominent than the standard state, so
   FR-022's emphasis on a non-standard reference is not lost.
-- **FR-052**: The control's interactive appearance MUST NOT depend on colour alone and MUST meet the
+- **FR-054**: The control's interactive appearance MUST NOT depend on colour alone and MUST meet the
   project's existing contrast floor in both light and dark appearance.
 
 **Sheet presentation (US5)**
 
-- **FR-053**: The dimming layer behind the settings sheet MUST reach full extent without animating in from
+- **FR-055**: The dimming layer behind the settings sheet MUST reach full extent without animating in from
   a screen edge, on both platforms.
-- **FR-054**: The sheet itself MUST continue to slide in from the bottom edge on mobile.
-- **FR-055**: Reduced-motion preferences MUST continue to be honoured.
+- **FR-056**: The sheet itself MUST continue to slide in from the bottom edge on mobile.
+- **FR-057**: Reduced-motion preferences MUST continue to be honoured.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-014**: A user can stop and restart microphone capture in a single action each, from the main tuner
+- **SC-016**: A user can stop and restart microphone capture in a single action each, from the main tuner
   screen, without leaving it.
-- **SC-015**: After stopping, the operating-system recording indicator clears within one second, and no
+- **SC-017**: After stopping, the operating-system recording indicator clears within one second, and no
   audio is captured until the user restarts.
-- **SC-016**: After a note stops sounding, the tuning indicator returns to rest within 3 seconds, and never
+- **SC-018**: After a note stops sounding, the tuning indicator returns to rest within 1 second, and never
   displays a position derived from audio older than that.
-- **SC-017**: Zero unintended sheet dismissals across a test that presses inside the sheet and releases
+- **SC-019**: Zero unintended sheet dismissals across a test that presses inside the sheet and releases
   outside it, on every supported pointer input.
-- **SC-018**: Users unfamiliar with the app identify the reference-pitch control as pressable without
+- **SC-020**: Users unfamiliar with the app identify the reference-pitch control as pressable without
   prompting.
-- **SC-019**: All existing release gates continue to pass unchanged: ±1 cent accuracy across E1–E6, the
+- **SC-021**: All existing release gates continue to pass unchanged: ±1 cent accuracy across E1–E6, the
   60 fps frame budget, zero steady-state allocation in the audio path, and the AA accessibility floor.
-- **SC-020**: No regression in cold-start time to first reading (FR-026's two-second budget).
+- **SC-022**: No regression in cold-start time to first reading (FR-026's two-second budget).
 
 ## Assumptions
 
 Judgement calls made where the description did not specify. Each is cheap to change if wrong.
 
-- **The stale threshold is 2 seconds of no detected pitch.** Long enough that a decaying plucked string is
-  not cut off mid-reading, short enough that a stale marker is not acted upon. SC-016's 3-second bound
-  leaves room for anti-flicker hysteresis on top.
-- **A stale reset clears the whole reading, not just the marker.** The description names the marker, but
-  leaving the note name and cents value asserting a pitch while the marker sits at rest would be
-  internally contradictory — and the note name is what a glancing player reads first.
+- ~~**The stale threshold is 2 seconds of no detected pitch.**~~ **Corrected during `/speckit-plan`.** The
+  reading filter already releases after **400 ms** without a confident candidate (`DEFAULT_HOLD_MS` in
+  `packages/core/src/tuning/filters.ts`), and the marker must come to rest at exactly that moment rather
+  than on a second, longer timer. Two thresholds would put the marker and the readout in disagreement for
+  1.6 seconds — which is the same class of defect this story exists to fix. No new constant.
+- ~~**A stale reset clears the whole reading, not just the marker.**~~ **Corrected during
+  `/speckit-plan`: this already happens.** When the filter releases, the analyzer returns no reading, the
+  session publishes `listening`, and the note name and cents readout clear on their own. The marker is the
+  only element that goes stale, because the continuous channel has no "no reading" event to send it. The
+  original description was precise and this assumption was over-reach.
 - **Stopping the microphone keeps the tuner screen visible** in a visibly inactive state, rather than
   returning to the first-run explainer. The explainer exists to precede a permission prompt that will not
   reappear.
