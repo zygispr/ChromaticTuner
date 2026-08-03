@@ -231,3 +231,44 @@ describe('settings are reachable from the tuner', () => {
     expect(screen.getByTestId('a4-value')).toHaveTextContent('440 Hz');
   });
 });
+
+/**
+ * User Story 3 on mobile (T031): the backdrop dismisses.
+ *
+ * The web sheet has always closed on a backdrop press; here the backdrop was a
+ * plain `View` with no handler, so the gesture every platform sheet responds to
+ * did nothing at all.
+ *
+ * React Native needs no press-origin tracking to match the web behaviour fixed
+ * alongside this: the responder system assigns a touch to one view for the
+ * whole gesture rather than resolving to a common ancestor at the end, so a
+ * touch that starts inside the sheet never reaches the backdrop.
+ */
+describe('backdrop dismissal (FR-049)', () => {
+  it('closes when the backdrop is pressed', async () => {
+    const onClose = jest.fn();
+    await renderSettings(new InMemoryPreferencesStore(), onClose);
+
+    fireEvent.press(screen.getByTestId('settings-backdrop'));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not close when the sheet itself is pressed (FR-048)', async () => {
+    const onClose = jest.fn();
+    await renderSettings(new InMemoryPreferencesStore(), onClose);
+
+    fireEvent.press(screen.getByTestId('settings-sheet'));
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('still closes on Done (FR-050)', async () => {
+    const onClose = jest.fn();
+    await renderSettings(new InMemoryPreferencesStore(), onClose);
+
+    fireEvent.press(screen.getByTestId('settings-close'));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});

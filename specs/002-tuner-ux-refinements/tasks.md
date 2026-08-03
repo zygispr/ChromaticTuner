@@ -249,15 +249,60 @@ open with the value retained. Tap the mobile backdrop; the sheet closes.
 
 ### Tests (write first, observe failing)
 
-- [ ] T029 [P] [US3] Add a drag-out case to `apps/web/e2e/settings.spec.ts`: `mouse.down()` on the reference-pitch slider, move beyond the sheet bounds, `mouse.up()`, then assert the sheet is still open and the adjusted value is retained (FR-048, FR-051). **Before the fix**: the `click` resolves to the backdrop and the sheet closes, so both assertions fail
-- [ ] T030 [US3] Add cases to `apps/web/e2e/settings.spec.ts` proving the routes that *should* dismiss still do — a press starting and ending on the backdrop, "Done", and Escape (FR-050). **Before the fix**: these pass; they are guard tests against over-correcting T029, so state that in a comment
-- [ ] T031 [P] [US3] Add a backdrop-press case to `apps/mobile/__tests__/settings.test.tsx` (FR-049). **Before the fix**: the backdrop is a plain `View` with no handler, so nothing closes
+- [X] T029 [P] [US3] Add a drag-out case to `apps/web/e2e/settings.spec.ts`: `mouse.down()` on the reference-pitch slider, move beyond the sheet bounds, `mouse.up()`, then assert the sheet is still open and the adjusted value is retained (FR-048, FR-051). **Before the fix**: the `click` resolves to the backdrop and the sheet closes, so both assertions fail
+- [X] T030 [US3] Add cases to `apps/web/e2e/settings.spec.ts` proving the routes that *should* dismiss still do — a press starting and ending on the backdrop, "Done", and Escape (FR-050). **Before the fix**: these pass; they are guard tests against over-correcting T029, so state that in a comment
+- [X] T031 [P] [US3] Add a backdrop-press case to `apps/mobile/__tests__/settings.test.tsx` (FR-049). **Before the fix**: the backdrop is a plain `View` with no handler, so nothing closes
 
 ### Implementation
 
-- [ ] T032 [US3] In `apps/web/src/components/organisms/SettingsSheet.tsx`, record the press origin on `onPointerDown` in a **ref** and dismiss on click only when the origin was the backdrop — a ref rather than state because setting state mid-gesture re-renders the controlled slider being dragged (data-model.md)
-- [ ] T033 [US3] In `apps/mobile/src/components/screens/SettingsScreen.tsx`, make the backdrop a `Pressable` calling `onClose`, with the sheet swallowing presses so a touch inside it never reaches the backdrop
-- [ ] T034 [US3] Confirm the web backdrop's existing `stopPropagation` on the sheet is still needed or now redundant, and delete it if redundant — Principle I forbids leaving dead code in place
+- [X] T032 [US3] In `apps/web/src/components/organisms/SettingsSheet.tsx`, record the press origin on `onPointerDown` in a **ref** and dismiss on click only when the origin was the backdrop — a ref rather than state because setting state mid-gesture re-renders the controlled slider being dragged (data-model.md)
+- [X] T033 [US3] In `apps/mobile/src/components/screens/SettingsScreen.tsx`, make the backdrop a `Pressable` calling `onClose`, with the sheet swallowing presses so a touch inside it never reaches the backdrop
+- [X] T034 [US3] Confirm the web backdrop's existing `stopPropagation` on the sheet is still needed or now redundant, and delete it if redundant — Principle I forbids leaving dead code in place
+
+**Checkpoint**: ✅ **US3 COMPLETE (2026-08-03)**. **425 unit** (unchanged — no core work), **55 mobile
+Jest** (+3), **58 Playwright** (+5), all green. Lint, format, typecheck clean.
+
+### The reported gesture does not reproduce, and the defect is real anyway
+
+Worth stating plainly because it changed what got tested. The report named the **pitch slider**: press it,
+drag out of the sheet, release, sheet vanishes. That specific gesture was probed directly and **left the
+sheet open**. Chromium takes pointer capture on a range input being dragged, so the `mouseup` is retargeted
+back to the slider, the `click` lands inside the sheet, and the old `stopPropagation` caught it.
+
+Three gestures were probed against the unfixed build:
+
+| Gesture | Sheet after | Reproduces |
+| --- | --- | --- |
+| down on the **slider** → up on the backdrop | open | no — pointer capture |
+| down on the **sheet body** → up on the backdrop | **closed** | yes |
+| down on the **backdrop** → up on the **sheet** | **closed** | yes |
+
+So the behaviour reported is real, the mechanism is press-origin rather than the slider, and the tests are
+written around the two gestures that actually demonstrate it. The slider case is kept as an FR-051 test
+that the adjusted value survives.
+
+### One thing the plan got wrong
+
+Research D4 and T032 both said to record the press **origin**. That is insufficient on its own. The click's
+target is the backdrop for *every* mixed gesture — it is the common ancestor in both directions — so
+checking `event.target === event.currentTarget` alongside a stored origin still dismissed on
+backdrop-down → sheet-up. Both ends have to be recorded: `onPointerDown` sets the flag,
+`onPointerUp` narrows it, and the click handler deliberately does **not** test its own target, because that
+check passes for exactly the cases it is meant to reject.
+
+### Two implementation notes
+
+- **T034: the sheet's `stopPropagation` is now genuinely dead and was deleted.** The gesture check
+  subsumes it — a press with either end inside the sheet no longer dismisses, whichever direction it went.
+- **`accessibilityElementsHidden` on the mobile backdrop hid the entire sheet.** The backdrop is the
+  sheet's parent, so that prop took every control inside it out of the accessibility tree, and eleven
+  existing tests failed instantly. Replaced with `accessible={false}`, which un-groups the wrapper without
+  hiding its descendants. Screen-reader users dismiss with Done or the platform back gesture — the same
+  position as the web, where the backdrop is not keyboard-reachable and Escape does the job.
+
+React Native needed no press-origin tracking: its responder system grants a touch to one view for the whole
+gesture rather than resolving to a common ancestor on release, so a touch starting inside the sheet never
+reaches the backdrop.
 
 ---
 

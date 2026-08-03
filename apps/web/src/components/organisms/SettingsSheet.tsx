@@ -36,6 +36,22 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
 
   const closeRef = useRef<HTMLButtonElement>(null);
 
+  /**
+   * Whether the gesture currently in flight has stayed on the backdrop.
+   *
+   * A DOM `click` fires on the nearest common ancestor of `mousedown` and
+   * `mouseup`, so a gesture with one end inside the sheet and the other outside
+   * resolves to the backdrop — and dismissed the sheet mid-adjustment. Checking
+   * the click's own target cannot separate the two cases, because the backdrop
+   * IS that target in both. Only a press that begins AND ends out here is a
+   * dismissal, so both ends are recorded as they happen.
+   *
+   * A ref rather than state: this is written during a pointer gesture, and
+   * setting state there would re-render the sheet — including the controlled
+   * range input being dragged at the time.
+   */
+  const gestureStayedOnBackdrop = useRef(false);
+
   useEffect(() => {
     if (!open) return;
 
@@ -55,7 +71,18 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
   return (
     <div
       data-testid="settings-backdrop"
-      onClick={onClose}
+      onPointerDown={(event) => {
+        gestureStayedOnBackdrop.current = event.target === event.currentTarget;
+      }}
+      onPointerUp={(event) => {
+        gestureStayedOnBackdrop.current &&= event.target === event.currentTarget;
+      }}
+      onClick={() => {
+        // Deliberately does not test the click's own target: the backdrop is the
+        // common ancestor for every mixed gesture, so that check would pass for
+        // exactly the cases this exists to reject.
+        if (gestureStayedOnBackdrop.current) onClose();
+      }}
       style={{
         position: 'fixed',
         inset: 0,
@@ -71,8 +98,6 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
         role="dialog"
         aria-modal="true"
         aria-label="Tuner settings"
-        // The backdrop closes; the sheet itself must not.
-        onClick={(event) => event.stopPropagation()}
         style={{
           width: '100%',
           maxWidth: 520,

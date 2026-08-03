@@ -150,3 +150,119 @@ test('settings are reachable and dismissible by keyboard (SC-013)', async ({ pag
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('settings-sheet')).toHaveCount(0);
 });
+
+/**
+ * User Story 3 (T029, T030): what counts as dismissing the sheet.
+ *
+ * A DOM `click` fires on the nearest common ancestor of `mousedown` and
+ * `mouseup`. Press inside the sheet, release over the backdrop, and that
+ * ancestor is the backdrop — so the sheet dismisses on a gesture the user meant
+ * as an adjustment. The existing `stopPropagation` never covered this: it only
+ * sees gestures whose two ends are both inside the sheet.
+ *
+ * **The reported symptom named the pitch slider, and that specific gesture does
+ * not reproduce here.** Chromium takes pointer capture on a range input being
+ * dragged, which retargets the `mouseup` back to the slider, so the click lands
+ * inside the sheet and `stopPropagation` catches it. Measured, not assumed: a
+ * probe of the slider drag left the sheet open, while pressing anywhere else in
+ * the sheet and releasing on the backdrop closed it every time. The defect is
+ * real and the report was right about the behaviour; the mechanism is
+ * press-origin, not the slider.
+ */
+test('a press that begins inside the sheet and ends outside does not dismiss (FR-048)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  await page.getByTestId('reference-badge').click();
+  const sheet = await page.getByTestId('settings-sheet').boundingBox();
+  expect(sheet).not.toBeNull();
+
+  // Press on the sheet's own surface, drag well clear of it, release there. The
+  // sheet is anchored to the bottom, so y = 20 is comfortably on the backdrop.
+  await page.mouse.move(sheet!.x + sheet!.width / 2, sheet!.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(sheet!.x + sheet!.width / 2, 20, { steps: 10 });
+  await page.mouse.up();
+
+  await expect(page.getByTestId('settings-sheet')).toBeVisible();
+});
+
+test('a press that begins on the backdrop and ends inside does not dismiss (FR-048)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  await page.getByTestId('reference-badge').click();
+  const sheet = await page.getByTestId('settings-sheet').boundingBox();
+  expect(sheet).not.toBeNull();
+
+  await page.mouse.move(sheet!.x + sheet!.width / 2, 20);
+  await page.mouse.down();
+  await page.mouse.move(sheet!.x + sheet!.width / 2, sheet!.y + 12, { steps: 10 });
+  await page.mouse.up();
+
+  // The mirror image of the case above, and arguably the more surprising one:
+  // the user released their press ON the sheet and it vanished underneath them.
+  await expect(page.getByTestId('settings-sheet')).toBeVisible();
+});
+
+test('an adjustment survives a drag that leaves the sheet (FR-051)', async ({ page }) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  await page.getByTestId('reference-badge').click();
+
+  const slider = await page.getByTestId('a4-slider').boundingBox();
+  expect(slider).not.toBeNull();
+
+  await page.mouse.move(slider!.x + slider!.width / 2, slider!.y + slider!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(slider!.x + slider!.width / 2, 20, { steps: 10 });
+
+  // Read the value mid-gesture, after React has rendered the press. Pressing a
+  // range input jumps its value to the press position, so reading before the
+  // render lands captures the value the drag is about to replace.
+  await page.waitForTimeout(100);
+  const adjusted = await page.getByTestId('a4-value').textContent();
+
+  await page.mouse.up();
+
+  await expect(page.getByTestId('settings-sheet')).toBeVisible();
+  await expect(page.getByTestId('a4-value')).toHaveText(adjusted!);
+});
+
+/**
+ * Guard tests: these pass before the fix and must keep passing after.
+ *
+ * The failure mode being guarded against is over-correction — a fix that stops
+ * the drag-out dismissal by disabling backdrop dismissal altogether would
+ * satisfy the tests above and break the way most people close a sheet.
+ */
+test('a press that begins and ends on the backdrop still dismisses (FR-050)', async ({ page }) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+  await page.getByTestId('reference-badge').click();
+  await expect(page.getByTestId('settings-sheet')).toBeVisible();
+
+  await page.mouse.move(20, 20);
+  await page.mouse.down();
+  await page.mouse.up();
+
+  await expect(page.getByTestId('settings-sheet')).toBeHidden();
+});
+
+test('Done and Escape still dismiss (FR-050, SC-013)', async ({ page }) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  await page.getByTestId('reference-badge').click();
+  await page.getByTestId('settings-close').click();
+  await expect(page.getByTestId('settings-sheet')).toBeHidden();
+
+  await page.getByTestId('reference-badge').click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('settings-sheet')).toBeHidden();
+});

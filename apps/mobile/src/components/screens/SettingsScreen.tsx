@@ -53,9 +53,35 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
       onRequestClose={onClose}
       accessibilityViewIsModal
     >
-      <View style={[styles.backdrop, { backgroundColor: colors.scrim }]}>
-        <View
+      {/*
+        Pressing the dim area closes the sheet (FR-049) — the gesture every
+        sheet on this platform responds to, and the one the web has always
+        supported.
+
+        No press-origin tracking is needed to match the web fix landing
+        alongside this. React Native's responder system grants a touch to a
+        single view for the whole gesture rather than resolving to a common
+        ancestor on release, so a touch beginning inside the sheet never reaches
+        the backdrop. The sheet is a `Pressable` with no handler purely to
+        swallow presses that land on it.
+      */}
+      <Pressable
+        testID="settings-backdrop"
+        // `accessible={false}`, NOT `accessibilityElementsHidden`: the backdrop
+        // is the sheet's parent, so hiding it from assistive technology hides
+        // every control inside the sheet with it. This keeps the wrapper from
+        // being announced as an element of its own while leaving its
+        // descendants exposed. Screen-reader users dismiss with Done or the
+        // platform back gesture, exactly as on the web, where the backdrop is
+        // likewise not keyboard-reachable and Escape does the job.
+        accessible={false}
+        onPress={onClose}
+        style={[styles.backdrop, { backgroundColor: colors.scrim }]}
+      >
+        <Pressable
           testID="settings-sheet"
+          accessible={false}
+          onPress={() => undefined}
           style={[styles.sheet, { backgroundColor: colors.background }]}
         >
           <View style={styles.header}>
@@ -169,8 +195,8 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
           >
             <Text style={[styles.resetLabel, { color: colors.text }]}>Reset to defaults</Text>
           </Pressable>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
