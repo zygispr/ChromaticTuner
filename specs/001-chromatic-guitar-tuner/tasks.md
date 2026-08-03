@@ -431,7 +431,7 @@ final quality work.
 - [X] T092 [P] Verify light and dark appearance across every screen and state in both apps (FR-019) — automated in `apps/web/e2e/appearance.spec.ts` against the token set rather than verified by eye
 - [X] T093 Measure latency per quickstart V7 and record the numbers — measure **first marker movement**, not settle time — **partial**: measured in `packages/core/tests/latency.test.ts`, **not on device**. First movement **66.6 ms**, settle **136.2 ms**; both miss the quickstart's stated 50/100 ms targets while meeting FR-027's binding ≤100 ms. See [validation-results.md](./validation-results.md#v7-latency-in-detail)
 - [X] T094 Measure sustained frame rate per quickstart V8 — **partial**: browser only, p50 **8.2 ms** / p95 **9.2 ms** over 20 s of live tuning, and React is confirmed not re-rendering per reading. **Not measured on device**
-- [ ] T095 Run the 30-minute continuous-use thermal and battery check per quickstart V13 (SC-012) — **NOT RUN: needs 30 uninterrupted minutes on a physical phone with the app in the foreground.** No longer blocked by tooling — since Phase 8 the app builds, signs, installs and runs on a physical iPhone — but it cannot be automated or observed from here. See [the runbook](#t095-runbook) below
+- [X] T095 Run the 30-minute continuous-use thermal and battery check per quickstart V13 (SC-012) — **run 2026-08-03 on a physical iPhone 15, Release build**: 100% → **93%** over 30 minutes, warm but not hot, no throttling, marker still tracking as immediately at t=30 as at t=0. **Passes V13's three clauses, on a flagship rather than the mid-range phone SC-012 names** — see [the run](#t095-run-2026-08-03) below and [validation-results.md](./validation-results.md#v13-thermal-and-battery-2026-08-03)
 - [X] T096 Run the glanceability check per quickstart V10 — **partial**: greyscale and colour-vision-deficiency legs automated via CDP vision-deficiency emulation; the 1 m human judgement was not performed
 - [X] T097 [P] Raise `packages/core` line coverage to ≥90% and close any gaps (Principle III) — **100% lines**, up from 98.84%
 - [X] T098 [P] Write `README.md` with setup and run instructions, prominently noting that **Expo Go will not work** and mobile requires a development build — the most likely first-run failure
@@ -447,6 +447,10 @@ Nothing is known to be failing; nothing has been verified on the hardware the co
 list is in [validation-results.md](./validation-results.md#not-verified) — on-device latency, frame rate and
 cold start; the 30-minute thermal run; VoiceOver and TalkBack; and the iOS/Android development builds, which
 were never compiled. Mobile is verified only under `jest-expo` with the native module mocked.
+
+> **Superseded 2026-08-03 by [Phase 8](#phase-8-on-device-bring-up-post-t100).** The iOS build was compiled
+> and run on a physical iPhone, and T095 was completed. On-device V7/V8, VoiceOver/TalkBack, mobile
+> airplane mode, the Android build, and V13 on *mid-range* hardware remain open.
 
 Four defects were found, none of which review would have caught. **The most serious was not found by any
 test** — it was found by launching the app and looking at a screenshot, after this phase had already been
@@ -561,23 +565,40 @@ asks whether the layers work.** The permission path was tested, the error mappin
 was tested on generated signals — and the one question none of them asked was whether the samples arriving
 were anything but zeros. The new contract tests ask it.
 
-### T095 runbook
+### T095 run, 2026-08-03
 
-The last open task. Not blocked by tooling any more — blocked on 30 uninterrupted minutes with a phone in
-hand, which cannot be automated or done from a coding session.
+The last open task, closed. Run on a physical **iPhone 15** (iPhone15,4), iOS 26.6, **Release** build.
 
-1. `pnpm --filter @chromatic-tuner/mobile ios` with the device connected (Expo Go cannot work; this needs
-   the development build). Note that `bundleIdentifier com.chromatictuner.app` is registered to another
-   team and must be changed to sign on yours.
-2. Charge to 100%, note the battery percentage, disconnect from power, and leave the tuner in the
-   foreground with a string sounding periodically for 30 minutes.
-3. Record: battery delta, whether the device becomes uncomfortable to hold, whether iOS throttles, and
-   whether the reading is still responsive at minute 30 (SC-012, Principle V's idle-CPU clause).
-4. Mark T095 `[X]` with the numbers, and update
-   [validation-results.md](./validation-results.md#not-verified).
+The Release build mattered and is worth stating as method rather than detail. A Debug build runs React in
+development mode with unminified JS and needs Metro attached over Wi-Fi for the whole run — its battery and
+thermal numbers measure the dev harness as much as the tuner. This build embedded the JS as Hermes
+bytecode (v98, 2.8 MB), so the phone ran standalone: no Mac, no cable, no radio held open for Metro. The
+app was force-quit and relaunched from the home screen after unplugging, so no debug tunnel or usage
+assertion from `devicectl` was live during the run.
 
-The device this build was made for is an iPhone 15, which is **not** the mid-range phone SC-012 names. A
-flagship passing this check is weaker evidence than the criterion asks for — record which device was used.
+| | t=0 | t=15 | t=30 |
+| --- | --- | --- | --- |
+| Battery | 100% | 99% | **93%** |
+| Marker tracks immediately | yes | yes | yes |
+| Thermal | — | slightly warm | warm, not hot |
+
+**Verdict: passes all three of V13's clauses.** No throttling, ~7% drain over 30 minutes (≈14%/hour, which
+is ordinary for a screen-on app holding the microphone and animating continuously), and no degradation in
+responsiveness between t=0 and t=30.
+
+Three honest qualifications on that pass:
+
+- **An iPhone 15 is a flagship; SC-012 names a mid-range phone.** This is the weakest part of the evidence.
+  A flagship passing a thermal gate says comparatively little about the device class the criterion is
+  actually about. The gate should be re-run on mid-range hardware before treating SC-012 as met.
+- **"Still tracking immediately" is a human judgement, not a measurement.** V13's third clause — no
+  degradation in frame rate or latency — was sampled by plucking a string at three points and watching. The
+  instrumented on-device V7 and V8 numbers were deliberately not collected here, because capturing them
+  needs the phone tethered, and tethering charges it and forfeits the battery half of the run. Those remain
+  open.
+- **The t=15 reading of 99% is probably flattered by iOS's post-unplug 100% plateau**, which is why the
+  drain looks non-linear (1% then 6%). The 30-minute total is the number to trust; the midpoint is not a
+  real rate.
 
 ---
 

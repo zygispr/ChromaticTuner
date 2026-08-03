@@ -34,7 +34,7 @@ recorded below as outstanding rather than passed — see [Not verified](#not-ver
 | V10 | Glanceability and colour independence | ⚠️ partial | Automated: all three non-colour channels survive simulated achromatopsia; the page renders under deuteranopia, protanopia and tritanopia; note label ≥96 px and >4× the cue. `appearance.spec.ts`. The 1 m human judgement is not automatable and was not performed. |
 | V11 | Accessibility | ⚠️ partial | Axe WCAG 2.1 A/AA clean on the tuner, the settings sheet and the explainer; every control labelled and ≥44 px; full keyboard operation with a visible focus ring. `a11y.spec.ts`. VoiceOver and TalkBack passes not performed. |
 | V12 | Reference pitch | ✅ pass | A4 = 432 reads +32 cents on a 440 Hz string; the indicator is visible; the setting survives a full reload. `settings.spec.ts` |
-| V13 | Thermal and battery | ❌ **not run** | Requires 30 minutes on a physical mid-range phone. |
+| V13 | Thermal and battery | ⚠️ passed on a flagship | **Not run on 2026-08-02.** Run 2026-08-03 on a physical iPhone 15, Release build: 100% → 93% over 30 min, warm not hot, no throttling, no loss of responsiveness. SC-012 names a **mid-range** phone, so the pass is on weaker hardware evidence than the criterion asks for — [details](#v13-thermal-and-battery-2026-08-03) |
 
 ---
 
@@ -131,7 +131,7 @@ release-gate check that must happen before shipping.
 | --- | --- | --- |
 | Latency on a mid-range phone | V7 | The browser numbers cover the DSP path; the render and display path differ on device. |
 | Sustained frame rate on a phone | V8 | Reanimated drives the marker on the UI thread; that path has no desktop equivalent. |
-| 30-minute thermal and battery run | V13, SC-012 | Principle V's idle-CPU clause is only observable over time on real silicon. |
+| Thermal and battery on **mid-range** hardware | V13, SC-012 | Run on an iPhone 15 on 2026-08-03 and passed; the criterion names a mid-range phone, and a flagship passing a thermal gate is weak evidence for the class the criterion is about. |
 | Glanceability from 1 m | V10, SC-009 | A human judgement. The mechanical precondition — non-colour channels present — is automated. |
 | VoiceOver and TalkBack | V11, SC-013 | Axe cannot judge whether an announcement is *useful*, only whether it is well-formed. |
 | Mobile airplane mode | V9 | The web half is verified; the RN half needs a device. |
@@ -173,9 +173,51 @@ against the unfixed adapter (3 failed, 42 passed) and passing after (45 passed).
 ### What this changes about the remaining gaps
 
 The device-dependent rows above are no longer blocked by tooling — the build exists and installs. They are
-blocked only on someone doing them by hand. V13 (T095) in particular now has a
-[runbook](./tasks.md#t095-runbook).
+blocked only on someone doing them by hand. The first of them, V13, was done the same day; see below.
 
 One caveat worth stating plainly: the device on hand is an **iPhone 15**, a flagship. SC-012 and V7 name a
 **mid-range** phone. Measurements taken here will be optimistic against the criterion, and should be
 recorded with the device named rather than reported as a clean pass.
+
+---
+
+## V13: thermal and battery, 2026-08-03
+
+**Task**: T095 · **Device**: physical iPhone 15 (iPhone15,4), iOS 26.6 · **Build**: Release
+
+The last task in the plan, and the only one that had never been attempted.
+
+**Method.** Built with `expo run:ios --configuration Release`, which embeds the JS as Hermes bytecode
+(v98, 2.8 MB) rather than serving it from Metro. This is the part of the setup that decides whether the
+numbers mean anything: a Debug build runs React in development mode with unminified JS and holds a Wi-Fi
+connection to a Metro server for the whole run, so its battery and thermal figures describe the
+development harness as much as the product. After install, the phone was unplugged from both the Mac and
+power, and the app was force-quit and relaunched from the home screen — `devicectl`'s launch path opens a
+debug tunnel and takes a usage assertion, and neither should be live during a battery measurement. Screen
+on, app foregrounded, a string sounded periodically for 30 minutes, responsiveness sampled at three points.
+
+| | t=0 | t=15 | t=30 |
+| --- | --- | --- | --- |
+| Battery | 100% | 99% | **93%** |
+| Marker tracks immediately | yes | yes | yes |
+| Thermal | — | slightly warm | warm, not hot |
+
+**Result: all three of V13's clauses pass.** No thermal throttling. ~7% drain over 30 minutes — about
+14%/hour, which is unremarkable for a screen-on app holding the microphone open and animating a marker
+continuously. No degradation in responsiveness across the run.
+
+### What this result does not establish
+
+- **The hardware is wrong for the criterion.** SC-012 says *mid-range*; this is a flagship. An iPhone 15
+  has thermal headroom a mid-range phone does not, and thermal throttling is precisely the failure mode
+  that headroom hides. This is the single largest reason to treat SC-012 as **not yet fully met**, and it
+  is why the [Not verified](#not-verified) table still carries a row for V13.
+- **The third clause was judged, not measured.** "No degradation in frame rate or latency" was assessed by
+  plucking a string and watching the marker at 0, 15 and 30 minutes. Instrumented on-device V7 and V8
+  numbers were deliberately not collected, because capturing them requires tethering the phone, and
+  tethering charges it — which would forfeit the battery half of this very run. The two cannot be
+  collected in the same session, and V13's battery clause was the one worth protecting. V7 and V8 on
+  device remain open.
+- **The t=15 battery figure is not a real rate.** iOS holds a reported 100% for some minutes after
+  unplugging, which is the likely explanation for a drain curve that reads 1% then 6%. The 30-minute total
+  is the trustworthy number; the midpoint should not be extrapolated from.
