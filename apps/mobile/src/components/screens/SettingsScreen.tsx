@@ -1,7 +1,14 @@
 import { A4_MAX_HZ, A4_MIN_HZ, type AccidentalStyle } from '@chromatic-tuner/core';
 import { usePreferences } from '@chromatic-tuner/react';
-import { a11y, space, type as typeTokens } from '@chromatic-tuner/tokens';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { a11y, motion, space, type as typeTokens } from '@chromatic-tuner/tokens';
+import { useEffect, useState } from 'react';
+import { AccessibilityInfo, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { stateColor, useAppearance, useThemeColors } from '../../theme';
 
@@ -17,6 +24,14 @@ const ACCIDENTAL_OPTIONS: Array<{ value: AccidentalStyle; label: string; example
 
 /** How far one press of the stepper moves the reference pitch. */
 const STEP_HZ = 1;
+
+/**
+ * How far below its resting place the sheet starts, in points.
+ *
+ * Comfortably taller than the sheet, so it begins fully off-screen whatever the
+ * content height turns out to be.
+ */
+const SHEET_TRAVEL = 600;
 
 /**
  * The two settings the product has, and a way back to defaults (FR-022–FR-024).
@@ -45,10 +60,55 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
     reset,
   } = usePreferences();
 
+  // `null` means "not known yet". Defaulting to `false` would animate the
+  // sheet in the gap before `isReduceMotionEnabled()` resolves — moving the
+  // screen exactly once for the users who asked it not to, on every open.
+  const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
+
+  // FR-057: drop the animation entirely under reduced motion rather than
+  // merely shortening it. Same convention, same shape, as `TuningLine.tsx`.
+  useEffect(() => {
+    let cancelled = false;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (!cancelled) setReduceMotion(enabled);
+    });
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      cancelled = true;
+      subscription.remove();
+    };
+  }, []);
+
+  const offset = useSharedValue(SHEET_TRAVEL);
+
+  useEffect(() => {
+    if (!open) {
+      offset.value = SHEET_TRAVEL;
+      return;
+    }
+    // Hold off-screen until the preference is known; the check resolves in a
+    // microtask, so this is not a visible delay.
+    if (reduceMotion === null) return;
+
+    offset.value = reduceMotion
+      ? 0
+      : withTiming(0, { duration: motion.colorMs, easing: Easing.out(Easing.quad) });
+  }, [open, reduceMotion, offset]);
+
+  const sheetMotion = useAnimatedStyle(() => ({
+    transform: [{ translateY: offset.value }],
+  }));
+
   return (
     <Modal
+      testID="settings-modal"
       visible={open}
-      animationType="slide"
+      // `none`, not `slide`. The platform animation moves the modal's single
+      // root container, and the backdrop lives inside it — so the dim swept up
+      // from the bottom edge along with the sheet, which is the defect. With it
+      // off, the backdrop is at full extent immediately (FR-055) and the sheet
+      // carries its own slide (FR-056).
+      animationType="none"
       transparent
       onRequestClose={onClose}
       accessibilityViewIsModal
@@ -78,124 +138,126 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
         onPress={onClose}
         style={[styles.backdrop, { backgroundColor: colors.scrim }]}
       >
-        <Pressable
-          testID="settings-sheet"
-          accessible={false}
-          onPress={() => undefined}
-          style={[styles.sheet, { backgroundColor: colors.background }]}
-        >
-          <View style={styles.header}>
-            <Text style={[styles.heading, { color: colors.text }]}>Settings</Text>
-            <Pressable
-              testID="settings-close"
-              accessibilityRole="button"
-              accessibilityLabel="Close settings"
-              onPress={onClose}
-              style={styles.closeButton}
-            >
-              <Text style={[styles.closeLabel, { color: colors.text }]}>Done</Text>
-            </Pressable>
-          </View>
-
-          <View>
-            <Text style={[styles.legend, { color: colors.text }]}>Reference pitch</Text>
-
-            <View style={styles.stepper}>
+        <Animated.View style={[styles.sheetMotion, sheetMotion]}>
+          <Pressable
+            testID="settings-sheet"
+            accessible={false}
+            onPress={() => undefined}
+            style={[styles.sheet, { backgroundColor: colors.background }]}
+          >
+            <View style={styles.header}>
+              <Text style={[styles.heading, { color: colors.text }]}>Settings</Text>
               <Pressable
-                testID="a4-decrement"
+                testID="settings-close"
                 accessibilityRole="button"
-                accessibilityLabel="Lower the reference pitch by one hertz"
-                onPress={() => setA4Hz(a4Hz - STEP_HZ)}
-                disabled={a4Hz <= A4_MIN_HZ}
-                style={[
-                  styles.stepButton,
-                  { borderColor: colors.line, opacity: a4Hz <= A4_MIN_HZ ? 0.4 : 1 },
-                ]}
+                accessibilityLabel="Close settings"
+                onPress={onClose}
+                style={styles.closeButton}
               >
-                <Text style={[styles.stepLabel, { color: colors.text }]}>−</Text>
-              </Pressable>
-
-              <Text
-                testID="a4-value"
-                style={[styles.value, { color: isNonStandardReference ? accent : colors.text }]}
-              >
-                {a4Hz} Hz
-              </Text>
-
-              <Pressable
-                testID="a4-increment"
-                accessibilityRole="button"
-                accessibilityLabel="Raise the reference pitch by one hertz"
-                onPress={() => setA4Hz(a4Hz + STEP_HZ)}
-                disabled={a4Hz >= A4_MAX_HZ}
-                style={[
-                  styles.stepButton,
-                  { borderColor: colors.line, opacity: a4Hz >= A4_MAX_HZ ? 0.4 : 1 },
-                ]}
-              >
-                <Text style={[styles.stepLabel, { color: colors.text }]}>+</Text>
+                <Text style={[styles.closeLabel, { color: colors.text }]}>Done</Text>
               </Pressable>
             </View>
 
-            <Text style={[styles.range, { color: colors.text }]}>
-              {A4_MIN_HZ}–{A4_MAX_HZ} Hz · standard is 440
-            </Text>
-          </View>
+            <View>
+              <Text style={[styles.legend, { color: colors.text }]}>Reference pitch</Text>
 
-          <View>
-            <Text style={[styles.legend, { color: colors.text }]}>Accidentals</Text>
+              <View style={styles.stepper}>
+                <Pressable
+                  testID="a4-decrement"
+                  accessibilityRole="button"
+                  accessibilityLabel="Lower the reference pitch by one hertz"
+                  onPress={() => setA4Hz(a4Hz - STEP_HZ)}
+                  disabled={a4Hz <= A4_MIN_HZ}
+                  style={[
+                    styles.stepButton,
+                    { borderColor: colors.line, opacity: a4Hz <= A4_MIN_HZ ? 0.4 : 1 },
+                  ]}
+                >
+                  <Text style={[styles.stepLabel, { color: colors.text }]}>−</Text>
+                </Pressable>
 
-            <View style={styles.options}>
-              {ACCIDENTAL_OPTIONS.map((option) => {
-                const selected = accidentalStyle === option.value;
-                return (
-                  <Pressable
-                    key={option.value}
-                    testID={`accidental-${option.value}`}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    onPress={() => setAccidentalStyle(option.value)}
-                    style={[
-                      styles.option,
-                      // Selection carried by border weight as well as colour,
-                      // so it survives greyscale (FR-015).
-                      { borderColor: selected ? colors.text : colors.line },
-                      selected ? styles.optionSelected : null,
-                    ]}
-                  >
-                    <Text
+                <Text
+                  testID="a4-value"
+                  style={[styles.value, { color: isNonStandardReference ? accent : colors.text }]}
+                >
+                  {a4Hz} Hz
+                </Text>
+
+                <Pressable
+                  testID="a4-increment"
+                  accessibilityRole="button"
+                  accessibilityLabel="Raise the reference pitch by one hertz"
+                  onPress={() => setA4Hz(a4Hz + STEP_HZ)}
+                  disabled={a4Hz >= A4_MAX_HZ}
+                  style={[
+                    styles.stepButton,
+                    { borderColor: colors.line, opacity: a4Hz >= A4_MAX_HZ ? 0.4 : 1 },
+                  ]}
+                >
+                  <Text style={[styles.stepLabel, { color: colors.text }]}>+</Text>
+                </Pressable>
+              </View>
+
+              <Text style={[styles.range, { color: colors.text }]}>
+                {A4_MIN_HZ}–{A4_MAX_HZ} Hz · standard is 440
+              </Text>
+            </View>
+
+            <View>
+              <Text style={[styles.legend, { color: colors.text }]}>Accidentals</Text>
+
+              <View style={styles.options}>
+                {ACCIDENTAL_OPTIONS.map((option) => {
+                  const selected = accidentalStyle === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      testID={`accidental-${option.value}`}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      onPress={() => setAccidentalStyle(option.value)}
                       style={[
-                        styles.optionLabel,
-                        { color: colors.text, fontWeight: selected ? '700' : '400' },
+                        styles.option,
+                        // Selection carried by border weight as well as colour,
+                        // so it survives greyscale (FR-015).
+                        { borderColor: selected ? colors.text : colors.line },
+                        selected ? styles.optionSelected : null,
                       ]}
                     >
-                      {option.label}
-                    </Text>
-                    <Text style={[styles.optionExample, { color: colors.text }]}>
-                      {option.example}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+                      <Text
+                        style={[
+                          styles.optionLabel,
+                          { color: colors.text, fontWeight: selected ? '700' : '400' },
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                      <Text style={[styles.optionExample, { color: colors.text }]}>
+                        {option.example}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
-          </View>
 
-          {persistenceFailed && (
-            <Text testID="persistence-warning" style={[styles.warning, { color: accent }]}>
-              These settings apply now but could not be saved, so they will not be remembered next
-              time.
-            </Text>
-          )}
+            {persistenceFailed && (
+              <Text testID="persistence-warning" style={[styles.warning, { color: accent }]}>
+                These settings apply now but could not be saved, so they will not be remembered next
+                time.
+              </Text>
+            )}
 
-          <Pressable
-            testID="settings-reset"
-            accessibilityRole="button"
-            onPress={reset}
-            style={[styles.reset, { borderColor: colors.line }]}
-          >
-            <Text style={[styles.resetLabel, { color: colors.text }]}>Reset to defaults</Text>
+            <Pressable
+              testID="settings-reset"
+              accessibilityRole="button"
+              onPress={reset}
+              style={[styles.reset, { borderColor: colors.line }]}
+            >
+              <Text style={[styles.resetLabel, { color: colors.text }]}>Reset to defaults</Text>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </Animated.View>
       </Pressable>
     </Modal>
   );
@@ -205,6 +267,11 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  // The transform lives on a wrapper so the sheet's own padding, radius and
+  // background stay on the pressable that swallows touches.
+  sheetMotion: {
+    width: '100%',
   },
   sheet: {
     padding: space.lg,

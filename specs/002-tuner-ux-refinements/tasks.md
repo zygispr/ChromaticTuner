@@ -370,13 +370,58 @@ a flake go away.
 
 ### Tests (write first, observe failing)
 
-- [ ] T041 [P] [US5] Add a case to `apps/mobile/__tests__/settings.test.tsx` asserting the `Modal` no longer uses `animationType="slide"` and that the sheet carries its own entering animation (FR-055, FR-056). **Before the fix**: the prop is `"slide"`, so the assertion fails
-- [ ] T042 [US5] Add a case to `apps/mobile/__tests__/settings.test.tsx` asserting the sheet's animation is dropped entirely — not merely shortened — when reduced motion is enabled (FR-057), matching the convention already in `apps/mobile/src/components/molecules/TuningLine.tsx`
+- [X] T041 [P] [US5] Add a case to `apps/mobile/__tests__/settings.test.tsx` asserting the `Modal` no longer uses `animationType="slide"` and that the sheet carries its own entering animation (FR-055, FR-056). **Before the fix**: the prop is `"slide"`, so the assertion fails
+- [X] T042 [US5] Add a case to `apps/mobile/__tests__/settings.test.tsx` asserting the sheet's animation is dropped entirely — not merely shortened — when reduced motion is enabled (FR-057), matching the convention already in `apps/mobile/src/components/molecules/TuningLine.tsx`
 
 ### Implementation
 
-- [ ] T043 [US5] In `apps/mobile/src/components/screens/SettingsScreen.tsx`, set `animationType="none"`, render the backdrop at full opacity immediately, and animate only the sheet with Reanimated — already a dependency and already driving the marker, so no new install cost (research D6)
-- [ ] T044 [US5] Read `AccessibilityInfo.isReduceMotionEnabled` in `apps/mobile/src/components/screens/SettingsScreen.tsx` and skip the sheet animation when enabled, copying the pattern in `TuningLine.tsx` rather than inventing a second one
+- [X] T043 [US5] In `apps/mobile/src/components/screens/SettingsScreen.tsx`, set `animationType="none"`, render the backdrop at full opacity immediately, and animate only the sheet with Reanimated — already a dependency and already driving the marker, so no new install cost (research D6)
+- [X] T044 [US5] Read `AccessibilityInfo.isReduceMotionEnabled` in `apps/mobile/src/components/screens/SettingsScreen.tsx` and skip the sheet animation when enabled, copying the pattern in `TuningLine.tsx` rather than inventing a second one
+
+**Checkpoint**: ✅ **US5 COMPLETE (2026-08-03)**. **425 unit** (unchanged), **60 mobile Jest** (+3), **64
+Playwright** (unchanged — US5 is mobile-only), all green. Lint, format, typecheck, build clean.
+
+`animationType="none"` on the `Modal`, backdrop at full extent immediately, and the sheet carrying its own
+Reanimated slide — the same `useSharedValue` + `withTiming` shape `TuningLine.tsx` already uses, so no
+second animation idiom enters the codebase.
+
+### A real defect found by writing the reduced-motion test
+
+`AccessibilityInfo.isReduceMotionEnabled()` is **async**, and the naive `useState(false)` default means the
+open animation fires in the gap before it resolves. On a device with reduced motion enabled the sheet would
+animate exactly once, on every open, for the users who asked it not to.
+
+The state is now `boolean | null`, and the sheet holds off-screen until the preference is known. This was
+not in the plan and would not have been caught by inspection — the test failed with one recorded
+`withTiming` call where it expected none, which is precisely the one-frame window the bug lives in.
+`TuningLine.tsx` has the same async shape but is not exposed to it, because it only consults the preference
+when a reading arrives, by which time the promise has long resolved.
+
+### Test-harness notes
+
+- **Deviation from T041/T042**, which named `settings.test.tsx`: both assertions need a Reanimated mock that
+  **records** what it was asked to animate, and the shared mock in `jest.setup.js` resolves `withTiming`
+  straight to its target — under it an animated sheet and a static one render identically. `marker-rest.test.tsx`
+  set the precedent for a file-local mock; this follows it.
+
+- **The reduced-motion test was vacuous first, in the same shape as the US2 negatives.** With no animation
+  yet to suppress, "expect zero timing calls" passed against unfixed code. It now asserts the positive
+  first — a normal open *does* animate — then re-renders with the preference on and asserts none.
+
+- **`Promise.resolve()` is the wrong settle here.** A microtask settle after `render` overlaps RNTL's own
+  act scope, React reports "overlapping act() calls", and the symptom is a render that produced *nothing*
+  — `toJSON()` returns null and every query fails with a misleading "unable to find" message. The
+  timer-based `settle()` that `settings.test.tsx` already uses is the working form; that cost a debugging
+  cycle to trace from the symptom back to the cause.
+
+- **One assertion moved rather than kept in its own test.** A standalone "the sheet still renders when the
+  animation is skipped" case renders an empty tree under RNTL whenever the spy is active on a test's
+  *first* render — a harness interaction, not a product fault. The assertion now lives inside the
+  reduced-motion test, which reaches the same state through a shape that works. Coverage is unchanged;
+  only the harness is.
+
+Not verified here: **V21 is on-device only** (T051). An assertion on `animationType` proves the platform
+slide is off; it cannot prove the result looks right, which is the whole complaint this story started from.
 
 ---
 
