@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { PitchReading, TunerStatus, TuningState } from '@chromatic-tuner/core';
 
-import { readingAnnouncement, spellNoteForSpeech } from '../src/announcement';
+import { captureControlLabel, readingAnnouncement, spellNoteForSpeech } from '../src/announcement';
 
 /**
  * FR-020: state changes announced without spamming assistive technology.
@@ -81,5 +81,32 @@ describe('readingAnnouncement', () => {
   it('rounds, so the sentence never contains a decimal to read out', () => {
     const announcement = readingAnnouncement(readingStatus(-20.4917, 'flat'), 'E', 2);
     expect(announcement).toBe('E 2, 20 cents flat. Tighten.');
+  });
+});
+
+/**
+ * FR-039 / FR-042 (US1): the capture control names its ACTION, not its state.
+ *
+ * The distinction matters and is the reason this copy is shared rather than
+ * written twice. A toggle labelled with its current state ("Listening") and a
+ * toggle labelled with its next action ("Stop listening") are read identically
+ * by eye and oppositely by a screen reader, and getting the two platforms on
+ * opposite sides of that choice is exactly the drift this package exists to
+ * prevent.
+ */
+describe('captureControlLabel (FR-039, FR-042)', () => {
+  it('names the action to take, not the state currently held', () => {
+    expect(captureControlLabel(true)).toBe('Stop listening');
+    expect(captureControlLabel(false)).toBe('Start listening');
+  });
+
+  it('always begins with a verb, so the accessible name reads as a command', () => {
+    for (const capturing of [true, false]) {
+      expect(captureControlLabel(capturing)).toMatch(/^(Start|Stop) /);
+    }
+  });
+
+  it('changes between the two states, which is how the state is exposed at all', () => {
+    expect(captureControlLabel(true)).not.toBe(captureControlLabel(false));
   });
 });

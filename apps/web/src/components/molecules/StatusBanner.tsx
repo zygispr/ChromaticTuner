@@ -6,6 +6,13 @@ import { themedVar } from '../../theme';
 export interface StatusBannerProps {
   readonly status: TunerStatus;
   readonly onRetry: () => void;
+  /**
+   * The user switched capture off, as opposed to it not having started yet.
+   *
+   * Both land the session in `idle`, and without this the deliberate stop shows
+   * "Starting…" — telling the user the opposite of what just happened (FR-039).
+   */
+  readonly captureStopped?: boolean;
 }
 
 interface Recovery {
@@ -78,8 +85,14 @@ function recoveryFor(status: TunerStatus): Recovery | null {
  * is a shortcut rather than the only escape — but it must exist, because
  * waiting with no visible control reads as a hang.
  */
-export function StatusBanner({ status, onRetry }: StatusBannerProps) {
-  const recovery = recoveryFor(status);
+export function StatusBanner({ status, onRetry, captureStopped = false }: StatusBannerProps) {
+  const recovery = captureStopped
+    ? {
+        title: 'The microphone is off',
+        steps: 'Choose Start listening when you want to tune again.',
+        canRetry: false,
+      }
+    : recoveryFor(status);
   if (!recovery) return null;
 
   return (

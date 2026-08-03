@@ -27,9 +27,51 @@ it is wrong; fix the test before touching the implementation.
 
 **Purpose**: Establish the before-numbers that Principle V will demand at the end.
 
-- [ ] T001 Confirm all eight gates pass on a clean checkout of `002-tuner-ux-refinements` and record the counts in this file — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e && pnpm build`, plus `pnpm --filter @chromatic-tuner/mobile test`
-- [ ] T002 [P] Record baseline latency numbers from `packages/core/tests/latency.test.ts` (first movement and settle, in ms) in this file, before any source change — US2 modifies the render path and the constitution requires before/after numbers in the PR
-- [ ] T003 [P] Record baseline frame-time numbers (p50/p95/max) from `apps/web/e2e/performance.spec.ts` in this file, before any source change
+- [X] T001 Confirm all eight gates pass on a clean checkout of `002-tuner-ux-refinements` and record the counts in this file — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e && pnpm build`, plus `pnpm --filter @chromatic-tuner/mobile test`
+- [X] T002 [P] Record baseline latency numbers from `packages/core/tests/latency.test.ts` (first movement and settle, in ms) in this file, before any source change — US2 modifies the render path and the constitution requires before/after numbers in the PR
+- [X] T003 [P] Record baseline frame-time numbers (p50/p95/max) from `apps/web/e2e/performance.spec.ts` in this file, before any source change
+
+### Phase 1 results — 2026-08-03, commit `778237b`, no source changes
+
+**All eight gates green.**
+
+| Gate | Result |
+| --- | --- |
+| `pnpm lint` | clean, `--max-warnings 0` |
+| `pnpm format:check` | clean |
+| `pnpm typecheck` | 5/5 projects |
+| `pnpm test` | **414 passed**, 18 files |
+| `pnpm --filter @chromatic-tuner/mobile test` | **45 passed**, 5 suites |
+| `pnpm test:coverage` | **100% lines**, 98.46% statements, 94.76% branches, 97.26% functions |
+| `pnpm test:e2e` | **46 passed** |
+| `pnpm build` | 233.04 kB, `sw.js` emitted |
+
+**Baselines for the Principle V before/after comparison (T028 supplies the "after"):**
+
+| Measurement | Baseline |
+| --- | --- |
+| First marker movement | **66.6 ms** (66.576) |
+| Settle | **136.2 ms** (136.236) |
+| Frame time p50 | **8.3 ms** |
+| Frame time p95 | **9.2 ms** |
+| Frame time max | **13.6 ms** |
+
+Two notes on these numbers, both of which matter when T028 compares against them:
+
+- **Latency reproduces `001`'s figures exactly** (66.6 / 136.2), which is the expected result: nothing in
+  the DSP path has changed since they were recorded. It also confirms the measurement is deterministic
+  rather than machine-dependent, so a difference at T028 will be attributable to the change rather than to
+  the host.
+- **Frame-time `max` is noisy and is not a comparable figure.** Two runs of the same unmodified code
+  produced 10.0 ms and 13.6 ms. Compare **p50 and p95** at T028; treat a `max` movement alone as
+  measurement scatter, not a regression. The 16.7 ms budget is what `max` is actually gated on.
+
+One process note recorded because it will recur at T028: `latency.test.ts` asserts against budgets but does
+not print its measurements, and Vitest 4 discards `console.log` from this project's test runs — both from
+the `describe` body and from inside an `it`, with `--silent=false` making no difference. The values were
+extracted by temporarily asserting them into a failing diff, then restoring the file with
+`git checkout --`. If before/after numbers are going to be a recurring obligation, the honest fix is for
+the test to report them itself rather than for each measurement to re-derive this workaround.
 
 ---
 
@@ -53,23 +95,55 @@ readings cease. Press start → readings resume with no reload. Background and r
 
 ### Tests (write first, observe failing)
 
-- [ ] T004 [P] [US1] Write `apps/web/e2e/microphone-toggle.spec.ts` covering stop → no readings → start → readings resume, and that the control's accessible name changes between states (FR-036–FR-039, FR-042). **Before the fix**: no such control exists, so the locator finds nothing and every case fails
-- [ ] T005 [P] [US1] Add a case to `apps/web/e2e/microphone-toggle.spec.ts` that stops capture, dispatches a real `visibilitychange` to hidden and back to visible, and asserts capture is still stopped (FR-040). **Before the fix**: `useMicrophoneLifecycle` calls `start()` on return, so this fails even once a toggle exists — this is the case most likely to be faked by a mocked flag, so it must drive the real event
-- [ ] T006 [P] [US1] Write `apps/mobile/__tests__/microphone-toggle.test.tsx` mirroring T004 and T005, driving `AppState` rather than `visibilitychange`. **Before the fix**: same failures as T004/T005
-- [ ] T007 [P] [US1] Add a test to `packages/react/tests/announcement.test.ts` for the capture-control announcement strings. **Before the fix**: the function does not exist
+- [X] T004 [P] [US1] Write `apps/web/e2e/microphone-toggle.spec.ts` covering stop → no readings → start → readings resume, and that the control's accessible name changes between states (FR-036–FR-039, FR-042). **Before the fix**: no such control exists, so the locator finds nothing and every case fails
+- [X] T005 [P] [US1] Add a case to `apps/web/e2e/microphone-toggle.spec.ts` that stops capture, dispatches a real `visibilitychange` to hidden and back to visible, and asserts capture is still stopped (FR-040). **Before the fix**: `useMicrophoneLifecycle` calls `start()` on return, so this fails even once a toggle exists — this is the case most likely to be faked by a mocked flag, so it must drive the real event
+- [X] T006 [P] [US1] Write `apps/mobile/__tests__/microphone-toggle.test.tsx` mirroring T004 and T005, driving `AppState` rather than `visibilitychange`. **Before the fix**: same failures as T004/T005
+- [X] T007 [P] [US1] Add a test to `packages/react/tests/announcement.test.ts` for the capture-control announcement strings. **Before the fix**: the function does not exist
 
 ### Implementation
 
-- [ ] T008 [US1] Add capture-control announcement text to `packages/react/src/announcement.ts`, stating what activating the control will do rather than its current state (FR-039)
-- [ ] T009 [P] [US1] Create `apps/web/src/components/molecules/MicrophoneToggle.tsx` — a two-state button using `a11y.minTouchTarget` and token colours only, with `aria-pressed` or an equivalent state exposure (FR-036, FR-042)
-- [ ] T010 [P] [US1] Create `apps/mobile/src/components/molecules/MicrophoneToggle.tsx` mirroring T009 with `Pressable` and `accessibilityState`
-- [ ] T011 [US1] Add `captureEnabled` state to `apps/web/src/components/organisms/TunerGate.tsx`, gate the `start()` effect on it, and pass `useMicrophoneLifecycle(ready && captureEnabled)` (FR-040, data-model.md)
-- [ ] T012 [US1] Make the same change in `apps/mobile/src/components/organisms/TunerGate.tsx`, keeping the two gates structurally identical — they are required to mirror, and drift here is the accepted risk of not extracting a shared hook (research D1)
-- [ ] T013 [P] [US1] Render `MicrophoneToggle` in `apps/web/src/components/organisms/TunerDisplay.tsx` without pushing the tuning line below the fold (FR-018 still binds)
-- [ ] T014 [P] [US1] Render `MicrophoneToggle` in `apps/mobile/src/components/organisms/TunerDisplay.tsx`
-- [ ] T015 [US1] Verify the stopped state is visually distinguishable from listening-but-silent in both apps (FR-039) — a control label alone is not sufficient, since a player glancing from a metre away reads the display, not the button
+- [X] T008 [US1] Add capture-control announcement text to `packages/react/src/announcement.ts`, stating what activating the control will do rather than its current state (FR-039)
+- [X] T009 [P] [US1] Create `apps/web/src/components/molecules/MicrophoneToggle.tsx` — a two-state button using `a11y.minTouchTarget` and token colours only, with `aria-pressed` or an equivalent state exposure (FR-036, FR-042)
+- [X] T010 [P] [US1] Create `apps/mobile/src/components/molecules/MicrophoneToggle.tsx` mirroring T009 with `Pressable` and `accessibilityState`
+- [X] T011 [US1] Add `captureEnabled` state to `apps/web/src/components/organisms/TunerGate.tsx`, gate the `start()` effect on it, and pass `useMicrophoneLifecycle(ready && captureEnabled)` (FR-040, data-model.md)
+- [X] T012 [US1] Make the same change in `apps/mobile/src/components/organisms/TunerGate.tsx`, keeping the two gates structurally identical — they are required to mirror, and drift here is the accepted risk of not extracting a shared hook (research D1)
+- [X] T013 [P] [US1] Render `MicrophoneToggle` in `apps/web/src/components/organisms/TunerDisplay.tsx` without pushing the tuning line below the fold (FR-018 still binds)
+- [X] T014 [P] [US1] Render `MicrophoneToggle` in `apps/mobile/src/components/organisms/TunerDisplay.tsx`
+- [X] T015 [US1] Verify the stopped state is visually distinguishable from listening-but-silent in both apps (FR-039) — a control label alone is not sufficient, since a player glancing from a metre away reads the display, not the button
 
-**Checkpoint**: US1 is independently shippable. Nothing below depends on it.
+**Checkpoint**: ✅ **US1 COMPLETE (2026-08-03)**. **417 unit** (+3), **49 mobile Jest** (+4), **50
+Playwright** (+4), all green. `packages/core` coverage unchanged at **100% lines** / 94.76% branches — US1
+touches no core code. Lint, format, typecheck and build clean.
+
+Every one of the eight new tests was observed failing before its implementation existed.
+
+Three things worth recording:
+
+- **The label names the action, not the state, and that ruled out `aria-pressed`.** T009 offered
+  "`aria-pressed` or an equivalent state exposure"; the two are mutually exclusive here. A control
+  announced as "Stop listening, pressed" leaves a screen-reader user unable to tell which of the two facts
+  the "pressed" modifies. A changing accessible name is unambiguous by itself and is the state exposure
+  FR-042 asks for. The reasoning lives in `captureControlLabel`, which owns the copy for both platforms so
+  they cannot land on opposite sides of the choice.
+
+- **A user-initiated stop showed "Starting…".** Not in the plan, and found only because T004 asserted on
+  what the screen says rather than on what the button says. `session.stop()` lands in `idle`, and `idle`'s
+  copy is "Starting…" — so a deliberate stop reported the exact opposite of what had happened. Fixed with a
+  `captureStopped` prop on `StatusBanner` in both apps; the alternative, a new `TunerStatus` kind, would
+  have pushed a presentation concern into `packages/core` for a distinction only the UI can make.
+
+- **The FR-040 test failed for the wrong reason first, and the defect was in the test.** The mobile harness
+  spies on `AppState.addEventListener` to drive a real foreground transition, and its `remove()` was stubbed
+  as `jest.fn()` — a no-op. That left the handler from a previous effect run in the array, so the test
+  invoked a subscription React had already torn down and reported a lifecycle bug that did not exist. After
+  fixing the stub the test was re-verified against unfixed code (`useMicrophoneLifecycle(ready)`) and still
+  fails there, so the fix did not make it vacuous. **A stubbed teardown that does not tear down is a test
+  that measures the wrong program.**
+
+Not verified here, and deliberately deferred to Phase 8: the OS recording-indicator check (V14, T050) needs
+a device, and the light/dark screenshots (T048) are a cross-cutting task. T015's "distinguishable from a
+metre away" was checked through the status copy and the cleared readout, both asserted by tests — **not by
+eye**. That check belongs with T048.
 
 ---
 

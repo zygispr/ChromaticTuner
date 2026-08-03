@@ -7,6 +7,7 @@ import { DirectionCue } from '../atoms/DirectionCue';
 import { NoteLabel } from '../atoms/NoteLabel';
 import { ReferenceBadge } from '../atoms/ReferenceBadge';
 import { ScreenReaderAnnouncer } from '../atoms/ScreenReaderAnnouncer';
+import { MicrophoneToggle } from '../molecules/MicrophoneToggle';
 import { StatusBanner } from '../molecules/StatusBanner';
 import { TuningLine } from '../molecules/TuningLine';
 import { SettingsSheet } from './SettingsSheet';
@@ -23,7 +24,12 @@ import { SettingsSheet } from './SettingsSheet';
  * fail — is rendered by `StatusBanner`, which owns the recovery copy so no
  * failure can reach the screen without a next step (SC-014).
  */
-export function TunerDisplay() {
+export interface TunerDisplayProps {
+  readonly capturing: boolean;
+  readonly onToggleCapture: () => void;
+}
+
+export function TunerDisplay({ capturing, onToggleCapture }: TunerDisplayProps) {
   const { status, note, octave, tuningState, direction, cents, subscribeToCents, retry } =
     useTuner();
   const { a4Hz, isNonStandardReference } = usePreferences();
@@ -54,7 +60,12 @@ export function TunerDisplay() {
       <TuningLine state={tuningState} subscribeToCents={subscribeToCents} />
       <DirectionCue direction={direction} state={tuningState} />
 
-      <StatusBanner status={status} onRetry={retry} />
+      <StatusBanner status={status} onRetry={retry} captureStopped={!capturing} />
+
+      {/* Below the readout, not above it: the tuning display is what must be
+          legible from a metre away (FR-018), and the control is something the
+          player looks down at deliberately. */}
+      <MicrophoneToggle capturing={capturing} onToggle={onToggleCapture} />
 
       {/* The one thing assistive technology reads for a live reading. Every
           visual channel above is aria-hidden; this speaks all of them once,

@@ -13,6 +13,25 @@ export function spellNoteForSpeech(note: string): string {
 }
 
 /**
+ * What the microphone control should be labelled, given whether it is capturing.
+ *
+ * The label names the ACTION, not the state (FR-039). That choice rules out
+ * `aria-pressed` and its React Native equivalent: a control announced as
+ * "Stop listening, pressed" is ambiguous about which of the two facts the
+ * "pressed" applies to, and screen-reader users get contradictory readings of
+ * the same button. A changing accessible name is unambiguous on its own, and is
+ * how the state is exposed (FR-042) — the current state is what the label says
+ * it will end.
+ *
+ * Shared rather than written per platform because getting the two apps onto
+ * opposite sides of the action/state choice would be invisible by eye and
+ * obvious to anyone using a screen reader on both.
+ */
+export function captureControlLabel(capturing: boolean): string {
+  return capturing ? 'Stop listening' : 'Start listening';
+}
+
+/**
  * One sentence describing the current reading, for assistive technology.
  *
  * FR-020 requires state changes to be announced "without spamming assistive

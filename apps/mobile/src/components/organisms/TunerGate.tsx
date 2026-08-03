@@ -21,17 +21,37 @@ import { TunerDisplay } from './TunerDisplay';
  */
 export function TunerGate() {
   const permission = useMicrophonePermission();
-  const { start } = useTuner();
+  const { start, stop } = useTuner();
   const [accepted, setAccepted] = useState(false);
+
+  /**
+   * Whether the user wants the microphone on (FR-036–FR-040).
+   *
+   * Mirrors the web gate exactly. Separate state rather than something derived
+   * from the session, because `status.kind === 'idle'` cannot tell "the user
+   * switched this off" apart from "this has not started yet" or "backgrounding
+   * released it" — and the three need opposite handling on return to the
+   * foreground.
+   *
+   * Not persisted: a tuner that silently does nothing on launch because of a
+   * decision made last week looks broken (data-model.md).
+   */
+  const [captureEnabled, setCaptureEnabled] = useState(true);
 
   const needsExplainer = permission === 'prompt' && !accepted;
   const ready = permission !== 'unknown' && !needsExplainer;
+  const active = ready && captureEnabled;
 
   useEffect(() => {
-    if (ready) start();
-  }, [ready, start]);
+    if (active) start();
+    else stop();
+  }, [active, start, stop]);
 
-  useMicrophoneLifecycle(ready);
+  // Gated on `active`, not on `ready`. The lifecycle hook calls start() on every
+  // return to the foreground, so passing `ready` here would reopen the
+  // microphone the user just switched off — silently reversing an explicit
+  // decision the next time the app is backgrounded (FR-040).
+  useMicrophoneLifecycle(active);
 
   if (permission === 'unknown') return null;
 
@@ -39,5 +59,10 @@ export function TunerGate() {
     return <PermissionPrompt onAllow={() => setAccepted(true)} />;
   }
 
-  return <TunerDisplay />;
+  return (
+    <TunerDisplay
+      capturing={captureEnabled}
+      onToggleCapture={() => setCaptureEnabled((on) => !on)}
+    />
+  );
 }
