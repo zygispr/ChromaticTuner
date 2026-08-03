@@ -139,3 +139,70 @@ test('the tuning line is the dominant element of the screen (FR-021)', async ({ 
   // "Not one widget among several": it spans most of the usable width.
   expect(line!.width).toBeGreaterThan(viewport!.width * 0.4);
 });
+
+/**
+ * User Story 4 (T036): the reference control survives greyscale, and the
+ * non-standard state stays louder than the standard one.
+ *
+ * The second half is the constraint that makes this story awkward. FR-052 wants
+ * the standard state to look pressable; FR-053 requires the non-standard state
+ * to stay *more* prominent, because a reference pitch someone else left at 432
+ * must never be a silent surprise (FR-022). Promoting the quiet state without
+ * flattening the loud one is the whole design problem.
+ */
+async function referenceStyles(page: Page, nonStandard: boolean) {
+  if (nonStandard) {
+    await page.getByTestId('reference-badge').click();
+    await page.getByTestId('a4-slider').fill('432');
+    await page.getByTestId('settings-close').click();
+    await expect(page.getByTestId('reference-badge')).toHaveAttribute('data-non-standard', 'true');
+  }
+
+  return page.getByTestId('reference-badge').evaluate((node) => {
+    const style = getComputedStyle(node);
+    return {
+      borderColor: style.borderTopColor,
+      color: style.color,
+      fontWeight: Number(style.fontWeight),
+    };
+  });
+}
+
+test('the reference control reads as interactive under achromatopsia (FR-052, FR-015)', async ({
+  page,
+}) => {
+  const client = await page.context().newCDPSession(page);
+  await client.send('Emulation.setEmulatedVisionDeficiency', { type: 'achromatopsia' });
+
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  const badge = page.getByTestId('reference-badge');
+  await expect(badge).toBeVisible();
+
+  // A border is a shape, not a hue, so it is the channel that survives here —
+  // which is why the fix is a border rather than a brighter colour.
+  const border = await badge.evaluate((node) => {
+    const style = getComputedStyle(node);
+    return { color: style.borderTopColor, width: parseFloat(style.borderTopWidth) };
+  });
+
+  expect(border.width).toBeGreaterThan(0);
+  expect(border.color).not.toMatch(/rgba\([^)]*,\s*0\)/);
+});
+
+test('a non-standard reference stays louder than the standard one (FR-053, FR-022)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  const standard = await referenceStyles(page, false);
+  const nonStandard = await referenceStyles(page, true);
+
+  // Two channels, so the distinction survives greyscale on weight alone: the
+  // attention colour AND a heavier weight. Giving the standard state a border
+  // must not collapse either of them.
+  expect(nonStandard.fontWeight).toBeGreaterThan(standard.fontWeight);
+  expect(nonStandard.color).not.toBe(standard.color);
+});

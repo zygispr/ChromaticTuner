@@ -78,10 +78,15 @@ test('the rest position is the startup position, not merely near it (FR-044)', a
     'the marker to be displaced'
   );
 
+  // Poll for the SUB-PIXEL bound rather than polling loosely and then
+  // asserting tightly. The marker travels back over `motion.markerMs`, so a
+  // poll that stops at "within 3px" can return mid-flight and the tight
+  // assertion then fails on correct code — this test was intermittent for
+  // exactly that reason before the two bounds were made the same number.
   const rested = await waitForOffset(
     page,
-    (offset) => Math.abs(offset - restingAtStartup) < 3,
-    'the marker to rest'
+    (offset) => Math.abs(offset - restingAtStartup) < 0.5,
+    'the marker to settle exactly on the startup position'
   );
 
   // A marker that rests 2px off centre but starts exactly on it is a defect

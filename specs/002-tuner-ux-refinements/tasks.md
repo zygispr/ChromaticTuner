@@ -315,15 +315,50 @@ seen the app identifies the control unprompted.
 
 ### Tests (write first, observe failing)
 
-- [ ] T035 [P] [US4] Extend `apps/web/e2e/a11y.spec.ts` to run Axe over the tuner screen with the reference pitch at 440 **and** at a non-standard value, in light and dark, asserting the composited contrast of the control's text and border (FR-054). **Before the fix**: the standard state's border is `transparent` and the text sits at `opacity: 0.6` — assert the border is visible and this fails
-- [ ] T036 [P] [US4] Extend `apps/web/e2e/appearance.spec.ts` to assert the control is distinguishable as interactive under greyscale, and that the non-standard state remains more prominent than the standard one (FR-053, FR-015)
-- [ ] T037 [P] [US4] Add a mobile assertion to `apps/mobile/__tests__/settings.test.tsx` that the standard state renders a visible border
+- [X] T035 [P] [US4] Extend `apps/web/e2e/a11y.spec.ts` to run Axe over the tuner screen with the reference pitch at 440 **and** at a non-standard value, in light and dark, asserting the composited contrast of the control's text and border (FR-054). **Before the fix**: the standard state's border is `transparent` and the text sits at `opacity: 0.6` — assert the border is visible and this fails
+- [X] T036 [P] [US4] Extend `apps/web/e2e/appearance.spec.ts` to assert the control is distinguishable as interactive under greyscale, and that the non-standard state remains more prominent than the standard one (FR-053, FR-015)
+- [X] T037 [P] [US4] Add a mobile assertion to `apps/mobile/__tests__/settings.test.tsx` that the standard state renders a visible border
 
 ### Implementation
 
-- [ ] T038 [P] [US4] Give the standard state a visible border from the `line` token in `apps/web/src/components/atoms/ReferenceBadge.tsx` and **remove** the `opacity: 0.6` multiplier rather than raising it — opacity is the mechanism that defeated a correct token at 3.9:1 in `001`, and the tokens package's own contrast test cannot see it (research D5)
-- [ ] T039 [P] [US4] Make the same change in `apps/mobile/src/components/atoms/ReferenceBadge.tsx`
-- [ ] T040 [US4] Verify the non-standard state is still louder than the standard state on **two** channels — colour and weight — so FR-022's "never a silent surprise" survives the standard state gaining a border
+- [X] T038 [P] [US4] Give the standard state a visible border from the `line` token in `apps/web/src/components/atoms/ReferenceBadge.tsx` and **remove** the `opacity: 0.6` multiplier rather than raising it — opacity is the mechanism that defeated a correct token at 3.9:1 in `001`, and the tokens package's own contrast test cannot see it (research D5)
+- [X] T039 [P] [US4] Make the same change in `apps/mobile/src/components/atoms/ReferenceBadge.tsx`
+- [X] T040 [US4] Verify the non-standard state is still louder than the standard state on **two** channels — colour and weight — so FR-022's "never a silent surprise" survives the standard state gaining a border
+
+**Checkpoint**: ✅ **US4 COMPLETE (2026-08-03)**. **425 unit** (unchanged — no core work), **57 mobile
+Jest** (+2), **64 Playwright** (+6), all green. Lint, format, typecheck clean.
+
+### The change
+
+Both states now carry a border; the standard one uses the `line` token and **loses its `opacity: 0.6`
+entirely** rather than having it raised. That is research D5's point and `001`'s hard-won lesson: opacity is
+the mechanism that defeated a *correct* colour token at 3.9:1, and the tokens package's contrast test
+cannot see it, because it checks the palette while Axe checks the composite.
+
+The measurement is on the composited result, in both appearances: border ≥ 3:1 against the first
+non-transparent ancestor background (the AA floor for a meaningful graphic), text ≥ 4.5:1, and computed
+opacity exactly 1.
+
+### T040 was a verification task, so it was verified rather than asserted
+
+The prominence guard passes both before and after the fix, which makes it exactly the kind of test that can
+be silently vacuous. It was checked by flattening the distinction — non-standard given the same colour and
+weight as standard — and the guard **failed**, so it is measuring what it claims. FR-022's emphasis is
+carried on two channels, colour and weight, so it survives greyscale on weight alone.
+
+### A flaky test of my own making, found here and fixed
+
+`marker-rest.spec.ts` from US2 failed once during this phase's full run and passed on re-run — 2 of 3, then
+1 of 3. Not caused by US4: the badge change is confined to the reference control and does not move the
+marker.
+
+The bug was in the test. It polled until the marker was within **3 px** of rest and then asserted
+**sub-pixel** equality, so a poll that returned mid-flight — the marker travels back over `motion.markerMs`
+by design — failed on correct code. Both bounds are now the same 0.5 px number, so the poll cannot return
+before the assertion can hold. Verified across five consecutive runs. **The fix tightens the wait rather
+than loosening the assertion**, which matters: FR-044's claim is that the rest position *is* the startup
+position, not merely near it, and relaxing the tolerance would have quietly deleted the requirement to make
+a flake go away.
 
 ---
 

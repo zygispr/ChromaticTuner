@@ -272,3 +272,66 @@ describe('backdrop dismissal (FR-049)', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * User Story 4 on mobile (T037): the reference badge reads as a control.
+ *
+ * Mirrors the web assertions. There is no Axe here, so the check is on the
+ * rendered style — which is why the web half carries the composited-contrast
+ * measurement and this one carries the structural claim.
+ */
+describe('reference badge affordance (FR-052, FR-053)', () => {
+  function badgeStyle() {
+    const node = screen.getByTestId('reference-badge');
+    return Array.isArray(node.props.style)
+      ? Object.assign({}, ...node.props.style.filter(Boolean))
+      : node.props.style;
+  }
+
+  function labelStyle() {
+    const node = screen.getByText(/A4 \d+ Hz/);
+    return Array.isArray(node.props.style)
+      ? Object.assign({}, ...node.props.style.filter(Boolean))
+      : node.props.style;
+  }
+
+  it('draws a visible border in the standard state', async () => {
+    await render(
+      <Wrapper store={new InMemoryPreferencesStore()}>
+        <ReferenceBadge a4Hz={440} isNonStandard={false} onOpenSettings={jest.fn()} />
+      </Wrapper>
+    );
+
+    const style = badgeStyle();
+    expect(style.borderWidth).toBeGreaterThan(0);
+    expect(style.borderColor).not.toBe('transparent');
+
+    // Opacity is the mechanism that defeated a correct colour token at 3.9:1 in
+    // `001`, so the standard state must not be dimmed to make it quiet.
+    expect(style.opacity ?? 1).toBe(1);
+  });
+
+  it('keeps the non-standard state louder on two channels (FR-022)', async () => {
+    const onOpenSettings = jest.fn();
+
+    await render(
+      <Wrapper store={new InMemoryPreferencesStore()}>
+        <ReferenceBadge a4Hz={440} isNonStandard={false} onOpenSettings={onOpenSettings} />
+      </Wrapper>
+    );
+    const standard = { badge: badgeStyle(), label: labelStyle() };
+    cleanup();
+
+    await render(
+      <Wrapper store={new InMemoryPreferencesStore()}>
+        <ReferenceBadge a4Hz={432} isNonStandard onOpenSettings={onOpenSettings} />
+      </Wrapper>
+    );
+    const nonStandard = { badge: badgeStyle(), label: labelStyle() };
+
+    // Colour and weight both still separate them, so the distinction survives
+    // greyscale on weight alone.
+    expect(nonStandard.label.color).not.toBe(standard.label.color);
+    expect(Number(nonStandard.label.fontWeight)).toBeGreaterThan(Number(standard.label.fontWeight));
+  });
+});

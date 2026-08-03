@@ -35,8 +35,16 @@ export function ReferenceBadge({ a4Hz, isNonStandard, onOpenSettings }: Referenc
       style={[
         styles.badge,
         {
-          borderColor: isNonStandard ? accent : 'transparent',
-          opacity: isNonStandard ? 1 : 0.6,
+          // Both states carry a border, because this is the only way into
+          // settings and a borderless label does not read as pressable
+          // (FR-052). The non-standard state stays louder on two channels —
+          // the attention colour and a heavier weight — so FR-022's "never a
+          // silent surprise" survives the quiet state gaining an affordance
+          // (FR-053).
+          //
+          // No opacity multiplier: dimming is what defeated a correct colour
+          // token at 3.9:1 in `001`.
+          borderColor: isNonStandard ? accent : colors.line,
         },
       ]}
     >

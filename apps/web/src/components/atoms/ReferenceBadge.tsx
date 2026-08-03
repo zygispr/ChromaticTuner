@@ -42,12 +42,18 @@ export function ReferenceBadge({ a4Hz, isNonStandard, onOpenSettings }: Referenc
         fontWeight: isNonStandard ? type.weightBold : type.weightRegular,
         fontVariantNumeric: 'tabular-nums',
         letterSpacing: '0.04em',
-        // Non-standard gets the flat/sharp attention colour and a border;
-        // standard is a quiet, unobtrusive label.
+        // Both states carry a border, because this is the only way into
+        // settings and a borderless label does not read as pressable (FR-052).
+        // The non-standard state stays louder on two channels — the attention
+        // colour and a heavier weight — so FR-022's "never a silent surprise"
+        // survives the quiet state gaining an affordance (FR-053).
+        //
+        // No opacity multiplier. Dimming is what defeated a correct colour
+        // token at 3.9:1 in `001`, and the tokens package's own contrast test
+        // cannot see it: it checks the palette, Axe checks the composite.
         color: isNonStandard ? themedVar('sharp') : themedVar('text'),
-        opacity: isNonStandard ? 1 : 0.6,
         background: 'transparent',
-        border: `1px solid ${isNonStandard ? themedVar('sharp') : 'transparent'}`,
+        border: `1px solid ${isNonStandard ? themedVar('sharp') : themedVar('line')}`,
         borderRadius: space.sm,
         cursor: 'pointer',
       }}
