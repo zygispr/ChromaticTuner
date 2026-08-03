@@ -1,5 +1,5 @@
 import { readingAnnouncement, usePreferences, useTuner } from '@chromatic-tuner/react';
-import { space } from '@chromatic-tuner/tokens';
+import { space, type } from '@chromatic-tuner/tokens';
 import { useState } from 'react';
 
 import { CentsReadout } from '../atoms/CentsReadout';
@@ -13,6 +13,24 @@ import { TuningLine } from '../molecules/TuningLine';
 import { SettingsSheet } from './SettingsSheet';
 
 /**
+ * Height reserved for the status banner, whether or not it has anything to say.
+ *
+ * `StatusBanner` renders nothing while a note is being read and something while
+ * listening, stopped, or failing. Without a reserved slot the column — which is
+ * centre-justified — re-centres every time it appears or vanishes: measured at
+ * **37 px** of movement on stop, and **21 px** every time a note was lost or
+ * re-acquired, which is what a tuner does constantly.
+ *
+ * Four lines of label text: the tallest routine banner is the stopped state's
+ * title plus its recovery line, measured at 50 px, and a slot that merely
+ * *nearly* fits still moves the display — the first attempt reserved three
+ * lines and left a 1 px shift. The rare failure banners carry recovery steps
+ * and a retry button and will still grow past it, which is the right trade:
+ * those are terminal states where nothing is being tuned.
+ */
+const STATUS_SLOT_PX = type.labelSize * 4;
+
+/**
  * The whole tuner in one screen.
  *
  * Tuning state is carried by three independent channels, which is what FR-015
@@ -24,6 +42,7 @@ import { SettingsSheet } from './SettingsSheet';
  * fail — is rendered by `StatusBanner`, which owns the recovery copy so no
  * failure can reach the screen without a next step (SC-014).
  */
+
 export interface TunerDisplayProps {
   readonly capturing: boolean;
   readonly onToggleCapture: () => void;
@@ -60,7 +79,17 @@ export function TunerDisplay({ capturing, onToggleCapture }: TunerDisplayProps) 
       <TuningLine state={tuningState} subscribeToCents={subscribeToCents} />
       <DirectionCue direction={direction} state={tuningState} />
 
-      <StatusBanner status={status} onRetry={retry} captureStopped={!capturing} />
+      <div
+        style={{
+          minHeight: STATUS_SLOT_PX,
+          width: '100%',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'flex-start',
+        }}
+      >
+        <StatusBanner status={status} onRetry={retry} captureStopped={!capturing} />
+      </div>
 
       {/* Below the readout, not above it: the tuning display is what must be
           legible from a metre away (FR-018), and the control is something the

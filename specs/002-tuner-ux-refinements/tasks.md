@@ -484,6 +484,59 @@ T048 is marked done for the web half only; the mobile screenshots need the devic
 
 ---
 
+## Post-review fix: the tuner moved vertically (2026-08-03)
+
+Reported after Phase 8, from using the web app: pressing **Start listening** / **Stop listening** made the
+whole tuner jump.
+
+Measured before fixing, rather than eyeballed. Everything above the banner moved **up 37 px** and the
+microphone control **down 37 px**, every time.
+
+**It was never only a stop/start problem.** `StatusBanner` renders nothing while a note is being *read* and
+something while *listening*, and the column is centre-justified — so the display also jumped **21 px every
+time a note was lost or re-acquired**, which is what a tuner does continuously. That half predates this
+feature entirely; the microphone control made it obvious by producing a bigger jump on demand.
+
+**Fix**: a reserved slot for the status banner in both apps' `TunerDisplay`, `type.labelSize * 4` high, so
+the banner appearing or vanishing cannot change the column's height. Token-derived rather than a literal,
+per Principle IV.
+
+Two things worth recording:
+
+- **A slot that merely *nearly* fits still moves the display.** The first attempt reserved three lines
+  (48 px) against a 50 px stopped banner and left a **1 px** shift — caught only because the test asserts
+  exact equality rather than a tolerance. A "close enough" tolerance here would have shipped a visible
+  wobble.
+- **The regression test measures real bounding boxes in both transitions** —
+  `apps/web/e2e/layout-stability.spec.ts`, verified failing at −37 px and −21 px respectively before the
+  fix. The rare failure banners (recovery steps plus a retry button) still grow past the slot, which is the
+  right trade: those are terminal states where nothing is being tuned.
+
+**67 Playwright** (+2), 428 unit, 60 mobile Jest, all gates green. Screenshots re-captured and re-reviewed:
+the badge, the tuning line and the control now sit at identical coordinates in both states.
+
+### Build verification
+
+Asked directly, and worth recording because the mobile suite runs entirely against mocks:
+
+| Build | Result |
+| --- | --- |
+| Web (`pnpm build`) | ✅ 234.40 kB + `sw.js` |
+| Mobile JS bundle (`expo export --platform ios`) | ✅ **1155 modules**, no resolution errors |
+| Mobile native compile | **not run since 002 began** |
+
+The bundle check is the one that matters here: every mobile test mocks `react-native-reanimated`,
+`react-native-audio-api` and AsyncStorage, so Jest passing says nothing about whether the real module graph
+resolves — which is exactly how `001` shipped an undeclared `react-native-gesture-handler` import. It is
+clean, including the new Reanimated import in `SettingsScreen`.
+
+No native input changed on this branch: `git diff main...HEAD` over `apps/mobile/package.json`, `app.json`,
+`apps/mobile/ios/`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` and the root `package.json` is empty. All eight
+changed mobile files are `.tsx` under `src/`. So the existing native shell should still be correct and
+everything 002 changed ships in the JS bundle — **an inference from what changed, not a compile.**
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase dependencies
