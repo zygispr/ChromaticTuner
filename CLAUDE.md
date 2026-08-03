@@ -83,4 +83,5 @@ Some obligations that are easy to violate: `onFrames` buffers are valid only for
 - Comments here explain _why_, usually citing a constitution principle, an FR number, a contract guarantee, or a real defect. Match that — don't add narration of what the code plainly does.
 - The spec's "explicitly out of scope" list (tuning presets, string targets, custom tunings, reference tones, accounts, sync) is binding. If a task seems to need one, the task is wrong.
 - Feature work runs through the spec-kit skills (`/speckit-specify` → `/speckit-plan` → `/speckit-tasks` → `/speckit-implement`); `specs/001-chromatic-guitar-tuner/tasks.md` doubles as the build log, including defects and deviations.
-- `.npmrc` sets `node-linker=hoisted` because Metro cannot resolve pnpm's symlinked store — don't remove it.
+- `pnpm-workspace.yaml` sets `nodeLinker: hoisted` because Metro cannot resolve pnpm's symlinked store — don't remove it. It must live there, not in `.npmrc`: pnpm reads core settings only from `pnpm-workspace.yaml`, so the setting did nothing for as long as it sat in `.npmrc` (which is now deleted).
+- iOS targets **16.4+**, not 15 — `expo-modules-core`'s podspec declares that floor, and below it Expo autolinking silently skips every Expo module.

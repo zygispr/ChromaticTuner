@@ -135,4 +135,47 @@ release-gate check that must happen before shipping.
 | Glanceability from 1 m | V10, SC-009 | A human judgement. The mechanical precondition — non-colour channels present — is automated. |
 | VoiceOver and TalkBack | V11, SC-013 | Axe cannot judge whether an announcement is *useful*, only whether it is well-formed. |
 | Mobile airplane mode | V9 | The web half is verified; the RN half needs a device. |
-| iOS and Android development builds | — | Never compiled in this environment. The mobile app is verified only under `jest-expo` with the native module mocked. |
+| Android development build | — | Never compiled. No `apps/mobile/android` project and no Android SDK in this environment. |
+
+**Superseded 2026-08-03**: the row "iOS and Android development builds — never compiled" no longer holds
+for iOS. See the addendum below.
+
+---
+
+## Addendum, 2026-08-03: the iOS build, and what it found
+
+**Date**: 2026-08-03 · **Tasks**: T101–T103 · **Device**: physical iPhone 15, iOS 26.6
+
+The iOS development build was compiled, signed, installed and launched on a physical iPhone. `TunerScreen`
+renders and analyses live microphone audio. Full gate suite re-run after the change: **414 unit**,
+**45 mobile Jest** (+3), **46 Playwright E2E**, `packages/core` **100% lines** / 94.8% branches, all eight
+gates green.
+
+Four defects stood between the green Phase 7 checkpoint and a running app; they are documented in
+[tasks.md Phase 8](./tasks.md#phase-8-on-device-bring-up-post-t100). One belongs in this document, because
+it is a validation finding rather than a build defect:
+
+**The app reported "listening" on a real phone and heard nothing.** `react-native-audio-api` defaults its
+iOS audio session to the **Playback** category, which cannot record. Starting a recorder under it resolves
+normally and delivers frames of *pure silence*. Every layer then behaves exactly as designed on input that
+is uniformly zero — the analyzer declines to report a pitch, the session sits in `listening`, no error is
+raised, nothing is thrown for the error mapping to map. The failure is indistinguishable from a room that
+is genuinely quiet.
+
+This is the same lesson as V5's misplaced marker, arriving from the opposite direction. V5 was a mechanism
+that fired correctly while the user saw the wrong thing. This was a mechanism that *handled its input
+flawlessly* while the input was meaningless. Neither is reachable by asking whether the components work,
+because in both cases they did. **V1's accuracy suite proves the analyzer measures a signal correctly; it
+cannot prove a signal arrives.** The three new contract tests in
+`apps/mobile/__tests__/rn-audio-source.contract.test.ts` ask that question directly — observed failing
+against the unfixed adapter (3 failed, 42 passed) and passing after (45 passed).
+
+### What this changes about the remaining gaps
+
+The device-dependent rows above are no longer blocked by tooling — the build exists and installs. They are
+blocked only on someone doing them by hand. V13 (T095) in particular now has a
+[runbook](./tasks.md#t095-runbook).
+
+One caveat worth stating plainly: the device on hand is an **iPhone 15**, a flagship. SC-012 and V7 name a
+**mid-range** phone. Measurements taken here will be optimistic against the criterion, and should be
+recorded with the device named rather than reported as a clean pass.

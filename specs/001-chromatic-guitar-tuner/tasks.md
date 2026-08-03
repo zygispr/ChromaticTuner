@@ -431,7 +431,7 @@ final quality work.
 - [X] T092 [P] Verify light and dark appearance across every screen and state in both apps (FR-019) — automated in `apps/web/e2e/appearance.spec.ts` against the token set rather than verified by eye
 - [X] T093 Measure latency per quickstart V7 and record the numbers — measure **first marker movement**, not settle time — **partial**: measured in `packages/core/tests/latency.test.ts`, **not on device**. First movement **66.6 ms**, settle **136.2 ms**; both miss the quickstart's stated 50/100 ms targets while meeting FR-027's binding ≤100 ms. See [validation-results.md](./validation-results.md#v7-latency-in-detail)
 - [X] T094 Measure sustained frame rate per quickstart V8 — **partial**: browser only, p50 **8.2 ms** / p95 **9.2 ms** over 20 s of live tuning, and React is confirmed not re-rendering per reading. **Not measured on device**
-- [ ] T095 Run the 30-minute continuous-use thermal and battery check per quickstart V13 (SC-012) — **NOT RUN: requires a physical mid-range phone, which this environment does not have**
+- [ ] T095 Run the 30-minute continuous-use thermal and battery check per quickstart V13 (SC-012) — **NOT RUN: needs 30 uninterrupted minutes on a physical phone with the app in the foreground.** No longer blocked by tooling — since Phase 8 the app builds, signs, installs and runs on a physical iPhone — but it cannot be automated or observed from here. See [the runbook](#t095-runbook) below
 - [X] T096 Run the glanceability check per quickstart V10 — **partial**: greyscale and colour-vision-deficiency legs automated via CDP vision-deficiency emulation; the 1 m human judgement was not performed
 - [X] T097 [P] Raise `packages/core` line coverage to ≥90% and close any gaps (Principle III) — **100% lines**, up from 98.84%
 - [X] T098 [P] Write `README.md` with setup and run instructions, prominently noting that **Expo Go will not work** and mobile requires a development build — the most likely first-run failure
@@ -506,6 +506,78 @@ One test-harness finding: marking the visual atoms hidden from accessibility bro
 because React Native Testing Library excludes accessibility-hidden elements from queries by default. That is
 the library confirming the change did what it was supposed to; those queries now opt in with
 `includeHiddenElements`, since they assert the visual rendering — which is precisely the thing now hidden.
+
+---
+
+## Phase 8: On-Device Bring-Up (post-T100)
+
+**Purpose**: Phase 7 closed with the mobile app verified only under `jest-expo` with the native module
+mocked, and the iOS and Android development builds never compiled. This phase compiled one.
+
+It is recorded here because it found defects, and because of what it says about the phases before it:
+**every gate was green while the mobile app could not bundle, could not build, and — once it did both —
+could not hear anything.** No amount of the testing already in place was going to discover that. Only
+building the thing and holding it did.
+
+- [X] T101 Unbreak the iOS native build (`apps/mobile/app.json`, `apps/mobile/package.json`, `pnpm-workspace.yaml`) — four independent defects, none reachable from CI, which has no macOS job
+- [X] T102 [P] Add the missing `react-native-gesture-handler` dependency in `apps/mobile/package.json` so the Metro bundle resolves
+- [X] T103 Configure the iOS audio session for recording in `apps/mobile/src/adapters/rn-audio-source.ts`, with three regression tests in `apps/mobile/__tests__/rn-audio-source.contract.test.ts`
+
+**Checkpoint**: **414 unit tests**, **45 mobile Jest tests** (+3), and **46 Playwright E2E tests**, all
+green; `packages/core` still **100% lines**; all eight gates pass. The app builds, signs, installs,
+launches and bundles on a physical iPhone, and `TunerScreen` renders with live audio.
+
+Four defects, in the order they had to be peeled off:
+
+- **`ios.deploymentTarget` was 15.1; `expo-modules-core`'s podspec declares `:ios => '16.4'`.** Below that
+  floor Expo autolinking skips *every* Expo module, and the symptom names none of that — `pod install`
+  fails complaining about a missing `ExpoModulesCore` spec that `ExpoKeepAwake` depends on. This is what
+  took the constitution to **3.0.0**: supported targets iOS 15+ → **16.4+**. A MAJOR under this project's
+  own policy, on the 1.0.0 → 2.0.0 precedent that shrinking the set of inputs a guarantee covers weakens a
+  binding requirement. iOS 15 was never actually attainable with the pinned stack; the amendment records a
+  constraint the dependency choice had already imposed and nobody had noticed.
+- **`expo-dev-client` and `expo-keep-awake` were stranded on pre-SDK-aligned majors.** The old dev-menu
+  called `RCTPackagerConnection.shared()`, an accessor react-native 0.86.2 no longer has, so the build died
+  compiling Swift.
+- **`react-native-audio-api` 0.13.2 imports `react-native-gesture-handler` and declares it nowhere** —
+  not in `dependencies`, not in `peerDependencies`. Its own entry point reaches the importing file
+  (`index.ts` → `api.ts` → `AudioControls.tsx`), so importing `AudioRecorder` at all is enough to pull an
+  unresolvable module into the graph and fail the bundle. Nothing here renders gesture components, so no
+  `GestureHandlerRootView` wrapper is needed; the module only has to resolve.
+- **The tuner ran on the phone, said "listening", and heard nothing.** Permission granted, no error
+  anywhere. `react-native-audio-api` defaults its iOS session to the **Playback** category, which cannot
+  record. Starting an `AudioRecorder` under it resolves normally and delivers frames of *pure silence* — so
+  every layer above behaves perfectly correctly on input that is uniformly zero: the analyzer finds no
+  pitch, the session stays in `listening`, nothing throws, and there is nothing to catch. The adapter now
+  selects `record` before capture (not `playAndRecord` — this app never plays audio, so requesting output
+  would interrupt the user's music for nothing) in `measurement` mode, which disables the iOS input chain:
+  AGC, noise suppression and EQ each reshape the waveform the ±1 cent budget is measured on, and AGC in
+  particular pumps the amplitude of a decaying plucked string, which is the exact signal this app exists to
+  analyse. `stop()` now deactivates the session too — stopping the recorder alone leaves the OS recording
+  indicator lit and other apps ducked (A4, FR-033).
+
+The through-line: **a silent failure that every layer handles correctly is invisible to every test that
+asks whether the layers work.** The permission path was tested, the error mapping was tested, the analyzer
+was tested on generated signals — and the one question none of them asked was whether the samples arriving
+were anything but zeros. The new contract tests ask it.
+
+### T095 runbook
+
+The last open task. Not blocked by tooling any more — blocked on 30 uninterrupted minutes with a phone in
+hand, which cannot be automated or done from a coding session.
+
+1. `pnpm --filter @chromatic-tuner/mobile ios` with the device connected (Expo Go cannot work; this needs
+   the development build). Note that `bundleIdentifier com.chromatictuner.app` is registered to another
+   team and must be changed to sign on yours.
+2. Charge to 100%, note the battery percentage, disconnect from power, and leave the tuner in the
+   foreground with a string sounding periodically for 30 minutes.
+3. Record: battery delta, whether the device becomes uncomfortable to hold, whether iOS throttles, and
+   whether the reading is still responsive at minute 30 (SC-012, Principle V's idle-CPU clause).
+4. Mark T095 `[X]` with the numbers, and update
+   [validation-results.md](./validation-results.md#not-verified).
+
+The device this build was made for is an iPhone 15, which is **not** the mid-range phone SC-012 names. A
+flagship passing this check is weaker evidence than the criterion asks for — record which device was used.
 
 ---
 
