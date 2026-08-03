@@ -427,16 +427,60 @@ slide is off; it cannot prove the result looks right, which is the whole complai
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T045 Run the full gate suite and record the counts in this file — all eight must be green
-- [ ] T046 [P] Confirm `packages/core` coverage has not regressed below the 90% line / 90% function / 85% branch thresholds, and record the numbers
-- [ ] T047 [P] Run the complete Axe sweep across every new and changed control state in `apps/web/e2e/a11y.spec.ts` (V20)
-- [ ] T048 [P] Capture light and dark screenshots of both apps — required by this repo for any UI change, and this feature is entirely UI
-- [ ] T049 Confirm cold start to first reading is still within the 2-second budget (FR-026, SC-022) — US1 adds a control to the first screen the user sees
-- [ ] T050 Run quickstart **V14** and **V15** on a physical device, including the OS recording-indicator check, which cannot be verified in a browser
-- [ ] T051 Run quickstart **V21** on a physical device and record a screen capture, since the defect is an animation and an assertion on props does not prove it looks right
-- [ ] T052 Run quickstart **V20**'s human leg — someone who has not used the app is asked to change the reference pitch (SC-020) — and record the outcome either way
-- [ ] T053 Record V14–V21 results in a `validation-results.md` for this feature, following `001`'s format, naming the device used and stating clearly what was not verified
-- [ ] T054 Update the root `README.md` if the microphone control changes the described first-run experience
+- [X] T045 Run the full gate suite and record the counts in this file — all eight must be green
+- [X] T046 [P] Confirm `packages/core` coverage has not regressed below the 90% line / 90% function / 85% branch thresholds, and record the numbers
+- [X] T047 [P] Run the complete Axe sweep across every new and changed control state in `apps/web/e2e/a11y.spec.ts` (V20)
+- [X] T048 [P] Capture light and dark screenshots of both apps — required by this repo for any UI change, and this feature is entirely UI — **partial: web only**, in [screenshots/](./screenshots/), reviewed by eye and it **found a defect the whole suite missed** (see below). The mobile half needs the device
+- [X] T049 Confirm cold start to first reading is still within the 2-second budget (FR-026, SC-022) — US1 adds a control to the first screen the user sees
+- [ ] T050 Run quickstart **V14** and **V15** on a physical device, including the OS recording-indicator check, which cannot be verified in a browser — **NOT RUN: no device connected for this run**
+- [ ] T051 Run quickstart **V21** on a physical device and record a screen capture, since the defect is an animation and an assertion on props does not prove it looks right — **NOT RUN: device only, and the one item where an assertion genuinely cannot substitute for looking**
+- [ ] T052 Run quickstart **V20**'s human leg — someone who has not used the app is asked to change the reference pitch (SC-020) — and record the outcome either way — **NOT RUN: needs a person who has not seen the app**
+- [X] T053 Record V14–V21 results in a `validation-results.md` for this feature, following `001`'s format, naming the device used and stating clearly what was not verified
+- [X] T054 Update the root `README.md` if the microphone control changes the described first-run experience — **no change needed**: the README is developer-facing (setup, gates, layout, testing) and never described the first-run UX or the old one-shot button
+
+**Checkpoint**: ⚠️ **AUTOMATED WORK COMPLETE; THREE MANUAL GATES OUTSTANDING (2026-08-03)**.
+
+**428 unit** (+14 over the feature), **60 mobile Jest** (+15), **65 Playwright** (+19). All eight gates
+green. `packages/core` coverage **100% lines** / 94.81% branches. Cold start **875 ms** against a 2000 ms
+budget. Full results in [validation-results.md](./validation-results.md).
+
+### The screenshot found a defect the whole suite missed
+
+The most important thing in this phase, and the second time this project has learned it the same way.
+
+T048's stopped-state capture showed **the marker still sitting at the −20 cents position it held when
+capture stopped**, while the readout beside it had cleared to its placeholder and the banner read "The
+microphone is off". The tuner was asserting a pitch it was no longer measuring, on the one element the
+whole product is built around.
+
+Same cause as US2, on a path US2 did not cover: `stop()` cleared `hasLiveReading` **without publishing the
+withdrawal**, so the discrete channel cleared itself as it always has and the continuous channel said
+nothing. `doInterrupt` had the identical hole — the platform seizing the microphone froze the marker too.
+
+**Every gate was green when this was found.** 64 Playwright tests, 425 unit tests, Axe clean, and not one
+of them looks at the screen. Fixed by extracting `withdrawReading()` and calling it from all three paths
+that end a reading; three core regression tests plus one end-to-end, each verified failing against the
+unfixed code first. One pre-existing test legitimately broke and was updated rather than weakened — it
+asserted the last continuous event was a live reading, which stopped being true once `stop()` withdraws.
+
+### Frame-time `max` is reported, not gated
+
+Worth correcting the earlier phases' framing: `performance.spec.ts` asserts **p50 ≤ 17.5 ms** and
+**p95 ≤ 33.4 ms** only. `max` is printed for diagnosis and ranged 9.5–25.1 ms across runs of identical
+code. p50 and p95 are unchanged across the entire feature.
+
+### What is left, and why
+
+Three tasks cannot be done from here, and none is blocked by the code:
+
+- **T050** (V14/V15 on device) — the OS recording indicator is the user-facing point of US1 and no browser
+  can show it.
+- **T051** (V21 on device) — the mobile backdrop animation. The only item in this feature where an
+  assertion genuinely cannot substitute for looking, which is precisely what the screenshot lesson above
+  is about.
+- **T052** (V20 human leg) — whether someone who has not seen the app finds the reference control.
+
+T048 is marked done for the web half only; the mobile screenshots need the device too.
 
 ---
 

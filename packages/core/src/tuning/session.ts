@@ -258,6 +258,7 @@ export class TunerSession {
     // rest would only re-arm the retry.
     if (!this.running) return;
     this.running = false;
+    this.withdrawReading();
 
     // Release the handle rather than sitting on a dead one: the platform's
     // recording indicator must clear, and another app must be able to take the
@@ -282,6 +283,21 @@ export class TunerSession {
     this.cancelRetry = null;
   }
 
+  /**
+   * Withdraw the current reading on the continuous channel, if there is one.
+   *
+   * Shared by every path that ends a reading — silence, an explicit stop, and
+   * the platform taking the microphone away. Stopping used to clear the flag
+   * without publishing, so the marker kept its last position while the readout
+   * beside it went blank and the banner said the microphone was off. That was
+   * found by looking at a screenshot of the stopped state, not by a test.
+   */
+  private withdrawReading(): void {
+    if (!this.hasLiveReading) return;
+    this.hasLiveReading = false;
+    for (const handler of this.readingHandlers) handler(null, 0);
+  }
+
   private async doStop(): Promise<void> {
     // Cancel first and unconditionally: stopping while parked in an error state
     // must not leave a retry armed to reopen the microphone behind the user's
@@ -290,7 +306,7 @@ export class TunerSession {
 
     if (this.running) {
       this.running = false;
-      this.hasLiveReading = false;
+      this.withdrawReading();
       await this.audioSource.stop();
       this.analyzer.reset();
     }
@@ -331,11 +347,7 @@ export class TunerSession {
       // string that is perfectly in tune — and the marker rests at the same
       // coordinate for both. Encoding "I have nothing" as the value meaning
       // "you are exactly right" would rebuild the defect inside its own fix.
-      if (this.hasLiveReading) {
-        this.hasLiveReading = false;
-        for (const handler of this.readingHandlers) handler(null, 0);
-      }
-
+      this.withdrawReading();
       this.setStatus({ kind: 'listening' });
       return;
     }

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { audioArgs, waitForNote } from './helpers';
+import { audioArgs, markerOffsetPx, waitForNote } from './helpers';
 
 /**
  * User Story 1 (T004, T005): the microphone can be stopped and started.
@@ -10,7 +10,7 @@ import { audioArgs, waitForNote } from './helpers';
  * flag would report success while the stream stayed open, which is precisely
  * the failure this story exists to prevent.
  */
-test.use(audioArgs('e2-in-tune.wav'));
+test.use(audioArgs('e2-flat-20.wav'));
 
 /**
  * Drive the real page-visibility transition.
@@ -95,4 +95,30 @@ test('a user-initiated stop survives backgrounding and returning (FR-040)', asyn
   // And it must still be recoverable by hand afterwards.
   await page.getByTestId('microphone-toggle').click();
   await waitForNote(page, 'E');
+});
+
+test('stopping returns the marker to rest, not just the readout (FR-043)', async ({ page }) => {
+  await page.goto('/');
+  const restingAtStartup = await markerOffsetPx(page);
+
+  await waitForNote(page, 'E');
+
+  // The fixture is 20 cents flat, so the marker travels a long way from centre.
+  await expect
+    .poll(async () => Math.abs((await markerOffsetPx(page)) - restingAtStartup), {
+      timeout: 15_000,
+    })
+    .toBeGreaterThan(15);
+
+  await page.getByTestId('microphone-toggle').click();
+
+  // Found by looking at a screenshot of the stopped state, not by a test: the
+  // readout cleared, the banner said the microphone was off, and the marker
+  // stayed exactly where the last reading had put it — still asserting a pitch
+  // the tuner was no longer measuring.
+  await expect
+    .poll(async () => Math.abs((await markerOffsetPx(page)) - restingAtStartup), {
+      timeout: 10_000,
+    })
+    .toBeLessThan(0.5);
 });

@@ -172,11 +172,14 @@ describe('onReading (continuous channel)', () => {
     await session.stop();
 
     expect(samples.length).toBeGreaterThan(0);
-    const last = samples[samples.length - 1]!;
-    // Not a lapse: the tone runs for the whole pump, so the last event must be
-    // a real reading. Asserting it explicitly keeps this test honest now that
-    // `cents` can legitimately be null (guarantee R3).
-    expect(last.cents).not.toBeNull();
+
+    // The LAST event is the lapse `stop()` publishes to withdraw the reading,
+    // so what this test is about — that a live reading carries cents and
+    // clarity — is the last non-null one.
+    const readings = samples.filter((sample) => sample.cents !== null);
+    expect(readings.length).toBeGreaterThan(0);
+
+    const last = readings[readings.length - 1]!;
     expect(Math.abs(last.cents!)).toBeLessThan(2);
     expect(last.clarity).toBeGreaterThan(0.5);
   });
@@ -482,5 +485,69 @@ describe('reading lapse (guarantee R3, FR-043-FR-047)', () => {
 
     expect(acrossShortGap).toBe(0);
     expect(events.filter((event) => event.cents === null)).toHaveLength(1);
+  });
+});
+
+/**
+ * Stopping and losing the microphone are lapses too (FR-043).
+ *
+ * Found by looking at a screenshot of the stopped state, not by a test: the
+ * readout had cleared to its placeholder and the banner read "The microphone is
+ * off", while the marker still sat at the −20 cents position it held when
+ * capture stopped. The discrete channel cleared itself, as it always has; the
+ * continuous channel said nothing, so the marker kept asserting a reading the
+ * tuner was no longer making.
+ *
+ * `001` learned this lesson once already — its worst defect was found by
+ * launching the app and looking, after every gate was green. This is the same
+ * class, caught the same way.
+ */
+describe('lapse on stop and interruption (FR-043)', () => {
+  it('returns the marker to rest when the user stops capture', async () => {
+    const source = new ScriptedAudioSource({ samples: toneOf(40) });
+    const session = makeSession(source);
+
+    const events: Array<number | null> = [];
+    session.onReading((cents) => events.push(cents));
+
+    await session.start();
+    source.pump(40);
+    expect(events.some((cents) => cents !== null)).toBe(true);
+
+    await session.stop();
+
+    expect(events[events.length - 1]).toBeNull();
+  });
+
+  it('does not fire a lapse on stop when nothing was being read', async () => {
+    const source = new ScriptedAudioSource();
+    const session = makeSession(source);
+
+    const events: Array<number | null> = [];
+    session.onReading((cents) => events.push(cents));
+
+    await session.start();
+    source.pump(12); // silence only
+    await session.stop();
+
+    // Nothing to withdraw, so nothing is published — the same edge rule as R3.
+    expect(events).toHaveLength(0);
+  });
+
+  it('returns the marker to rest when the platform takes the microphone away', async () => {
+    const source = new ScriptedAudioSource({ samples: toneOf(40) });
+    const session = makeSession(source);
+
+    const events: Array<number | null> = [];
+    session.onReading((cents) => events.push(cents));
+
+    await session.start();
+    source.pump(40);
+    expect(events.some((cents) => cents !== null)).toBe(true);
+
+    source.interrupt({ kind: 'microphone-busy' });
+    await session.stop();
+
+    expect(events.some((cents) => cents === null)).toBe(true);
   });
 });
