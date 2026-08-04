@@ -69,6 +69,35 @@ test('every control in the settings sheet washes on hover (FR-058)', async ({ pa
 });
 
 /**
+ * The wash is clipped to a control's own corners, so it cannot paint a square.
+ *
+ * Reported after the wash shipped: the settings sheet's "Done" button was the
+ * only control in either app without a corner radius, which nothing had noticed
+ * while it was an unfilled label. Give it a background and the omission becomes
+ * a hard 44x44 square sitting beside five rounded controls.
+ *
+ * Asserted across every control rather than on "Done" alone. The defect was not
+ * really that one button was wrong — it was that nothing checked the set was
+ * consistent, so the next control to skip a radius would look fine until
+ * something filled it in.
+ */
+async function radiusOf(control: Locator): Promise<string> {
+  return control.evaluate((el) => getComputedStyle(el).borderTopLeftRadius);
+}
+
+test('every control has rounded corners for the wash to follow (FR-058)', async ({ page }) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+  await page.getByTestId('reference-badge').click();
+  await expect(page.getByTestId('settings-sheet')).toBeVisible();
+
+  for (const control of await visibleButtons(page)) {
+    const name = (await control.getAttribute('data-testid')) ?? (await control.innerText());
+    expect(await radiusOf(control), `${name} has square corners`).not.toBe('0px');
+  }
+});
+
+/**
  * The touch half of the same requirement (FR-059).
  *
  * The web app runs on phones too, so "hover" alone would leave every touch user

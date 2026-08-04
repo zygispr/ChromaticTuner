@@ -4,7 +4,7 @@ import {
   ScriptedAudioSource,
 } from '@chromatic-tuner/core/testing';
 import { TunerProvider } from '@chromatic-tuner/react';
-import { color } from '@chromatic-tuner/tokens';
+import { color, space } from '@chromatic-tuner/tokens';
 import { act, cleanup, render, screen } from '@testing-library/react-native';
 import { useRef } from 'react';
 import { StyleSheet } from 'react-native';
@@ -178,9 +178,39 @@ function backgroundsOf(testIDs: readonly string[]): Record<string, string | unde
   return Object.fromEntries(testIDs.map((testID) => [testID, backgroundOf(testID)]));
 }
 
-function allSetTo(testIDs: readonly string[], value: string | undefined) {
+function allSetTo<T>(testIDs: readonly string[], value: T) {
   return Object.fromEntries(testIDs.map((testID) => [testID, value]));
 }
+
+/**
+ * The wash is clipped to a control's own corners, so it cannot paint a square.
+ *
+ * Reported after the wash shipped: the settings sheet's "Done" button was the
+ * only control in either app without a corner radius, which nothing had noticed
+ * while it was an unfilled label. Give it a background and the omission becomes
+ * a hard 44x44 square beside five rounded controls.
+ *
+ * Asserted across every control rather than on "Done" alone. The defect was not
+ * really that one button was wrong — it was that nothing checked the set was
+ * consistent, so the next control to skip a radius would look fine until
+ * something filled it in.
+ */
+it('every control has rounded corners for the wash to follow (FR-058)', async () => {
+  await renderWith(false);
+
+  const radii = Object.fromEntries(
+    [...GHOST, ...SOLID].map((testID) => [
+      testID,
+      (
+        StyleSheet.flatten(screen.getByTestId(testID, DEEP).props.style) as {
+          borderRadius?: number;
+        }
+      ).borderRadius,
+    ])
+  );
+
+  expect(radii).toEqual(allSetTo([...GHOST, ...SOLID], space.sm));
+});
 
 it('no control carries the wash at rest (FR-058, FR-059)', async () => {
   await renderWith(false);

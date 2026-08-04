@@ -304,6 +304,10 @@ const styles = StyleSheet.create({
     minHeight: a11y.minTouchTarget,
     alignItems: 'flex-end',
     justifyContent: 'center',
+    // Matches every other control's radius. Borderless, so this went unnoticed
+    // until the press wash gave it a fill — at which point it painted a hard
+    // 44x44 square beside five rounded controls (FR-058).
+    borderRadius: space.sm,
   },
   closeLabel: {
     fontSize: typeTokens.labelSize,

@@ -668,6 +668,26 @@ was — by breaking the thing they guard and watching them fail.
 Still outstanding, and unchanged by this: the wash has **not been seen on the physical device**. The device
 build predates it.
 
+### Follow-up: the wash exposed a square "Done" button (2026-08-04)
+
+Reported from the device and the browser: the settings sheet's **Done** control looked wrong beside the
+others. It was the only control in either app **without a corner radius** — borderless and unfilled, so for
+the whole of `001` and `002` there was nothing to reveal it. Giving it a hover/press fill turned the
+omission into a hard 44×44 square sitting next to five controls rounded at `space.sm`.
+
+Fixed on both platforms by giving it the same `space.sm` radius everything else uses.
+
+**The regression tests assert the whole set, not the one button.** The real defect was not that a single
+control was wrong — it was that **nothing checked the controls were consistent**, so the next one to skip a
+radius would also look fine right up until something filled it in. Both tests enumerate every control and
+were verified failing, each naming `settings-close` specifically.
+
+Worth noting what this says about the wash: it is a **consistency detector**. It gave every control a fill,
+and the first thing that fell out was a shape inconsistency that had been shipping unnoticed since `001`.
+
+**74 Playwright** (+1), **63 mobile Jest** (+1), 430 unit, all eight gates green. `web-hover-done-*`
+captured in [screenshots/](./screenshots/) for both appearances.
+
 ---
 
 ## Dependencies & Execution Order

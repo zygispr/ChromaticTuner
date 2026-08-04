@@ -130,6 +130,11 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
               color: themedVar('text'),
               background: 'transparent',
               border: 'none',
+              // Matches every other control's radius. Borderless, so this went
+              // unnoticed until the hover wash gave it a fill — at which point
+              // it painted a hard 44x44 square beside five rounded controls
+              // (FR-058).
+              borderRadius: space.sm,
               cursor: 'pointer',
             }}
           >
