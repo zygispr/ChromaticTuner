@@ -293,3 +293,158 @@ test('the web manifest is complete (FR-080)', async ({ request }) => {
 
   expect(missing, `the manifest is missing: ${missing.join(', ')}`).toEqual([]);
 });
+
+/** The parsed structured description, or a named failure if there isn't exactly one. */
+async function structuredDescription(
+  page: import('@playwright/test').Page
+): Promise<Record<string, unknown>> {
+  const blocks = await page.evaluate(() =>
+    [...document.querySelectorAll('script[type="application/ld+json"]')].map(
+      (node) => node.textContent ?? ''
+    )
+  );
+
+  expect(blocks.length, `expected exactly one JSON-LD block, found ${blocks.length}`).toBe(1);
+
+  let parsed: unknown;
+  expect(() => {
+    parsed = JSON.parse(blocks[0]!);
+  }, 'the JSON-LD block is not valid JSON').not.toThrow();
+
+  return parsed as Record<string, unknown>;
+}
+
+/**
+ * P9: the page describes itself as an application, in a form a machine reads.
+ *
+ * `SoftwareApplication` with a zero-price `offers` is the shape that answers the
+ * query this feature targets — "a free guitar tuner I can use in a browser".
+ * The price is the field most likely to be surfaced and the one most likely to
+ * be omitted, since "free" feels too obvious to state.
+ */
+test('carries a valid SoftwareApplication description (P9, FR-081, FR-082)', async ({ page }) => {
+  await page.goto('/');
+
+  const schema = await structuredDescription(page);
+
+  expect(schema['@context'], 'JSON-LD has no schema.org context').toBe('https://schema.org');
+  expect(schema['@type'], 'the structured description is not a SoftwareApplication').toBe(
+    'SoftwareApplication'
+  );
+
+  const missing = ['name', 'description', 'applicationCategory', 'operatingSystem', 'url'].filter(
+    (key) => !schema[key]
+  );
+  expect(missing, `the structured description is missing: ${missing.join(', ')}`).toEqual([]);
+
+  const offers = schema['offers'] as Record<string, unknown> | undefined;
+  expect(
+    offers,
+    'no offers block — the "free" claim is the one most likely to be surfaced'
+  ).toBeTruthy();
+  expect(offers?.['price'], 'offers.price must be the string "0"').toBe('0');
+  expect(offers?.['priceCurrency'], 'offers has a price but no currency').toBeTruthy();
+});
+
+/**
+ * P10 / FR-083: every claim in the markup is corroborated by visible text.
+ *
+ * **The load-bearing test of this story.** Answer engines cross-check schema
+ * against the page and discount the page where the two disagree, so a
+ * `featureList` entry no reader can find is worse than omitting it.
+ *
+ * Three things about how this is measured, each of which would hollow it out if
+ * done the obvious way:
+ *
+ * - It reads the claims from the **parsed JSON-LD**, not from `content.ts`.
+ *   Comparing the module against itself compares a constant to a constant and
+ *   passes on a build that ships neither.
+ * - It searches `innerText`, not `textContent` and not the HTML source.
+ *   `textContent` includes text in hidden elements; the source includes comments
+ *   and attributes. A claim "corroborated" by an `aria-label` or a comment has
+ *   not been corroborated for a person reading the page.
+ * - Whitespace is normalised on both sides, because `innerText` collapses runs
+ *   of space and a claim spanning a line wrap would otherwise never match.
+ */
+test('every advertised claim appears in the visible text (P10, FR-083)', async ({ page }) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  const schema = await structuredDescription(page);
+  const claims = schema['featureList'] as string[] | undefined;
+
+  expect(Array.isArray(claims) && claims.length > 0, 'the schema advertises no featureList').toBe(
+    true
+  );
+
+  const normalise = (value: string) => value.replace(/\s+/g, ' ').trim();
+  const visible = normalise(await page.evaluate(() => document.body.innerText));
+
+  const unsupported = claims!.filter((claim) => !visible.includes(normalise(claim)));
+
+  expect(
+    unsupported,
+    `these claims appear in the markup but nowhere a reader can see them:\n  ${unsupported.join('\n  ')}`
+  ).toEqual([]);
+});
+
+/**
+ * P11 / FR-065: nothing claims a capability the app does not have.
+ *
+ * The failure this guards against is someone reaching for a phrase that ranks
+ * well — "supports Drop D" — for a feature `001` put explicitly out of scope.
+ * It would be false, and under P10's logic it would also be uncorroborated,
+ * which answer engines punish.
+ *
+ * Matched with word boundaries rather than substrings. Nothing in the document
+ * today trips a naive `includes` — that was checked, not assumed — but the
+ * hazard is one ordinary word away: `async` contains `sync`, `accounting`
+ * contains `account`. A gate that reports a violation for prose containing
+ * nothing wrong gets muted, and a muted gate protects nothing.
+ *
+ * Scanned over the text and identity values this project authors rather than
+ * the raw HTML, because the served document also carries Vite's client in
+ * development and its own markup everywhere — neither of which is a claim about
+ * the product, and neither of which anyone here would be able to fix.
+ */
+const OUT_OF_SCOPE = [
+  /\btuning presets?\b/i,
+  /\bdrop\s*d\b/i,
+  /\bDADGAD\b/i,
+  /\bcustom tunings?\b/i,
+  /\bper-string\b/i,
+  /\breference tones?\b/i,
+  /\bcapo\b/i,
+  /\btransposition\b/i,
+  /\bmetronome\b/i,
+  /\bchord librar(?:y|ies)\b/i,
+  /\bsign-?in\b/i,
+  /\baccounts?\b/i,
+  /\bsync(?:ing|ed|hronis|hroniz)?\b/i,
+];
+
+test('claims no capability that is out of scope (P11, FR-065)', async ({ page }) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  const schema = await structuredDescription(page);
+
+  const authored = [
+    await page.title(),
+    (await metaContent(page, 'description')) ?? '',
+    (await metaContent(page, 'og:title')) ?? '',
+    (await metaContent(page, 'og:description')) ?? '',
+    (await metaContent(page, 'og:image:alt')) ?? '',
+    JSON.stringify(schema),
+    await page.evaluate(() => document.body.innerText),
+  ].join('\n');
+
+  const violations = OUT_OF_SCOPE.filter((pattern) => pattern.test(authored)).map((pattern) =>
+    String(pattern)
+  );
+
+  expect(
+    violations,
+    `the page claims capabilities 001 put out of scope: ${violations.join(', ')}`
+  ).toEqual([]);
+});

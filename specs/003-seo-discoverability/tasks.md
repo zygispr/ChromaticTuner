@@ -556,18 +556,98 @@ in it is corroborated by visible text.
 
 ### Tests (write first, observe failing)
 
-- [ ] T039 [P] [US3] Extend `apps/web/e2e/metadata.spec.ts` to assert **exactly one** `application/ld+json` block that parses as JSON with `@type: "SoftwareApplication"`, `name`, `description`, `applicationCategory`, `operatingSystem`, `url`, and `offers` with `price: "0"` and a `priceCurrency` (P9)
-- [ ] T040 [P] [US3] Assert every `featureList` entry from the **parsed JSON-LD** appears in `document.body.innerText` (P10, FR-083) — search the **rendered text**, not `content.ts` and not the HTML source; comparing the module against itself proves nothing, and a claim "corroborated" by a comment or an `aria-label` has not been corroborated for a reader
-- [ ] T041 [P] [US3] Assert no denylisted out-of-scope term appears anywhere in the rendered document — tuning presets, Drop D, DADGAD, custom tuning, per-string, reference tone, capo, transposition, metronome, chord library, sign-in, account, sync (P11, FR-065)
+- [X] T039 [P] [US3] Extend `apps/web/e2e/metadata.spec.ts` to assert **exactly one** `application/ld+json` block that parses as JSON with `@type: "SoftwareApplication"`, `name`, `description`, `applicationCategory`, `operatingSystem`, `url`, and `offers` with `price: "0"` and a `priceCurrency` (P9)
+- [X] T040 [P] [US3] Assert every `featureList` entry from the **parsed JSON-LD** appears in `document.body.innerText` (P10, FR-083) — search the **rendered text**, not `content.ts` and not the HTML source; comparing the module against itself proves nothing, and a claim "corroborated" by a comment or an `aria-label` has not been corroborated for a reader
+- [X] T041 [P] [US3] Assert no denylisted out-of-scope term appears anywhere in the rendered document — tuning presets, Drop D, DADGAD, custom tuning, per-string, reference tone, capo, transposition, metronome, chord library, sign-in, account, sync (P11, FR-065)
 
 ### Implementation
 
-- [ ] T042 [US3] Add `features` to `apps/web/src/content.ts`, each entry phrased so it can appear verbatim in a `sections[].body` — this ordering is deliberate: write the visible sentence first, then derive the claim from it, never the reverse (V-COPY-2)
-- [ ] T043 [US3] Emit the JSON-LD block from `siteIdentity()` in `apps/web/vite.config.ts`, generated from the same `content.ts` values as the visible markup so the two cannot disagree (D6)
-- [ ] T044 [US3] Adjust `content.sections` wherever T040 reports an uncorroborated claim — **fix the copy, not the test**; an entry no visible sentence supports must be deleted from `features`, not asserted around
-- [ ] T045 [US3] Run the full e2e suite and confirm T039–T041 pass
+- [X] T042 [US3] **Already done at T008** — `features` was authored with the copy, as five verbatim substrings of section bodies. Add `features` to `apps/web/src/content.ts`, each entry phrased so it can appear verbatim in a `sections[].body` — this ordering is deliberate: write the visible sentence first, then derive the claim from it, never the reverse (V-COPY-2)
+- [X] T043 [US3] Emit the JSON-LD block from `siteIdentity()` in `apps/web/vite.config.ts`, generated from the same `content.ts` values as the visible markup so the two cannot disagree (D6)
+- [X] T044 [US3] **No adjustment needed** — T040 reported zero uncorroborated claims. Adjust `content.sections` wherever T040 reports an uncorroborated claim — **fix the copy, not the test**; an entry no visible sentence supports must be deleted from `features`, not asserted around
+- [X] T045 [US3] Run the full e2e suite and confirm T039–T041 pass
 
 **Checkpoint**: all three content stories are independently functional.
+
+### Phase 5 results — 2026-08-04
+
+**All gates green. e2e 98 passed, 0 failed.** lint, format, typecheck, unit 430, `verify:offline` and
+`verify:build-output` clean.
+
+The page now carries one `SoftwareApplication` block generated from `content.ts`:
+
+```text
+"@type":               SoftwareApplication
+"name":                Chromatic Tuner
+"applicationCategory": MultimediaApplication
+"operatingSystem":     Any
+"offers":              { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+"featureList":         5 claims, each corroborated
+```
+
+**T042 and T044 required no work.** `features` was written into `content.ts` back at T008, authored as
+five verbatim substrings of section bodies — the ordering D6 asks for, visible sentence first and claim
+derived from it. T044 exists to fix copy wherever a claim is uncorroborated; T040 reported none, so
+there was nothing to fix. Recorded rather than silently ticked, because "no work needed" and "not done"
+look identical in a checklist.
+
+**Both new gates were verified against planted failures, not trusted because they were green.**
+
+The corroboration and denylist checks pass on the real content *by construction* — the features are
+substrings of the bodies, and the copy was written against the out-of-scope list. A test that can only
+ever pass is not a gate, so each was made to fail deliberately.
+
+Adding an invented claim to `features`:
+
+```
+Error: these claims appear in the markup but nowhere a reader can see them:
+  detects all six strings simultaneously
+```
+
+Planting three out-of-scope phrases in a section body:
+
+```
+Error: the page claims capabilities 001 put out of scope:
+  /\btuning presets?\b/i, /\bdrop\s*d\b/i, /\bcapo\b/i
+```
+
+Both restored afterwards; `content.ts` verified byte-identical to before.
+
+**A comment I wrote was wrong, and checking it was cheap.**
+
+The denylist test originally justified word-boundary matching by claiming a naive `includes('sync')`
+would match **async** in Vite's injected development scripts. Plausible, and false: the dev server
+injects `<script type="module" src="/@vite/client">` with no `async` attribute, and a naive substring
+scan of the served HTML finds **zero** hits for `sync`, `account`, or `capo`.
+
+Word boundaries are still right — `async` contains `sync` and `accounting` contains `account`, so the
+hazard is one ordinary word away — but the comment now says that rather than inventing a specific false
+positive that does not exist. A justification a future reader can disprove in thirty seconds is worse
+than none.
+
+**Two design notes on the schema itself.**
+
+*Scanned surface.* P11 says "no string **anywhere in the document**", but the check reads the authored
+values — title, description, og tags, the JSON-LD, and `body.innerText` — rather than raw HTML. The
+served document also carries Vite's client in development and its own markup everywhere; neither is a
+claim about the product, and neither is anything a contributor here could fix if it tripped the gate.
+
+*`<` is escaped in the inlined JSON.* A literal `</script>` inside a JSON string would close the block
+early. Nothing in the current copy contains one; escaping means nothing ever can.
+
+**Measurements**
+
+| | Baseline (T003) | After Phase 4 | **After Phase 5** |
+| --- | --- | --- | --- |
+| Cold start, median of 5 isolated runs | 141.5 ms | 108.7 ms | **130.5 ms** |
+| `dist/index.html` | 669 B | 6,578 B | **7,454 B** |
+| `dist/assets/*.js` | 236,213 B | 235,516 B | **235,516 B** |
+| `dist/` total, maps excluded | 241,489 B | 268,747 B | **269,623 B** |
+
+Cold start stays **unchanged within measurement noise** — 130.5 ms against a 141.5 ms baseline, and this
+run again produced one outlier (195.2 ms) among five samples otherwise spanning 122.9–138.0 ms. The
+JavaScript bundle is byte-identical for the fourth phase running: the structured description is markup,
+and markup does not execute.
 
 ---
 

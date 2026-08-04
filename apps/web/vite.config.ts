@@ -26,7 +26,7 @@ import { defineConfig, type Plugin } from 'vite';
 import { color, type ThemedColor } from '../../packages/tokens/src/colors.js';
 import { space } from '../../packages/tokens/src/space.js';
 import { type as typeScale } from '../../packages/tokens/src/type.js';
-import { appName, description, heading, sections, title } from './src/content.js';
+import { appName, description, features, heading, sections, title } from './src/content.js';
 
 /**
  * The origin this build believes it is deployed to.
@@ -196,6 +196,47 @@ const contentHtml = [
       `<section><h2>${escapeHtml(section.heading)}</h2><p>${escapeHtml(section.body)}</p></section>`
   ),
 ].join('\n');
+
+/**
+ * The machine-readable description of the app (D6, P9–P11, FR-081–FR-083).
+ *
+ * Every value comes from the same `content.ts` constants the visible markup and
+ * the preview card use, which is the whole design: answer engines cross-check
+ * schema claims against the page and discount the page where the two disagree,
+ * so agreement here has to be structural rather than remembered. In particular
+ * `featureList` is `content.features`, and each of those is authored as a
+ * verbatim substring of a section body — the visible sentence is written first
+ * and the claim derived from it, never the reverse.
+ *
+ * `SoftwareApplication` rather than `WebApplication`: the latter is a subtype
+ * with no extra expressive power here and is the less widely consumed of the
+ * two. The zero-price `offers` is the field most likely to be surfaced for the
+ * queries this feature targets, and the one most likely to be left out because
+ * "free" feels too obvious to state.
+ *
+ * `<` is escaped because this JSON is inlined into a `<script>` element, where a
+ * literal `</script>` inside a string would close the block early. Nothing in
+ * the current copy contains one; the escape means nothing ever can.
+ */
+function structuredDescription(): string {
+  return JSON.stringify(
+    {
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: appName,
+      description,
+      url: canonicalUrl,
+      applicationCategory: 'MultimediaApplication',
+      // The conventional value for something that runs wherever a browser does.
+      operatingSystem: 'Any',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      featureList: [...features],
+      image: `${siteOrigin}/og-image.png`,
+    },
+    null,
+    2
+  ).replace(/</g, '\\u003c');
+}
 
 /** Crawl directives (P12, FR-072, FR-073, FR-076). */
 function robotsTxt(): string {
@@ -384,6 +425,12 @@ function siteIdentity(): Plugin {
         {
           tag: 'meta',
           attrs: { name: 'twitter:image', content: `${siteOrigin}/og-image.png` },
+          injectTo: 'head' as const,
+        },
+        {
+          tag: 'script',
+          attrs: { type: 'application/ld+json' },
+          children: structuredDescription(),
           injectTo: 'head' as const,
         },
         // `body`, so both land after `#root` in document order: the tuner keeps
