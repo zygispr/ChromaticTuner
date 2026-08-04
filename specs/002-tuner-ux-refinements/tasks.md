@@ -537,6 +537,49 @@ everything 002 changed ships in the JS bundle — **an inference from what chang
 
 ---
 
+## Post-review fix: the settings sheet resized in Safari (2026-08-04)
+
+Reported from using the web app, with two screenshots: adjusting the reference pitch, switching
+accidentals, or hitting reset made the sheet change height. **Safari only** — Chrome was clean, which is
+what made it a layout-path bug rather than a content bug.
+
+Diagnosed from the screenshots rather than by guessing. Decoding both PNGs and measuring the vertical gaps
+between every text band gave nine gaps, of which **seven are byte-identical**; the only two that differ are
+the gap after the reference-pitch group and the gap after the accidentals group, each by exactly **36 device
+px = 18 CSS px at 2× DPR**. 18 px is one `<legend>` line-height, and 2 × 18 = the 36 CSS px the whole sheet
+collapsed by. That localised it to the two `<fieldset>`s without needing a repro.
+
+**Cause**: a `<legend>` is laid out *inside* its fieldset's border box — a special case with its own layout
+path, which Safari resolves wrong on the group's **first** layout. Each group opened one legend-height too
+tall; the first React re-render (any setting change) forced a correct relayout and the sheet collapsed under
+the user's finger, which is the worst possible moment for a control to move.
+
+**Fix**: both groups become `<div role="group" aria-labelledby>` with a `<span>` label. Identical semantics
+for assistive technology, no fieldset layout path — and it also brings `apps/web`'s `SettingsSheet` back in
+line with `apps/mobile`'s `SettingsScreen`, which was already `View` + `Text`.
+
+Three things worth recording:
+
+- **The swap is visually inert, verified rather than assumed.** Full geometry of the sheet box plus all six
+  controls, captured before and after, in Chromium *and* WebKit, light *and* dark: every rectangle identical
+  to the pixel. Existing screenshots therefore not re-captured — nothing in them can have changed.
+- **No automated engine here reproduces the bug.** Playwright's WebKit was checked frame-by-frame at desktop,
+  iPhone 14 and iPhone SE viewports and lays fieldsets out correctly at every frame, as does Chromium. So
+  the height-stability test — the one that describes what the user actually experiences — **cannot fail on
+  the unfixed code**, and its doc comment says so rather than implying coverage it does not have.
+- **The test that satisfies Principle III is the structure one**: no `fieldset` survives in the sheet, both
+  groups keep their accessible names. Verified failing (`expected 0, received 2`) with the fix stashed. It
+  is a proxy for the defect, but it is the thing that stops the construct coming back.
+
+The diagnosis rests on the pixel measurement plus eliminating the only construct in that sheet with a
+browser-specific layout path — **not on a reproduction in real Safari**, which would need
+*Allow remote automation* enabled to drive via `safaridriver`. Confirmation on the real engine is
+outstanding.
+
+**69 Playwright** (+2), 428 unit, all gates green.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase dependencies

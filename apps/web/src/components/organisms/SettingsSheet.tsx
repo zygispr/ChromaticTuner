@@ -137,16 +137,27 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
           </button>
         </header>
 
-        <fieldset style={{ border: 'none', margin: 0, padding: 0 }}>
-          <legend
+        {/* `role="group"` + `aria-labelledby` rather than fieldset/legend.
+            The semantics are identical, but a legend is laid out inside its
+            fieldset's border box, and Safari resolves that special case wrong on
+            a group's FIRST layout: each fieldset came out one legend line-height
+            (18 px) too tall, so opening the sheet and then touching any
+            control — the slider, either accidental, reset — collapsed it by
+            36 px under the user's finger. Chromium and the Playwright WebKit
+            build both lay it out correctly, which is why no automated engine
+            here reproduces it; see the group-structure test in
+            e2e/layout-stability.spec.ts. */}
+        <div role="group" aria-labelledby="reference-pitch-label">
+          <span
+            id="reference-pitch-label"
             style={{
-              padding: 0,
+              display: 'block',
               fontSize: `${type.labelSize}px`,
               fontWeight: type.weightMedium,
             }}
           >
             Reference pitch
-          </legend>
+          </span>
 
           <div
             style={{
@@ -198,14 +209,19 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
             <span>440</span>
             <span>{A4_MAX_HZ}</span>
           </div>
-        </fieldset>
+        </div>
 
-        <fieldset style={{ border: 'none', margin: 0, padding: 0 }}>
-          <legend
-            style={{ padding: 0, fontSize: `${type.labelSize}px`, fontWeight: type.weightMedium }}
+        <div role="group" aria-labelledby="accidentals-label">
+          <span
+            id="accidentals-label"
+            style={{
+              display: 'block',
+              fontSize: `${type.labelSize}px`,
+              fontWeight: type.weightMedium,
+            }}
           >
             Accidentals
-          </legend>
+          </span>
 
           <div style={{ display: 'flex', gap: space.sm, marginTop: space.sm }}>
             {ACCIDENTAL_OPTIONS.map((option) => {
@@ -240,7 +256,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
               );
             })}
           </div>
-        </fieldset>
+        </div>
 
         {persistenceFailed && (
           <p
