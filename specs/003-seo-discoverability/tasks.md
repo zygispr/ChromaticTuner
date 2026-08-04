@@ -454,20 +454,95 @@ title, description, and a correctly sized image.
 
 ### Tests (write first, observe failing)
 
-- [ ] T030 [P] [US2] Extend `apps/web/e2e/metadata.spec.ts` to assert `og:title`, `og:description`, `og:image`, `og:url`, `og:type`, `og:site_name`, `twitter:card`, `twitter:image` are all present and non-empty (P6) — all fail today
-- [ ] T031 [P] [US2] Assert `og:image` is an **absolute** URL that returns `200` and is a PNG of exactly 1200 × 630 (P7) — several preview generators do not resolve relative image URLs and fail silently, so absoluteness is the assertion that matters
-- [ ] T032 [P] [US2] Assert `og:title` equals `<title>` and `og:description` equals the meta description (P8) — structurally true by construction, asserted anyway because a later edit could undo it
-- [ ] T033 [P] [US2] Assert `apps/web/public/manifest.webmanifest` carries `name`, `short_name`, `description`, `lang`, `dir`, `categories`, and icons (FR-080)
+- [X] T030 [P] [US2] Extend `apps/web/e2e/metadata.spec.ts` to assert `og:title`, `og:description`, `og:image`, `og:url`, `og:type`, `og:site_name`, `twitter:card`, `twitter:image` are all present and non-empty (P6) — all fail today
+- [X] T031 [P] [US2] Assert `og:image` is an **absolute** URL that returns `200` and is a PNG of exactly 1200 × 630 (P7) — several preview generators do not resolve relative image URLs and fail silently, so absoluteness is the assertion that matters
+- [X] T032 [P] [US2] Assert `og:title` equals `<title>` and `og:description` equals the meta description (P8) — structurally true by construction, asserted anyway because a later edit could undo it
+- [X] T033 [P] [US2] Assert `apps/web/public/manifest.webmanifest` carries `name`, `short_name`, `description`, `lang`, `dir`, `categories`, and icons (FR-080)
 
 ### Implementation
 
-- [ ] T034 [US2] Create `apps/web/scripts/generate-og-image.mjs` rendering an HTML template at 1200 × 630 with the **installed** `@playwright/test` Chromium and screenshotting to `apps/web/public/og-image.png` (D7) — palette from `@chromatic-tuner/tokens`, no literal colours, no new dependency
-- [ ] T035 [US2] Add an `og:image` script to `apps/web/package.json`, run it, and commit `apps/web/public/og-image.png` — generated-and-committed, following the `apps/web/e2e/fixtures/generate.mjs` precedent
-- [ ] T036 [US2] Add the preview identity tags to `apps/web/index.html` via `siteIdentity()`, reading `title`/`description` from `apps/web/src/content.ts` and the origin from `%VITE_SITE_URL%` so absoluteness is structural (P6–P8)
-- [ ] T037 [P] [US2] Complete `apps/web/public/manifest.webmanifest` per T033, reusing `content.description` rather than restating it (FR-080)
-- [ ] T038 [US2] Run the full e2e suite and confirm T030–T033 pass
+- [X] T034 [US2] Create `apps/web/scripts/generate-og-image.mjs` rendering an HTML template at 1200 × 630 with the **installed** `@playwright/test` Chromium and screenshotting to `apps/web/public/og-image.png` (D7) — no literal colours, no new dependency. **Palette and headline are lifted from `dist/index.html`**, not imported: a `.mjs` script cannot import `.ts` on the repo's Node 20 floor
+- [X] T035 [US2] Add an `og:image` script to `apps/web/package.json`, run it, and commit `apps/web/public/og-image.png` — generated-and-committed, following the `apps/web/e2e/fixtures/generate.mjs` precedent
+- [X] T036 [US2] Add the preview identity tags to `apps/web/index.html` via `siteIdentity()`, reading `title`/`description` from `apps/web/src/content.ts` and the origin from `%VITE_SITE_URL%` so absoluteness is structural (P6–P8)
+- [X] T037 [P] [US2] **Generated, not edited** — `public/manifest.webmanifest` was deleted and `siteIdentity()` now emits it from `content.ts`, so the description cannot drift from the page's. Complete the manifest per T033 (FR-080)
+- [X] T038 [US2] Run the full e2e suite and confirm T030–T033 pass
 
 **Checkpoint**: US1 and US2 both work independently. A shared link renders a card.
+
+### Phase 4 results — 2026-08-04
+
+**All gates green. e2e 95 passed, 0 failed.** lint, format, typecheck, unit 430, `verify:offline` and
+`verify:build-output` all clean. No new dependency.
+
+The page now carries the full preview identity, and `apps/web/public/og-image.png` is generated and
+committed at 1200×630 (21,685 B).
+
+**The manifest is now generated, not static (T037).**
+
+`public/manifest.webmanifest` was deleted; `siteIdentity()` emits it from the same `content.ts`
+constants the page and the card use. The old file restated the description in its own words — "A
+chromatic guitar tuner. Pluck a string, see the note. Works offline." against the page's own sentence —
+which is precisely the drift this feature exists to remove. Someone installing the app and someone
+reading a shared link should not be told two different things.
+
+It is served in development by the same middleware as `robots.txt` and `sitemap.xml`, so the test asserts
+the served document rather than a file on disk. Worth noting for T027's rule: `.webmanifest` is
+deliberately **not** excluded from the precache — unlike the crawl directives it is part of the app, and
+the emitted manifest still appears in `sw.js`'s precache list alongside `/index.html` and `/icon.svg`.
+
+**The generator reads the built page rather than importing anything (T034).**
+
+D7 asks for the palette to come from `@chromatic-tuner/tokens` with no literal colours. A `.mjs` script
+cannot import either the tokens or `content.ts`: importing a `.ts` module needs Node's type stripping,
+and **CI pins Node 20** while this machine runs 24. Writing the generator against local Node would have
+produced a script that works here and fails for anyone on the repo's stated floor.
+
+So it lifts the `<style data-chromatic-tuner="tokens">` block wholesale out of `dist/index.html` and
+drops it into the template, then reads the headline from the built `<h1>`. Both the palette and the copy
+come from the same generated document the app ships, on any Node version, with nothing duplicated. The
+cost is a documented precondition — run `pnpm build` first — and the script says so if `dist/` is
+missing.
+
+**Three assertions timed out instead of failing, and that was worth fixing (T030–T032).**
+
+The first run of the preview tests failed correctly but took **32.9 s**, with three of them reporting
+`locator.getAttribute: Test timeout of 30000ms exceeded`. A Playwright locator *waits* for its element,
+so a missing meta tag costs the full timeout and then reports nothing about which tag was absent.
+
+Rewritten to read through `page.evaluate`, the same failures report instantly and name the item:
+
+```
+missing or empty preview tags: og:title, og:description, og:image, og:url,
+  og:type, og:site_name, twitter:card, twitter:image
+the manifest is missing: lang, dir, categories
+```
+
+Whole file now runs in **3.6 s**. This matters beyond speed: FR-084 and T048 require a failing gate to
+name what is missing, and a timeout cannot. Any assertion in this feature that reaches for a locator on
+something that may not exist has the same problem.
+
+**The image is checked by header bytes, not by decoding (T031).** PNG stores width and height as
+big-endian `uint32` at offsets 16 and 20, after the 8-byte signature and the `IHDR` chunk header. Reading
+those also proves the file really is a PNG — `og:image has a value` would pass on a 404, a relative URL,
+or a 300×300 icon, and all three render a card with no image or a uselessly cropped one.
+
+**Measurements**
+
+| | Baseline (T003) | After Phase 3 | **After Phase 4** |
+| --- | --- | --- | --- |
+| Cold start, median of 5 isolated runs | 141.5 ms | 131.2 ms | **108.7 ms** |
+| `dist/index.html` | 669 B | 5,725 B | **6,578 B** |
+| `dist/assets/*.js` | 236,213 B | 235,516 B | **235,516 B** |
+| `dist/` total, maps excluded | 241,489 B | 246,051 B | **268,747 B** |
+
+Cold start remains **unchanged within measurement noise**: 108.7 ms against a 141.5 ms baseline is a
+32.8 ms move, inside the ±65 ms band T002 established, and three of this phase's five samples sat within
+2 ms of each other while one outlier hit 167 ms. Nothing in this phase touches the runtime path at all —
+the JavaScript bundle is byte-identical for the third phase running.
+
+`dist/` grew 22,696 B, almost entirely the preview image (21,685 B). It is a crawler- and
+platform-facing asset that no user of the app ever downloads: it lives in `public/`, so it never enters
+Rollup's bundle object and is therefore never precached.
 
 ---
 

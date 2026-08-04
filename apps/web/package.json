@@ -11,7 +11,8 @@
     "test:e2e": "node e2e/fixtures/generate.mjs && playwright test --pass-with-no-tests",
     "e2e:fixtures": "node e2e/fixtures/generate.mjs",
     "verify:offline": "node scripts/verify-offline.mjs",
-    "verify:build-output": "node scripts/verify-build-output.mjs"
+    "verify:build-output": "node scripts/verify-build-output.mjs",
+    "og:image": "node scripts/generate-og-image.mjs"
   },
   "dependencies": {
     "@chromatic-tuner/core": "workspace:*",

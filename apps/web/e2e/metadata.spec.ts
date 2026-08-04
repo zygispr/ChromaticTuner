@@ -150,3 +150,146 @@ test('serves a sitemap listing exactly the canonical address (P12, FR-073)', asy
 
   expect(locations, 'the sitemap lists more than the one real page').toEqual([canonical]);
 });
+
+/**
+ * Reads a meta tag by either spelling.
+ *
+ * Open Graph uses `property`, Twitter's card tags use `name`, and mixing them up
+ * produces a tag that looks right in the source and is ignored by every consumer.
+ *
+ * Read through `evaluate` rather than a locator on purpose. A locator's
+ * `getAttribute` *waits* for a matching element, so a missing tag costs the full
+ * 30-second timeout and then reports `locator.getAttribute: Test timeout` —
+ * which says nothing about which tag was absent. These assertions exist to name
+ * the missing item (FR-084), and a timeout cannot.
+ */
+async function metaContent(
+  page: import('@playwright/test').Page,
+  key: string
+): Promise<string | null> {
+  return page.evaluate((name: string) => {
+    const element = document.querySelector(`meta[property="${name}"], meta[name="${name}"]`);
+    return element?.getAttribute('content') ?? null;
+  }, key);
+}
+
+/**
+ * P6: the whole preview identity is present.
+ *
+ * Without these a pasted link renders as a naked URL — no title, no summary, no
+ * image — which is what the app does today in every chat and forum where a
+ * musician might recommend it.
+ */
+test('carries a complete preview identity (P6, FR-077)', async ({ page }) => {
+  await page.goto('/');
+
+  const required = [
+    'og:title',
+    'og:description',
+    'og:image',
+    'og:url',
+    'og:type',
+    'og:site_name',
+    'twitter:card',
+    'twitter:image',
+  ];
+
+  const missing: string[] = [];
+  for (const key of required) {
+    const value = await metaContent(page, key);
+    if (!value) missing.push(key);
+  }
+
+  expect(missing, `missing or empty preview tags: ${missing.join(', ')}`).toEqual([]);
+});
+
+/**
+ * P7: the preview image is absolute, reachable, and the size platforms crop to.
+ *
+ * Each clause catches a different silent failure, and "og:image has a value"
+ * catches none of them:
+ *
+ * - **Absolute.** Several preview generators do not resolve relative image URLs.
+ *   The card renders with text and no image, which reads as a design choice
+ *   rather than a bug.
+ * - **200.** A moved or renamed asset leaves the tag pointing at nothing.
+ * - **1200×630 PNG.** An icon-sized square is technically an image and is
+ *   cropped into uselessness by every platform in scope.
+ */
+test('the preview image is absolute, reachable and 1200x630 (P7, FR-078)', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/');
+
+  const source = await metaContent(page, 'og:image');
+  expect(source, 'no og:image tag').toBeTruthy();
+  expect(() => new URL(source!), `og:image is not an absolute URL: ${source}`).not.toThrow();
+
+  const response = await request.get(source!);
+  expect(response.status(), `og:image did not return 200: ${source}`).toBe(200);
+
+  const bytes = await response.body();
+
+  // PNG header: 8-byte signature, then the IHDR chunk whose width and height are
+  // big-endian uint32 at offsets 16 and 20. Cheaper and more honest than
+  // decoding the image, and it also proves the file really is a PNG.
+  expect(bytes.subarray(1, 4).toString('ascii'), `og:image is not a PNG: ${source}`).toBe('PNG');
+
+  const width = bytes.readUInt32BE(16);
+  const height = bytes.readUInt32BE(20);
+
+  expect(
+    { width, height },
+    `og:image is ${width}×${height}; platforms crop toward 1200×630`
+  ).toEqual({ width: 1200, height: 630 });
+});
+
+/**
+ * P8: the card promises what the page delivers.
+ *
+ * True by construction — both read the same constant from `content.ts` — and
+ * asserted anyway, because construction can be undone by one later edit and
+ * this check costs nothing.
+ */
+test('the preview text agrees with the page itself (P8, FR-079)', async ({ page }) => {
+  await page.goto('/');
+
+  const pageTitle = await page.title();
+  const pageDescription = await metaContent(page, 'description');
+
+  expect(await metaContent(page, 'og:title'), 'og:title disagrees with <title>').toBe(pageTitle);
+  expect(
+    await metaContent(page, 'og:description'),
+    'og:description disagrees with the meta description'
+  ).toBe(pageDescription);
+});
+
+/**
+ * FR-080: the installed app presents a complete identity.
+ *
+ * Served rather than read off disk, and generated from `content.ts` for the
+ * same reason everything else here is: a description restated in a second file
+ * is a description that drifts.
+ */
+test('the web manifest is complete (FR-080)', async ({ request }) => {
+  const response = await request.get('/manifest.webmanifest');
+  expect(response.status(), 'manifest.webmanifest is not served').toBe(200);
+
+  const manifest = JSON.parse(await response.text()) as Record<string, unknown>;
+
+  const missing = [
+    'name',
+    'short_name',
+    'description',
+    'lang',
+    'dir',
+    'categories',
+    'icons',
+  ].filter((key) => {
+    const value = manifest[key];
+    return value === undefined || (Array.isArray(value) && value.length === 0);
+  });
+
+  expect(missing, `the manifest is missing: ${missing.join(', ')}`).toEqual([]);
+});

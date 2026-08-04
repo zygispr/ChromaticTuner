@@ -26,7 +26,7 @@ import { defineConfig, type Plugin } from 'vite';
 import { color, type ThemedColor } from '../../packages/tokens/src/colors.js';
 import { space } from '../../packages/tokens/src/space.js';
 import { type as typeScale } from '../../packages/tokens/src/type.js';
-import { description, heading, sections, title } from './src/content.js';
+import { appName, description, heading, sections, title } from './src/content.js';
 
 /**
  * The origin this build believes it is deployed to.
@@ -217,6 +217,42 @@ function sitemapXml(): string {
 }
 
 /**
+ * The installed app's identity (FR-080).
+ *
+ * Generated rather than kept as a static file in `public/`, so `name` and
+ * `description` are the same constants the page and the preview card use. The
+ * previous static manifest restated the description in its own words, which is
+ * exactly the drift this feature exists to remove — a person installing the app
+ * and a person reading a shared link should not be told two different things.
+ */
+function webManifest(): string {
+  return `${JSON.stringify(
+    {
+      name: appName,
+      short_name: 'Tuner',
+      description,
+      lang: 'en',
+      dir: 'ltr',
+      // Both are in the standard registry, and they are the two a store-style
+      // install surface would file a chromatic tuner under.
+      categories: ['music', 'utilities'],
+      start_url: '/',
+      scope: '/',
+      display: 'standalone',
+      orientation: 'any',
+      background_color: color.background.light,
+      theme_color: color.background.light,
+      icons: [
+        { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+        { src: '/icon-maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+      ],
+    },
+    null,
+    2
+  )}\n`;
+}
+
+/**
  * Assembles everything the served document says about itself (research D1).
  *
  * The reflex fix for "a client-rendered app has no indexable content" is
@@ -280,6 +316,76 @@ function siteIdentity(): Plugin {
           attrs: { rel: 'canonical', href: canonicalUrl },
           injectTo: 'head' as const,
         },
+        /*
+         * The preview identity (P6–P8, FR-077–FR-079).
+         *
+         * `og:title` and `og:description` read the same constants as the page's
+         * own `<title>` and description, so the card cannot promise something
+         * the page does not deliver — agreement is structural rather than
+         * remembered.
+         *
+         * The image URL is absolute, built from the resolved origin. Several
+         * preview generators do not resolve relative image URLs, and the
+         * failure is silent: the card renders with text and no image, which
+         * reads as a design choice rather than a bug.
+         */
+        {
+          tag: 'meta',
+          attrs: { property: 'og:title', content: title },
+          injectTo: 'head' as const,
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:description', content: description },
+          injectTo: 'head' as const,
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:type', content: 'website' },
+          injectTo: 'head' as const,
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:site_name', content: appName },
+          injectTo: 'head' as const,
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:url', content: canonicalUrl },
+          injectTo: 'head' as const,
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image', content: `${siteOrigin}/og-image.png` },
+          injectTo: 'head' as const,
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image:width', content: '1200' },
+          injectTo: 'head' as const,
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image:height', content: '630' },
+          injectTo: 'head' as const,
+        },
+        {
+          tag: 'meta',
+          attrs: { property: 'og:image:alt', content: heading },
+          injectTo: 'head' as const,
+        },
+        // Twitter's card tags use `name`, not `property`. Mixing the two spells
+        // a tag that looks correct in the source and is ignored by the consumer.
+        {
+          tag: 'meta',
+          attrs: { name: 'twitter:card', content: 'summary_large_image' },
+          injectTo: 'head' as const,
+        },
+        {
+          tag: 'meta',
+          attrs: { name: 'twitter:image', content: `${siteOrigin}/og-image.png` },
+          injectTo: 'head' as const,
+        },
         // `body`, so both land after `#root` in document order: the tuner keeps
         // the fold and keyboard traversal reaches the content only after the
         // tuner's own controls (FR-066, FR-071).
@@ -317,6 +423,11 @@ function siteIdentity(): Plugin {
           response.end(sitemapXml());
           return;
         }
+        if (request.url === '/manifest.webmanifest') {
+          response.setHeader('Content-Type', 'application/manifest+json');
+          response.end(webManifest());
+          return;
+        }
         next();
       });
     },
@@ -324,6 +435,7 @@ function siteIdentity(): Plugin {
     generateBundle() {
       this.emitFile({ type: 'asset', fileName: 'robots.txt', source: robotsTxt() });
       this.emitFile({ type: 'asset', fileName: 'sitemap.xml', source: sitemapXml() });
+      this.emitFile({ type: 'asset', fileName: 'manifest.webmanifest', source: webManifest() });
     },
   };
 }
