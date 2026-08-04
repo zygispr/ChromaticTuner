@@ -152,7 +152,10 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
                 accessibilityRole="button"
                 accessibilityLabel="Close settings"
                 onPress={onClose}
-                style={styles.closeButton}
+                style={({ pressed }) => [
+                  styles.closeButton,
+                  pressed && { backgroundColor: colors.pressed },
+                ]}
               >
                 <Text style={[styles.closeLabel, { color: colors.text }]}>Done</Text>
               </Pressable>
@@ -168,9 +171,10 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
                   accessibilityLabel="Lower the reference pitch by one hertz"
                   onPress={() => setA4Hz(a4Hz - STEP_HZ)}
                   disabled={a4Hz <= A4_MIN_HZ}
-                  style={[
+                  style={({ pressed }) => [
                     styles.stepButton,
                     { borderColor: colors.line, opacity: a4Hz <= A4_MIN_HZ ? 0.4 : 1 },
+                    pressed && { backgroundColor: colors.pressed },
                   ]}
                 >
                   <Text style={[styles.stepLabel, { color: colors.text }]}>−</Text>
@@ -189,9 +193,10 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
                   accessibilityLabel="Raise the reference pitch by one hertz"
                   onPress={() => setA4Hz(a4Hz + STEP_HZ)}
                   disabled={a4Hz >= A4_MAX_HZ}
-                  style={[
+                  style={({ pressed }) => [
                     styles.stepButton,
                     { borderColor: colors.line, opacity: a4Hz >= A4_MAX_HZ ? 0.4 : 1 },
+                    pressed && { backgroundColor: colors.pressed },
                   ]}
                 >
                   <Text style={[styles.stepLabel, { color: colors.text }]}>+</Text>
@@ -216,12 +221,13 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
                       accessibilityRole="button"
                       accessibilityState={{ selected }}
                       onPress={() => setAccidentalStyle(option.value)}
-                      style={[
+                      style={({ pressed }) => [
                         styles.option,
                         // Selection carried by border weight as well as colour,
                         // so it survives greyscale (FR-015).
                         { borderColor: selected ? colors.text : colors.line },
                         selected ? styles.optionSelected : null,
+                        pressed && { backgroundColor: colors.pressed },
                       ]}
                     >
                       <Text
@@ -252,7 +258,11 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
               testID="settings-reset"
               accessibilityRole="button"
               onPress={reset}
-              style={[styles.reset, { borderColor: colors.line }]}
+              style={({ pressed }) => [
+                styles.reset,
+                { borderColor: colors.line },
+                pressed && { backgroundColor: colors.pressed },
+              ]}
             >
               <Text style={[styles.resetLabel, { color: colors.text }]}>Reset to defaults</Text>
             </Pressable>

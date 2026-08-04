@@ -32,8 +32,13 @@ export function ReferenceBadge({ a4Hz, isNonStandard, onOpenSettings }: Referenc
           : 'Settings. Reference pitch is the standard 440 hertz.'
       }
       onPress={onOpenSettings}
-      style={[
+      // The wash while the finger is still down (FR-059) — the mobile
+      // equivalent of the web's hover, since hover does not exist here. It
+      // becomes the background rather than layering, because this control is
+      // transparent at rest and there is nothing to layer over.
+      style={({ pressed }) => [
         styles.badge,
+        pressed && { backgroundColor: colors.pressed },
         {
           // Both states carry a border, because this is the only way into
           // settings and a borderless label does not read as pressable

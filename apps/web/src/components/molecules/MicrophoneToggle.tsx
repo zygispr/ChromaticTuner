@@ -42,7 +42,10 @@ export function MicrophoneToggle({ capturing, onToggle }: MicrophoneToggleProps)
         border: `1px solid ${themedVar('line')}`,
         borderRadius: space.sm,
         cursor: 'pointer',
-        transition: `border-color ${motion.colorMs}ms ${motion.easing}`,
+        // box-shadow as well as border-color: an inline `transition` overrides
+        // the stylesheet's outright, so omitting it here would leave this the
+        // one control whose hover wash snaps in (FR-058).
+        transition: `border-color ${motion.colorMs}ms ${motion.easing}, box-shadow ${motion.colorMs}ms ${motion.easing}`,
       }}
     >
       {captureControlLabel(capturing)}

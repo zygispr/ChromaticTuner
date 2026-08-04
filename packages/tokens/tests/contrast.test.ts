@@ -111,6 +111,42 @@ describe('token shape', () => {
     }
   });
 
+  it('keeps the press wash translucent, since it layers over an existing fill', () => {
+    for (const theme of THEMES) {
+      const alpha = color.pressed[theme].slice(7);
+      expect(alpha).toHaveLength(2);
+      expect(parseInt(alpha, 16)).toBeGreaterThan(0);
+      expect(parseInt(alpha, 16)).toBeLessThan(255);
+    }
+  });
+
+  /**
+   * The property that lets ONE wash serve both button shapes.
+   *
+   * The apps have two: ghost controls (transparent over `background`) and solid
+   * ones (filled with `text`). A wash darker than both would vanish on the
+   * solid button in light theme; a wash lighter than both would vanish on the
+   * ghost button in dark theme. Sitting strictly between them means it always
+   * moves the surface it lands on — away from `background` on a ghost control,
+   * away from `text` on a solid one — in either appearance.
+   *
+   * Asserted rather than eyeballed, because "it looked fine on my monitor in
+   * light mode" is exactly how the 3.9:1 badge shipped in `001`.
+   */
+  it('sits between background and text in luminance, so it reads on both button shapes', () => {
+    for (const theme of THEMES) {
+      const wash = relativeLuminance(color.pressed[theme].slice(0, 7));
+      const surface = relativeLuminance(color.background[theme]);
+      const solid = relativeLuminance(color.text[theme]);
+
+      const lower = Math.min(surface, solid);
+      const upper = Math.max(surface, solid);
+
+      expect(wash).toBeGreaterThan(lower);
+      expect(wash).toBeLessThan(upper);
+    }
+  });
+
   it('exposes a positive, ascending spacing scale', () => {
     const values = [space.xs, space.sm, space.md, space.lg, space.xl];
     for (const v of values) expect(v).toBeGreaterThan(0);

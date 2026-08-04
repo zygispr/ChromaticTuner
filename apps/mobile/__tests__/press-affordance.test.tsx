@@ -1,0 +1,224 @@
+import {
+  InMemoryPreferencesStore,
+  NoopWakeLock,
+  ScriptedAudioSource,
+} from '@chromatic-tuner/core/testing';
+import { TunerProvider } from '@chromatic-tuner/react';
+import { color } from '@chromatic-tuner/tokens';
+import { act, cleanup, render, screen } from '@testing-library/react-native';
+import { useRef } from 'react';
+import { StyleSheet } from 'react-native';
+
+import { ReferenceBadge } from '../src/components/atoms/ReferenceBadge';
+import { MicrophoneToggle } from '../src/components/molecules/MicrophoneToggle';
+import { PermissionPrompt } from '../src/components/molecules/PermissionPrompt';
+import { StatusBanner } from '../src/components/molecules/StatusBanner';
+import { SettingsScreen } from '../src/components/screens/SettingsScreen';
+
+/**
+ * Every control reacts to touch — the mobile half of FR-058 / FR-059.
+ *
+ * Raised by V20's human leg, which was about the web: the tester noted that
+ * nothing in the app responds to hover. Hover does not exist here, so the
+ * equivalent is feedback while the finger is still down — the state a user
+ * occupies for the whole duration of a deliberate press.
+ *
+ * Two shapes, asserted differently on purpose, because they composite
+ * differently:
+ *
+ * - **Ghost** controls are transparent at rest, so the wash simply becomes
+ *   their background.
+ * - **Solid** controls are already filled with `text`. Replacing that fill
+ *   would erase the button and take its `background`-coloured label with it, so
+ *   they layer the wash as an overlay instead — what the web does with an inset
+ *   box-shadow, expressed the way React Native can express it.
+ *
+ * The asymmetry is asserted rather than hidden, so neither shape can quietly
+ * lose its feedback.
+ */
+
+/**
+ * A file-local Pressable that renders in whichever press state a test asks for.
+ *
+ * **Deviation, and why.** The obvious test — fire a press and read the style
+ * back — cannot work here. React Native resolves `style({ pressed })` inside
+ * `Pressable` and hands the host `View` the finished object, so the rendered
+ * tree never carries the function; RNTL exposes host components only, so the
+ * composite is unreachable. Driving the real responder does not help either:
+ * the host carries `onResponderGrant` rather than `onPressIn`, and firing the
+ * full grant sequence leaves the internal press state untouched under jest-expo.
+ *
+ * So the press state is supplied rather than simulated. `marker-rest.test.tsx`
+ * and `settings-animation.test.tsx` set the precedent for a file-local mock
+ * where the shared setup makes the real thing unobservable.
+ *
+ * What this proves: each control's style responds to `pressed` with the wash,
+ * which is the contract all of them now rely on. What it does not prove: that
+ * React Native flips `pressed` on a real touch. That is RN's own behaviour, and
+ * the device run is where the app is actually touched.
+ */
+let mockPressed = false;
+
+jest.mock('react-native/Libraries/Components/Pressable/Pressable', () => {
+  // Hoisted above the imports by Jest, so these cannot be import statements —
+  // the same constraint marker-rest.test.tsx and settings-animation.test.tsx
+  // work under.
+  /* eslint-disable @typescript-eslint/no-require-imports */
+  const React = require('react');
+  const { View } = require('react-native');
+  /* eslint-enable @typescript-eslint/no-require-imports */
+
+  return {
+    __esModule: true,
+    default: ({ style, children, ...rest }: Record<string, unknown>) =>
+      React.createElement(
+        View,
+        {
+          ...rest,
+          style: typeof style === 'function' ? style({ pressed: mockPressed }) : style,
+        },
+        typeof children === 'function' ? children({ pressed: mockPressed }) : children
+      ),
+  };
+});
+
+afterEach(() => {
+  cleanup();
+  mockPressed = false;
+});
+
+const WASH = color.pressed.light;
+
+/** Transparent at rest, so the wash becomes the background outright. */
+const GHOST = [
+  'reference-badge',
+  'microphone-toggle',
+  'settings-close',
+  'a4-decrement',
+  'a4-increment',
+  'accidental-flat',
+  'settings-reset',
+];
+
+/** Filled with `text`, so the wash has to layer over that fill. */
+const SOLID = ['allow-microphone', 'retry-button'];
+
+/**
+ * Pressables that are not controls.
+ *
+ * `SettingsScreen`'s backdrop is a Pressable because tapping it dismisses, and
+ * the sheet is one purely to swallow presses so they never reach the backdrop
+ * (US3). Washing either would light the whole sheet up under any touch inside
+ * it.
+ */
+const INERT = ['settings-backdrop', 'settings-sheet'];
+
+/**
+ * `includeHiddenElements` throughout, because `SettingsScreen` renders an open
+ * `Modal`: RNTL follows the aria-modal rule and treats everything outside it as
+ * hidden, which would make every other control on the screen unqueryable. The
+ * question here is what a control's style resolves to, not what a screen reader
+ * would reach — that is `settings.test.tsx`'s job.
+ */
+const DEEP = { includeHiddenElements: true } as const;
+
+/** The resolved background of a control, after RN flattens its style array. */
+function backgroundOf(testID: string): string | undefined {
+  const style = StyleSheet.flatten(screen.getByTestId(testID, DEEP).props.style) as {
+    backgroundColor?: string;
+  };
+  return style?.backgroundColor;
+}
+
+/**
+ * Every control in one tree, rendered once.
+ *
+ * One render per test on purpose: rendering twice within a test, or unmounting
+ * between, leaves every later query in the file resolving against an empty tree
+ * under this jest-expo setup. So each press state gets its own test.
+ */
+function AllControls() {
+  const audio = useRef(new ScriptedAudioSource()).current;
+  const prefs = useRef(new InMemoryPreferencesStore()).current;
+  const wake = useRef(new NoopWakeLock()).current;
+
+  return (
+    <TunerProvider audioSource={audio} wakeLock={wake} preferences={prefs} autoStart={false}>
+      <ReferenceBadge a4Hz={440} isNonStandard={false} onOpenSettings={() => undefined} />
+      <MicrophoneToggle capturing onToggle={() => undefined} />
+      <PermissionPrompt onAllow={() => undefined} />
+      <StatusBanner
+        status={{ kind: 'error', message: 'The microphone is unavailable.' }}
+        onRetry={() => undefined}
+        captureStopped={false}
+      />
+      <SettingsScreen open onClose={() => undefined} />
+    </TunerProvider>
+  );
+}
+
+async function renderWith(pressed: boolean): Promise<void> {
+  mockPressed = pressed;
+  // RNTL 14's `render` is asynchronous; an un-awaited call leaves every
+  // subsequent query resolving against a stale tree.
+  await render(<AllControls />);
+  // The stored preference arrives one turn of the event loop later.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  });
+}
+
+/**
+ * Asserted as whole objects rather than in a loop of bare `expect`s: Jest has
+ * no per-assertion message, so a loop would report only "expected X, got Y"
+ * without naming which control failed. A keyed object puts the offender in the
+ * diff.
+ */
+function backgroundsOf(testIDs: readonly string[]): Record<string, string | undefined> {
+  return Object.fromEntries(testIDs.map((testID) => [testID, backgroundOf(testID)]));
+}
+
+function allSetTo(testIDs: readonly string[], value: string | undefined) {
+  return Object.fromEntries(testIDs.map((testID) => [testID, value]));
+}
+
+it('no control carries the wash at rest (FR-058, FR-059)', async () => {
+  await renderWith(false);
+
+  for (const [testID, background] of Object.entries(
+    backgroundsOf([...GHOST, ...SOLID, ...INERT])
+  )) {
+    expect({ testID, background }).not.toEqual({ testID, background: WASH });
+  }
+
+  // The solid controls' fill is exactly what the wash must not replace.
+  expect(backgroundsOf(SOLID)).toEqual(allSetTo(SOLID, color.text.light));
+  for (const testID of SOLID) {
+    expect(screen.queryByTestId(`${testID}-wash`, DEEP)).toBeNull();
+  }
+});
+
+it('every control washes while the finger is still down (FR-059)', async () => {
+  await renderWith(true);
+
+  expect(backgroundsOf(GHOST)).toEqual(allSetTo(GHOST, WASH));
+
+  // The fill survives the press, or the label goes invisible against it.
+  expect(backgroundsOf(SOLID)).toEqual(allSetTo(SOLID, color.text.light));
+  expect(
+    Object.fromEntries(
+      SOLID.map((testID) => [
+        testID,
+        (
+          StyleSheet.flatten(screen.getByTestId(`${testID}-wash`, DEEP).props.style) as {
+            backgroundColor?: string;
+          }
+        ).backgroundColor,
+      ])
+    )
+  ).toEqual(allSetTo(SOLID, WASH));
+
+  for (const [testID, background] of Object.entries(backgroundsOf(INERT))) {
+    expect({ testID, background }).not.toEqual({ testID, background: WASH });
+  }
+});

@@ -45,6 +45,29 @@ export const color = {
    * does not apply to it.
    */
   scrim: { light: '#00000073', dark: '#00000099' },
+
+  /**
+   * The hover / pressed wash on any control (FR-058, FR-059).
+   *
+   * Carries alpha for the same reason the scrim does, and works the same way on
+   * both platforms: it **layers over** whatever fill the control already has
+   * rather than replacing it. That is what lets one token serve both button
+   * shapes — the ghost controls that are transparent over `background`, and the
+   * solid ones filled with `text`.
+   *
+   * A mid grey, deliberately. Its luminance sits strictly between `background`
+   * and `text` in both appearances, so it always moves the surface it lands on:
+   * a wash darker than both would disappear on a solid button in light theme,
+   * and a lighter one would disappear on a ghost button in dark theme. Asserted
+   * in `tests/contrast.test.ts` rather than trusted.
+   *
+   * Never a foreground colour, so the AA text rule does not apply to it — but
+   * it must never be the *only* signal either. Every control it lands on
+   * already carries a border or a fill at rest (FR-052), because hover does not
+   * exist on touch and a control that only becomes visible under a pointer is
+   * invisible to half the users.
+   */
+  pressed: { light: '#7A818F33', dark: '#9BA2B033' },
 } as const satisfies Record<string, ThemedColor>;
 
 export type ColorToken = keyof typeof color;

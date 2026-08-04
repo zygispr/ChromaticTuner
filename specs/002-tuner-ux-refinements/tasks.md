@@ -612,6 +612,64 @@ outstanding.
 
 ---
 
+## Post-review addition: controls now react to the pointer (2026-08-04)
+
+**FR-058 / FR-059**, added after V20's human leg reported it. Not a defect — the app met every requirement
+it had — so this is recorded as an addition rather than a fix, and the requirements were written into
+[spec.md](./spec.md) first so the code is not citing numbers that exist nowhere.
+
+**One token, `color.pressed`**, an 8-digit-hex mid grey, following the `scrim` precedent that is the only
+other token carrying alpha. It **layers over** a control's fill rather than replacing it, which is what lets
+a single token serve both button shapes the app has: ghost controls that are transparent over `background`,
+and solid ones filled with `text`.
+
+The choice of a *mid* grey is the load-bearing part and is asserted, not eyeballed: its luminance sits
+strictly between `background` and `text` in both appearances, so it always moves the surface it lands on. A
+darker wash would vanish on a solid button in light theme; a lighter one would vanish on a ghost button in
+dark theme. `packages/tokens/tests/contrast.test.ts` checks exactly that property.
+
+| Platform | Mechanism | Why |
+| --- | --- | --- |
+| Web | one global rule, `button:hover` / `button:active`, inset `box-shadow` | An inset shadow paints above the background and below the content, so it washes over whatever is there. Keying it on the element type means a new control cannot forget to opt in. |
+| Mobile, ghost | `pressed && { backgroundColor: colors.pressed }` | Transparent at rest, so there is nothing to layer over. |
+| Mobile, solid | an absolutely-filled overlay `View` | Replacing the fill would erase the button and take its `background`-coloured label with it. React Native has no inset-shadow equivalent, so the wash is its own view. |
+
+Four things worth recording:
+
+- **Hover is gated on `@media (hover: hover)`; `:active` is not.** Without the guard, tapping a control on
+  a phone leaves the wash painted on it until something else is tapped, which reads as a jammed button —
+  worse than no hover at all. Ungated `:active` is what gives touch users feedback and covers the web app
+  running on a phone, which is the same gap the mobile half closes. **The guard test was verified
+  non-vacuous** by deleting the media query and watching it fail; it is otherwise exactly the kind of test
+  that passes for the wrong reason.
+- **The mobile press state cannot be simulated under this harness, and the test says so.** React Native
+  resolves `style({ pressed })` inside `Pressable` and hands the host `View` the finished object, so the
+  tree never carries the function; RNTL exposes host components only. Driving the real responder does not
+  help either — the host carries `onResponderGrant`, not `onPressIn`, and the full grant sequence leaves
+  the internal state untouched. So the state is *supplied* by a file-local Pressable mock, following
+  `marker-rest.test.tsx`'s precedent. It proves each control's style responds to `pressed`; it does not
+  prove RN flips `pressed` on a real touch, and the test comment states that limit rather than implying
+  coverage it lacks.
+- **The two Pressables that are not controls are asserted inert.** `SettingsScreen`'s backdrop is a
+  Pressable because tapping it dismisses, and the sheet is one purely to swallow presses (US3). A blanket
+  rule would have lit the whole sheet up under any touch inside it — which is why mobile opts in per
+  control while the web can key on `<button>`.
+- **`MicrophoneToggle` needed an explicit edit despite the global web rule.** An inline `transition`
+  overrides the stylesheet's outright, so it was the one control whose wash would have snapped in while
+  every other control faded.
+
+**Screenshots** in [screenshots/](./screenshots/) — `web-hover-rest-*`, `web-hover-toggle-*` and
+`web-hover-settings-*`, light and dark, rest and hovered as a comparable pair.
+
+**73 Playwright** (+4), **430 unit** (+2), **62 mobile Jest** (+2), all eight gates green. Every new test
+was observed failing first, except the two guard tests, whose non-vacuity was established the way T040's
+was — by breaking the thing they guard and watching them fail.
+
+Still outstanding, and unchanged by this: the wash has **not been seen on the physical device**. The device
+build predates it.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase dependencies

@@ -234,6 +234,23 @@ only the sheet slides, matching web.
 - **FR-056**: The sheet itself MUST continue to slide in from the bottom edge on mobile.
 - **FR-057**: Reduced-motion preferences MUST continue to be honoured.
 
+**Pointer and touch feedback (added post-review, 2026-08-04)**
+
+Raised by V20's human leg rather than by the original spec: the tester found the reference control unaided —
+so FR-052 holds — but observed that nothing in the app reacts to the pointer. A control that is
+identifiable at rest can still feel dead when you interact with it, which is a separate property from being
+identifiable, and so gets its own requirements rather than widening FR-052.
+
+- **FR-058**: On web, every control MUST change appearance on hover, on devices that have hover. The change
+  MUST NOT apply on devices that do not, so that a tap cannot leave it stuck on.
+- **FR-059**: Every control MUST change appearance while it is being pressed and before release — on mobile,
+  and on web for pointer and touch alike.
+- The change MUST layer over a control's existing fill rather than replace it, so that both the
+  transparent and the filled control shapes keep their identity, and MUST come from the shared token set
+  (Principle IV) so the two platforms cannot drift apart.
+- This is an addition to, never a replacement for, FR-052's at-rest affordance: hover does not exist on
+  touch, so a control that only becomes identifiable under a pointer is invisible to a phone user.
+
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes

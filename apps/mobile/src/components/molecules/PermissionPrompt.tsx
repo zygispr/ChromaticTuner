@@ -41,7 +41,24 @@ export function PermissionPrompt({ onAllow }: PermissionPromptProps) {
         onPress={onAllow}
         style={[styles.button, { backgroundColor: colors.text }]}
       >
-        <Text style={[styles.buttonLabel, { color: colors.background }]}>Use the microphone</Text>
+        {({ pressed }) => (
+          <>
+            {/* Layered, not swapped (FR-059). This control is FILLED with
+                `text`, so replacing its background with the wash would erase
+                the button and take its `background`-coloured label with it.
+                The overlay is what the web achieves with an inset box-shadow;
+                React Native has no equivalent, so the wash is its own view. */}
+            {pressed && (
+              <View
+                testID="allow-microphone-wash"
+                style={[styles.wash, { backgroundColor: colors.pressed }]}
+              />
+            )}
+            <Text style={[styles.buttonLabel, { color: colors.background }]}>
+              Use the microphone
+            </Text>
+          </>
+        )}
       </Pressable>
     </View>
   );
@@ -72,6 +89,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: space.sm,
+  },
+  /** Matches the button's radius so the wash cannot square off its corners. */
+  wash: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     borderRadius: space.sm,
   },
   buttonLabel: {

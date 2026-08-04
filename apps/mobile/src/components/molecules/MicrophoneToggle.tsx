@@ -32,7 +32,13 @@ export function MicrophoneToggle({ capturing, onToggle }: MicrophoneToggleProps)
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onToggle}
-      style={[styles.button, { borderColor: colors.line }]}
+      // Feedback while the finger is down (FR-059), the mobile counterpart of
+      // the web's hover wash.
+      style={({ pressed }) => [
+        styles.button,
+        { borderColor: colors.line },
+        pressed && { backgroundColor: colors.pressed },
+      ]}
     >
       <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
     </Pressable>

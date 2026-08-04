@@ -126,7 +126,19 @@ export function StatusBanner({ status, onRetry, captureStopped = false }: Status
           onPress={onRetry}
           style={[styles.button, { backgroundColor: colors.text }]}
         >
-          <Text style={[styles.buttonLabel, { color: colors.background }]}>Try again</Text>
+          {({ pressed }) => (
+            <>
+              {/* Layered, not swapped (FR-059) — see PermissionPrompt, which
+                  carries the reasoning for the solid shape. */}
+              {pressed && (
+                <View
+                  testID="retry-button-wash"
+                  style={[styles.wash, { backgroundColor: colors.pressed }]}
+                />
+              )}
+              <Text style={[styles.buttonLabel, { color: colors.background }]}>Try again</Text>
+            </>
+          )}
         </Pressable>
       )}
     </View>
@@ -159,6 +171,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: space.sm,
+  },
+  /** Matches the button's radius so the wash cannot square off its corners. */
+  wash: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     borderRadius: space.sm,
   },
   buttonLabel: {
