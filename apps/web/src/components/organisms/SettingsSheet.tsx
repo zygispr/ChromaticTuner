@@ -131,17 +131,14 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
               // inside the box, which reads as cramped now the wash makes the
               // box visible.
               //
-              // Pulled outwards by a negative margin, because the header is
-              // `space-between` so this sits on the sheet's content edge. That
-              // lets the box grow without shoving the label inwards.
-              //
-              // Half the padding, not all of it. Cancelling the full 16px puts
-              // the box flush against the sheet's own edge, where its right
-              // corners are lost and the wash reads as bleeding off the sheet.
-              // 8px keeps the label near the edge the rest of the sheet aligns
-              // to AND leaves the wash visibly inside it.
+              // No negative margin to pull it outwards. An earlier attempt did
+              // that, to keep the LABEL on the sheet's content edge — the wrong
+              // edge to align. What a user sees is the box: this one's wash
+              // against the accidental buttons' borders and the reset button's,
+              // all of which end on that edge. Labels sit wherever their own
+              // padding puts them, exactly as the reset button's centred label
+              // does.
               padding: `0 ${space.md}px`,
-              marginRight: -space.sm,
               fontSize: `${type.labelSize}px`,
               color: themedVar('text'),
               background: 'transparent',

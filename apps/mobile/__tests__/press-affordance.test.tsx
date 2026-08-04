@@ -220,11 +220,14 @@ it('every control has rounded corners for the wash to follow (FR-058)', async ()
  * tight around roughly 40 pt of text, which reads as cramped now the wash makes
  * the box visible.
  *
- * The negative margin is the other half. The header is `space-between`, so this
- * sits on the sheet's content edge; padding alone would shove the label
- * inwards. Half the padding is cancelled rather than all of it — cancelling all
- * 16 put the box flush against the sheet's own edge on web, where its corners
- * were lost and the wash read as bleeding off the sheet.
+ * It carries **no** horizontal margin. An earlier attempt pulled the box
+ * outwards with a negative one, to keep the LABEL on the sheet's content edge —
+ * the wrong edge to align. What a user sees is the box: this one's wash against
+ * the accidental buttons' borders and the reset button's, all of which end on
+ * that edge. A negative margin puts this control 8 px past all of them.
+ *
+ * RNTL cannot measure layout, so the web spec asserts the resulting edges and
+ * this asserts the style that produces them.
  */
 it('the Done control is padded like the other compact control (FR-058)', async () => {
   await renderWith(false);
@@ -232,6 +235,7 @@ it('the Done control is padded like the other compact control (FR-058)', async (
   const done = StyleSheet.flatten(screen.getByTestId('settings-close', DEEP).props.style) as {
     paddingHorizontal?: number;
     marginRight?: number;
+    marginHorizontal?: number;
   };
   const badge = StyleSheet.flatten(screen.getByTestId('reference-badge', DEEP).props.style) as {
     paddingHorizontal?: number;
@@ -239,7 +243,10 @@ it('the Done control is padded like the other compact control (FR-058)', async (
 
   expect(done.paddingHorizontal).toBe(badge.paddingHorizontal);
   expect(done.paddingHorizontal).toBe(space.md);
-  expect(done.marginRight).toBe(-space.sm);
+
+  // Nothing may shift the box off the edge the controls below it share.
+  expect(done.marginRight ?? 0).toBe(0);
+  expect(done.marginHorizontal ?? 0).toBe(0);
 });
 
 it('no control carries the wash at rest (FR-058, FR-059)', async () => {

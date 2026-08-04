@@ -707,11 +707,21 @@ Three things this turned up, none of which were visible from the report:
   sits on the content edge that "466" and the reset button align to; padding pushes the label inwards off
   it. A negative margin pulls the box back out so the hit area and wash grow while the label stays. Both
   halves are asserted, because fixing the first by breaking the second is the obvious wrong answer.
-- **Cancelling the *full* padding was also wrong, and only a screenshot showed it.** `-space.md` aligned the
-  label perfectly and put the box flush against the sheet's own edge, where its right corners were lost and
-  the wash read as bleeding off the sheet. `-space.sm` — half — keeps the label near the edge *and* the wash
-  visibly inside it. Every test passed at the flush setting; **looking at it is what caught it**, which is
-  the third time this feature has learned that lesson.
+- **The negative margin was wrong twice, and the second time was the interesting one.** At `-space.md` the
+  box sat flush against the sheet's own edge, losing its right corners so the wash read as bleeding off —
+  caught by a screenshot, with every test green. At `-space.sm` it still ended **8 px past** the reset and
+  accidental buttons, which is what got reported next.
+
+  The mistake underneath both was **aligning the wrong edge**. The margin existed to keep the *label* on
+  the sheet's content edge. But what a user sees is the **box** — this control's wash against the accidental
+  buttons' borders and the reset button's — and nobody expects the reset button's centred label to touch
+  that edge either. Labels sit wherever their padding puts them; boxes are what line up. Removing the margin
+  entirely put all three on one right edge, and simplified the code rather than adding to it.
+
+  The test moved with the reasoning: it asserted the *label* stayed within 8 px of the content edge, which
+  is exactly the property that had to be abandoned. It now asserts `settings-close`'s right edge equals both
+  `settings-reset`'s and `accidental-flat`'s. **A test written around a wrong intent will defend that
+  intent** — this one would have failed the correct fix.
 
 **75 Playwright** (+1), **64 mobile Jest** (+1), 430 unit, all eight gates green. `web-hover-done-*` and
 `web-hover-settings-*` re-captured in both appearances.

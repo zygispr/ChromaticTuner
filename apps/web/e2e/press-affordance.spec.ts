@@ -98,19 +98,23 @@ test('every control has rounded corners for the wash to follow (FR-058)', async 
 });
 
 /**
- * "Done" is comfortably larger than its own label, without moving that label.
+ * "Done" is comfortably larger than its label, and its box lines up with the
+ * controls below it.
  *
- * Reported after the wash and the radius landed: the control still read as
- * cramped, the word only just fitting inside it. It had no horizontal padding
- * at all — 44 px of touch target around roughly 40 px of text.
+ * Reported in two passes. First: the control read as cramped, the word only
+ * just fitting — it had no horizontal padding at all, 44 px of touch target
+ * around roughly 40 px of text.
  *
- * The catch is that the sheet's header is `space-between`, so the control sits
- * on the sheet's content edge, the same edge "466" and the reset button align
- * to. Padding alone would have pushed the word inwards and broken that
- * alignment, so the padding is cancelled by an equal negative margin: the hit
- * area and the wash grow outwards, the label does not move. Both halves are
- * asserted, because fixing the first by breaking the second is the obvious way
- * to get this wrong.
+ * Then, after padding was added: its right edge no longer matched the buttons
+ * below. The first attempt had pulled the box outwards with a negative margin,
+ * on the theory that the *label* should stay on the sheet's content edge. That
+ * was the wrong edge to align. What a user sees is the **box** — the border on
+ * the accidental buttons, the wash on any of them — and nobody expects the
+ * reset button's centred label to touch the content edge either. Labels are
+ * inset by their own padding; boxes are what line up.
+ *
+ * So the box edges are asserted against each other, and the label is left
+ * wherever its padding puts it.
  */
 test('the Done control is padded without leaving the content edge (FR-058)', async ({ page }) => {
   await page.goto('/');
@@ -124,13 +128,15 @@ test('the Done control is padded without leaving the content edge (FR-058)', asy
     const style = getComputedStyle(done);
     const box = done.getBoundingClientRect();
 
+    const flats = document.querySelector('[data-testid="accidental-flat"]')!;
+
     return {
       width: Math.round(box.width),
       paddingLeft: parseFloat(style.paddingLeft),
       paddingRight: parseFloat(style.paddingRight),
-      // Where the label actually ends, not where the box does.
-      labelRight: Math.round(box.right - parseFloat(style.paddingRight)),
-      contentRight: Math.round(reset.getBoundingClientRect().right),
+      doneRight: Math.round(box.right),
+      resetRight: Math.round(reset.getBoundingClientRect().right),
+      flatsRight: Math.round(flats.getBoundingClientRect().right),
       badgePadding: parseFloat(
         getComputedStyle(document.querySelector('[data-testid="reference-badge"]')!).paddingLeft
       ),
@@ -152,12 +158,14 @@ test('the Done control is padded without leaving the content edge (FR-058)', asy
     'Done is not comfortably wider than the bare touch target'
   ).toBeGreaterThanOrEqual(60);
 
-  // The label must not drift inwards as the box grows. Padding alone would put
-  // it a full 16px inside the edge; the negative margin is what keeps it here.
-  expect(
-    Math.abs(measured.labelRight - measured.contentRight),
-    'Done left the content edge the rest of the sheet aligns to'
-  ).toBeLessThanOrEqual(8);
+  // The box edges, not the label edges. Every control in the sheet ends on the
+  // same right edge, so the wash and the borders form one column.
+  expect(measured.doneRight, "Done's right edge does not match the reset button").toBe(
+    measured.resetRight
+  );
+  expect(measured.doneRight, "Done's right edge does not match the accidental buttons").toBe(
+    measured.flatsRight
+  );
 });
 
 /**

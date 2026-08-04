@@ -306,13 +306,11 @@ const styles = StyleSheet.create({
     // compact control. Without it the word only just fits inside the box, which
     // reads as cramped now the wash makes the box visible.
     //
-    // Half of it is pulled back out, because the header is `space-between` so
-    // this sits on the sheet's content edge and padding alone would shove the
-    // label inwards. Half rather than all: cancelling the full 16 puts the box
-    // flush against the sheet's own edge, where its corners are lost and the
-    // wash reads as bleeding off the sheet.
+    // No negative margin to pull it outwards. An earlier attempt did that, to
+    // keep the LABEL on the sheet's content edge — the wrong edge to align.
+    // What a user sees is the box: this one's wash against the accidental
+    // buttons' borders and the reset button's, all of which end on that edge.
     paddingHorizontal: space.md,
-    marginRight: -space.sm,
     alignItems: 'flex-end',
     justifyContent: 'center',
     // Matches every other control's radius. Borderless, so this went unnoticed
