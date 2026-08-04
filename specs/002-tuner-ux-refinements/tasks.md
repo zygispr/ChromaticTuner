@@ -430,15 +430,17 @@ slide is off; it cannot prove the result looks right, which is the whole complai
 - [X] T045 Run the full gate suite and record the counts in this file — all eight must be green
 - [X] T046 [P] Confirm `packages/core` coverage has not regressed below the 90% line / 90% function / 85% branch thresholds, and record the numbers
 - [X] T047 [P] Run the complete Axe sweep across every new and changed control state in `apps/web/e2e/a11y.spec.ts` (V20)
-- [X] T048 [P] Capture light and dark screenshots of both apps — required by this repo for any UI change, and this feature is entirely UI — **partial: web only**, in [screenshots/](./screenshots/), reviewed by eye and it **found a defect the whole suite missed** (see below). The mobile half needs the device
+- [X] T048 [P] Capture light and dark screenshots of both apps — required by this repo for any UI change, and this feature is entirely UI — **web only**, in [screenshots/](./screenshots/), reviewed by eye and it **found a defect the whole suite missed** (see below). The mobile half was **deliberately skipped** at the 2026-08-04 device run: `libimobiledevice`'s `screenshotr` cannot reach iOS 26.6 (developer services moved behind the RemoteXPC tunnel), so capture would have been hand-held rather than scripted, and the visual behaviour it would have evidenced was confirmed directly instead (T051)
 - [X] T049 Confirm cold start to first reading is still within the 2-second budget (FR-026, SC-022) — US1 adds a control to the first screen the user sees
-- [ ] T050 Run quickstart **V14** and **V15** on a physical device, including the OS recording-indicator check, which cannot be verified in a browser — **NOT RUN: no device connected for this run**
-- [ ] T051 Run quickstart **V21** on a physical device and record a screen capture, since the defect is an animation and an assertion on props does not prove it looks right — **NOT RUN: device only, and the one item where an assertion genuinely cannot substitute for looking**
-- [ ] T052 Run quickstart **V20**'s human leg — someone who has not used the app is asked to change the reference pitch (SC-020) — and record the outcome either way — **NOT RUN: needs a person who has not seen the app**
+- [X] T050 Run quickstart **V14** and **V15** on a physical device, including the OS recording-indicator check, which cannot be verified in a browser — **PASSED on iPhone 15 / iOS 26.6, 2026-08-04**
+- [X] T051 Run quickstart **V21** on a physical device and record a screen capture, since the defect is an animation and an assertion on props does not prove it looks right — **PASSED on iPhone 15 / iOS 26.6, including the reduced-motion leg**
+- [X] T052 Run quickstart **V20**'s human leg — someone who has not used the app is asked to change the reference pitch (SC-020) — and record the outcome either way — **PASSED: found it quite easily, with one finding recorded below**
 - [X] T053 Record V14–V21 results in a `validation-results.md` for this feature, following `001`'s format, naming the device used and stating clearly what was not verified
 - [X] T054 Update the root `README.md` if the microphone control changes the described first-run experience — **no change needed**: the README is developer-facing (setup, gates, layout, testing) and never described the first-run UX or the old one-shot button
 
-**Checkpoint**: ⚠️ **AUTOMATED WORK COMPLETE; THREE MANUAL GATES OUTSTANDING (2026-08-03)**.
+**Checkpoint**: ✅ **PHASE 8 COMPLETE (automated 2026-08-03; manual gates 2026-08-04)**. The three
+outstanding manual gates were run on hardware and with a person — results in
+[the device-run section](#the-device-and-human-run-2026-08-04) below.
 
 **428 unit** (+14 over the feature), **60 mobile Jest** (+15), **65 Playwright** (+19). All eight gates
 green. `packages/core` coverage **100% lines** / 94.81% branches. Cold start **875 ms** against a 2000 ms
@@ -469,18 +471,48 @@ Worth correcting the earlier phases' framing: `performance.spec.ts` asserts **p5
 **p95 ≤ 33.4 ms** only. `max` is printed for diagnosis and ranged 9.5–25.1 ms across runs of identical
 code. p50 and p95 are unchanged across the entire feature.
 
-### What is left, and why
+### The device and human run (2026-08-04)
 
-Three tasks cannot be done from here, and none is blocked by the code:
+The three gates that could not be run on 2026-08-03 were run here. **All three pass.**
 
-- **T050** (V14/V15 on device) — the OS recording indicator is the user-facing point of US1 and no browser
-  can show it.
-- **T051** (V21 on device) — the mobile backdrop animation. The only item in this feature where an
-  assertion genuinely cannot substitute for looking, which is precisely what the screenshot lesson above
-  is about.
-- **T052** (V20 human leg) — whether someone who has not seen the app finds the reference control.
+**Device**: Žygimanto iPhone 15, iOS 26.6. Debug development build via
+`expo run:ios --device 00008120-000C313C212A601E --configuration Debug` — 0 errors, JS bundle served by
+Metro (`iOS Bundled 3732 ms, 1279 modules`). A dev build is mandatory and Expo Go cannot substitute:
+`react-native-audio-api`, `react-native-reanimated`, `expo-keep-awake` and `expo-dev-client` are all
+native and absent from it.
 
-T048 is marked done for the web half only; the mobile screenshots need the device too.
+| Task | Scenario | Result |
+| --- | --- | --- |
+| T050 | **V14** — stop/restart, incl. the OS recording indicator | ✅ pass, observed on hardware |
+| T050 | **V15** — a stop survives backgrounding | ✅ pass, real iOS suspension |
+| T051 | **V21** — the backdrop does not slide, **and** reduced motion | ✅ pass, **both legs** |
+| T052 | **V20** — the human leg (SC-020) | ✅ pass — found "quite easily" |
+
+Three things worth recording:
+
+- **V14's recording-indicator leg is the one that mattered**, and it is now actually verified rather than
+  inferred. Every automated US1 test asserts that `stop()` releases the audio source; none of them can see
+  whether the *operating system* stops advertising the app as listening, which is the user-facing point of
+  the whole story.
+- **V21 passed on both legs, including reduced motion.** That matters more than the main leg: FR-057 wants
+  the animation *dropped entirely*, not shortened, and the async-`isReduceMotionEnabled` defect found in
+  Phase 7 was exactly a one-frame window where it animated anyway. The device run confirms the `null`-state
+  fix holds against a real OS preference rather than a mocked one.
+- **T052 produced a finding beyond its own pass**, recorded below. This is the value of the human leg: it
+  answers the question it was asked and then tells you something you did not think to ask.
+
+### V20's finding: no hover affordance anywhere on web
+
+The tester found the reference-pitch control quite easily — SC-020 passes — but noted that **no button in
+the web app changes colour on hover**, and volunteered that the change "doesn't have to be dramatic".
+
+Recorded rather than acted on, deliberately. It is a real observation and it is **outside 002's scope**:
+FR-052–FR-054 are about the control being *identifiable as interactive at rest*, which is what the border
+and the removed opacity multiplier deliver and what Axe measures. A hover state is a different affordance,
+it applies to every control rather than the reference badge, and it has no mobile counterpart — so it is
+new work with its own web/mobile asymmetry, not a loose end of this feature.
+
+It is also **not** on the `001` out-of-scope list, so nothing forbids it. Candidate for the next feature.
 
 ---
 

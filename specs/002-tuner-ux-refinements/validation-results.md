@@ -1,10 +1,16 @@
 # Validation Results: Tuner UX Refinements
 
-**Date**: 2026-08-03 · **Against**: [quickstart.md](./quickstart.md) V14–V21 · **Task**: T053
+**Date**: 2026-08-03, **device and human legs 2026-08-04** · **Against**: [quickstart.md](./quickstart.md)
+V14–V21 · **Task**: T053
 
 Run on a development Mac (Apple silicon, macOS 15.5), Node 24.14.0, pnpm 11.18.0, headless Chromium via
-Playwright. **No physical phone was connected for this run**, so every scenario the quickstart marks "on
-device" is recorded below as outstanding rather than passed — see [Not verified](#not-verified).
+Playwright.
+
+**The 2026-08-04 addendum closes every on-device and human gate.** Hardware: Žygimanto iPhone 15, iOS 26.6,
+Debug development build (`expo run:ios --configuration Debug`, 0 errors, 1279-module bundle served by
+Metro). Expo Go cannot substitute — `react-native-audio-api`, `react-native-reanimated`, `expo-keep-awake`
+and `expo-dev-client` are native and absent from it. See [Not verified](#not-verified) for what genuinely
+remains.
 
 `001`'s V1–V13 all remain in force and were re-run as part of the gate suite.
 
@@ -14,7 +20,7 @@ device" is recorded below as outstanding rather than passed — see [Not verifie
 | --- | --- |
 | Unit (`pnpm test`) | **428 passed**, 18 files |
 | Mobile (`jest-expo`) | **60 passed**, 8 files |
-| End-to-end (`pnpm test:e2e`) | **65 passed** |
+| End-to-end (`pnpm test:e2e`) | **69 passed** (65 at the 2026-08-03 run; +2 layout stability, +2 Safari sheet-height) |
 | `packages/core` coverage | **100% lines**, 98.49% statements, 94.81% branches, 97.26% functions |
 | Eight quality gates | all green |
 
@@ -26,14 +32,14 @@ Growth over the feature: **+14 unit**, **+15 mobile**, **+19 end-to-end**.
 
 | # | Scenario | Status | Evidence |
 | --- | --- | --- | --- |
-| V14 | Microphone stop and restart | ⚠️ partial | Automated in `microphone-toggle.spec.ts` and `microphone-toggle.test.tsx`: capture stops, the audio source is released, restart resumes with no reload, the accessible name changes between states. **The OS recording-indicator leg was not run** — it needs a device. |
-| V15 | A stop survives backgrounding | ⚠️ partial | Automated on both platforms driving the **real** lifecycle event — `visibilitychange` on web, `AppState` on mobile — not a mocked flag. On-device leg not run. |
+| V14 | Microphone stop and restart | ✅ pass | Automated in `microphone-toggle.spec.ts` and `microphone-toggle.test.tsx`: capture stops, the audio source is released, restart resumes with no reload, the accessible name changes between states. **The OS recording indicator was confirmed on an iPhone 15 (2026-08-04)** — it clears on stop and returns on restart. |
+| V15 | A stop survives backgrounding | ✅ pass | Automated on both platforms driving the **real** lifecycle event — `visibilitychange` on web, `AppState` on mobile — not a mocked flag. **Confirmed on device against real iOS suspension (2026-08-04)**: the tuner does not resume on its own. |
 | V16 | The permission flow is unchanged | ✅ pass | `permissions.spec.ts` and `permissions.test.tsx` unchanged and green; the explainer still precedes the platform prompt, and every failure state still offers recovery. |
 | V17 | The marker rests when the signal dies | ✅ pass | `marker-rest.spec.ts` measures real bounding boxes and asserts the marker returns to its **startup coordinate** within 0.5 px. `session.test.ts` proves the lapse fires exactly once, on the edge. |
 | V18 | Sustained tones and brief dropouts | ✅ pass | A tone held past `holdMs` never lapses; a dropout shorter than `holdMs` never lapses. Both paired with the positive so neither passes vacuously. |
 | V19 | The sheet dismisses only when meant | ✅ pass | Press-inside-release-outside and press-outside-release-inside both keep the sheet open; backdrop press, Done and Escape all still dismiss. Mobile backdrop press closes. See the pointer-capture note below. |
-| V20 | The reference control reads as a control | ⚠️ partial | Axe clean in light and dark at 440 and at a non-standard value; composited border ≥ 3:1, text ≥ 4.5:1, opacity exactly 1; the control survives simulated achromatopsia; the non-standard state stays louder on two channels. **The human leg (SC-020) was not run.** |
-| V21 | The mobile backdrop does not slide | ❌ **not run** | Device only. `animationType` is asserted to be `none` and the sheet's own animation is asserted to exist, but that proves the platform slide is off — not that the result looks right, which is the entire complaint. |
+| V20 | The reference control reads as a control | ✅ pass | Axe clean in light and dark at 440 and at a non-standard value; composited border ≥ 3:1, text ≥ 4.5:1, opacity exactly 1; the control survives simulated achromatopsia; the non-standard state stays louder on two channels. **Human leg run 2026-08-04**: a tester who had not seen the app found the control **"quite easily"** — SC-020 passes. One finding beyond the scenario, recorded below. |
+| V21 | The mobile backdrop does not slide | ✅ pass | **Confirmed on an iPhone 15, 2026-08-04, on both legs**: the dim reaches full extent immediately with only the sheet sliding, and with OS Reduce Motion enabled the sheet appears with **no animation at all** (FR-057 wants it dropped, not shortened). The automated half asserts `animationType="none"` and that the sheet carries its own animation; that could only ever prove the platform slide is off, not that the result looks right. |
 
 **Regression gates from `001`**: V4 (zero allocation) extended to cover live→lapse→live transitions and
 still passes; V5 (marker measured in pixels) green; V7/V8 reported below; V11 (Axe) green with six new
@@ -114,16 +120,37 @@ not.
 
 ## Not verified
 
-Everything here needs hardware or a person this run did not have. None of it is blocked by the code.
+The four gaps that needed hardware or a person were **closed on 2026-08-04** and are struck through below.
+What remains is genuinely outstanding.
 
-| Gap | Scenario | Why it matters |
+| Gap | Scenario | Status |
 | --- | --- | --- |
-| OS recording indicator clears on stop | V14, T050 | The user-facing point of US1 is that the platform stops showing the app as listening. A browser cannot demonstrate it. |
-| Stop survives backgrounding, on device | V15, T050 | The automated tests drive the real lifecycle events, but iOS suspension is not the same as a `visibilitychange`. |
-| The mobile backdrop no longer sweeps | V21, T051 | The only item where an assertion genuinely cannot substitute for looking. The complaint was about how it looks. |
-| An unfamiliar user finds the reference control | V20, SC-020, T052 | A human judgement. The mechanical preconditions — visible border, AA contrast, survives greyscale — are automated. |
-| Light and dark screenshots, mobile | T048 | The web half is captured in [screenshots/](./screenshots/) and was reviewed by eye; the mobile half needs the device. |
-| VoiceOver and TalkBack over the new controls | — | Axe cannot judge whether the microphone toggle's changing accessible name is *useful*, only that it is well-formed. |
+| ~~OS recording indicator clears on stop~~ | V14, T050 | ✅ **closed** — confirmed on an iPhone 15, iOS 26.6. |
+| ~~Stop survives backgrounding, on device~~ | V15, T050 | ✅ **closed** — real iOS suspension, not a `visibilitychange`. |
+| ~~The mobile backdrop no longer sweeps~~ | V21, T051 | ✅ **closed** — both legs, including OS Reduce Motion. |
+| ~~An unfamiliar user finds the reference control~~ | V20, SC-020, T052 | ✅ **closed** — found "quite easily". |
+| **Light and dark screenshots, mobile** | T048 | ❌ **still open, deliberately.** The web half is in [screenshots/](./screenshots/) and was reviewed by eye. Scripted capture is not available on iOS 26.6: `libimobiledevice`'s `screenshotr` reports `Invalid service` because the developer services moved behind the RemoteXPC tunnel, and the tool that does reach it (`pymobiledevice3`) needs root. Hand-held capture was declined in favour of confirming the behaviour directly (T051). |
+| **VoiceOver and TalkBack over the new controls** | — | ❌ **still open.** Axe cannot judge whether the microphone toggle's changing accessible name is *useful*, only that it is well-formed. |
+| **Safari confirmation of the sheet-height fix** | — | ❌ **still open.** Diagnosed by pixel measurement and fixed by removing the fieldset layout path; no engine in the suite reproduces the bug, so it has not been watched not-happening in real Safari. Needs *Allow remote automation* and `safaridriver`. |
+| **Android, everything** | — | ❌ **still open.** No Android project or SDK in this environment, carried from `001`. |
 
 Carried forward unchanged from `001`: on-device V7/V8, mobile airplane mode, V13 on mid-range hardware, and
-the Android build.
+the Android build. Note that V13's thermal leg needs a **Release** build; the 2026-08-04 run used Debug,
+which is correct for behavioural and visual checks and wrong for performance ones.
+
+---
+
+## V20's finding: no hover affordance anywhere on web
+
+The tester found the reference-pitch control quite easily, so SC-020 passes on its own terms. They then
+volunteered something the scenario did not ask about: **no button in the web app changes colour on hover**,
+and the change "doesn't have to be dramatic".
+
+Recorded rather than acted on. FR-052–FR-054 are about the control being identifiable as interactive **at
+rest** — which is what the border and the removed opacity multiplier deliver, and what Axe measures. A hover
+state is a different affordance, it applies to every control rather than to the reference badge, and it has
+no mobile counterpart, so it is new work with its own asymmetry rather than a loose end of this feature. It
+is not on `001`'s out-of-scope list, so nothing forbids it.
+
+This is the argument for keeping the human leg. It answered its own question and then reported something no
+automated check was looking for — the same shape as the screenshot finding above, from a different direction.
