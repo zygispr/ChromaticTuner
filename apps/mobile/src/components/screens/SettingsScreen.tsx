@@ -302,6 +302,17 @@ const styles = StyleSheet.create({
   closeButton: {
     minWidth: a11y.minTouchTarget,
     minHeight: a11y.minTouchTarget,
+    // The same horizontal padding the reference badge uses — the app's other
+    // compact control. Without it the word only just fits inside the box, which
+    // reads as cramped now the wash makes the box visible.
+    //
+    // Half of it is pulled back out, because the header is `space-between` so
+    // this sits on the sheet's content edge and padding alone would shove the
+    // label inwards. Half rather than all: cancelling the full 16 puts the box
+    // flush against the sheet's own edge, where its corners are lost and the
+    // wash reads as bleeding off the sheet.
+    paddingHorizontal: space.md,
+    marginRight: -space.sm,
     alignItems: 'flex-end',
     justifyContent: 'center',
     // Matches every other control's radius. Borderless, so this went unnoticed

@@ -688,6 +688,34 @@ and the first thing that fell out was a shape inconsistency that had been shippi
 **74 Playwright** (+1), **63 mobile Jest** (+1), 430 unit, all eight gates green. `web-hover-done-*`
 captured in [screenshots/](./screenshots/) for both appearances.
 
+### Follow-up, second pass: "Done" was also too tight around its label (2026-08-04)
+
+Reported from the device once the radius landed: the control still looked too small, the word only just
+fitting. It had **no horizontal padding at all** — a 44 px touch target wrapped tight around ~40 px of text,
+measured at **50 px** wide against the reference badge's 113. Fixed with `space.md` horizontal padding, the
+value `ReferenceBadge` — the app's other compact control — already uses. Now 72 px.
+
+Three things this turned up, none of which were visible from the report:
+
+- **`> 0` would have passed on the broken control.** Chromium gives `<button>` a **6 px UA default**
+  padding, so the first draft of the test asserted "has some padding" and was green against the very
+  control being fixed. The assertion now matches `ReferenceBadge`'s measured padding, which is both
+  non-arbitrary and actually red beforehand. This is the same trap as `001`'s
+  `expect(transform).not.toBe('none')`, in a new costume: **a threshold chosen without measuring the broken
+  state first is not a test.**
+- **Padding alone would have broken the sheet's alignment.** The header is `space-between`, so the control
+  sits on the content edge that "466" and the reset button align to; padding pushes the label inwards off
+  it. A negative margin pulls the box back out so the hit area and wash grow while the label stays. Both
+  halves are asserted, because fixing the first by breaking the second is the obvious wrong answer.
+- **Cancelling the *full* padding was also wrong, and only a screenshot showed it.** `-space.md` aligned the
+  label perfectly and put the box flush against the sheet's own edge, where its right corners were lost and
+  the wash read as bleeding off the sheet. `-space.sm` — half — keeps the label near the edge *and* the wash
+  visibly inside it. Every test passed at the flush setting; **looking at it is what caught it**, which is
+  the third time this feature has learned that lesson.
+
+**75 Playwright** (+1), **64 mobile Jest** (+1), 430 unit, all eight gates green. `web-hover-done-*` and
+`web-hover-settings-*` re-captured in both appearances.
+
 ---
 
 ## Dependencies & Execution Order

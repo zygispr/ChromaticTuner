@@ -126,6 +126,22 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
             style={{
               minWidth: a11y.minTouchTarget,
               minHeight: a11y.minTouchTarget,
+              // The same horizontal padding ReferenceBadge uses — the app's
+              // other compact control. Without it the word only just fits
+              // inside the box, which reads as cramped now the wash makes the
+              // box visible.
+              //
+              // Pulled outwards by a negative margin, because the header is
+              // `space-between` so this sits on the sheet's content edge. That
+              // lets the box grow without shoving the label inwards.
+              //
+              // Half the padding, not all of it. Cancelling the full 16px puts
+              // the box flush against the sheet's own edge, where its right
+              // corners are lost and the wash reads as bleeding off the sheet.
+              // 8px keeps the label near the edge the rest of the sheet aligns
+              // to AND leaves the wash visibly inside it.
+              padding: `0 ${space.md}px`,
+              marginRight: -space.sm,
               fontSize: `${type.labelSize}px`,
               color: themedVar('text'),
               background: 'transparent',

@@ -212,6 +212,36 @@ it('every control has rounded corners for the wash to follow (FR-058)', async ()
   expect(radii).toEqual(allSetTo([...GHOST, ...SOLID], space.sm));
 });
 
+/**
+ * "Done" is padded like the app's other compact control, and pulled outwards.
+ *
+ * Reported from the device: the control looked too small and the word barely
+ * fitted. It had no horizontal padding at all — a 44 pt touch target wrapped
+ * tight around roughly 40 pt of text, which reads as cramped now the wash makes
+ * the box visible.
+ *
+ * The negative margin is the other half. The header is `space-between`, so this
+ * sits on the sheet's content edge; padding alone would shove the label
+ * inwards. Half the padding is cancelled rather than all of it — cancelling all
+ * 16 put the box flush against the sheet's own edge on web, where its corners
+ * were lost and the wash read as bleeding off the sheet.
+ */
+it('the Done control is padded like the other compact control (FR-058)', async () => {
+  await renderWith(false);
+
+  const done = StyleSheet.flatten(screen.getByTestId('settings-close', DEEP).props.style) as {
+    paddingHorizontal?: number;
+    marginRight?: number;
+  };
+  const badge = StyleSheet.flatten(screen.getByTestId('reference-badge', DEEP).props.style) as {
+    paddingHorizontal?: number;
+  };
+
+  expect(done.paddingHorizontal).toBe(badge.paddingHorizontal);
+  expect(done.paddingHorizontal).toBe(space.md);
+  expect(done.marginRight).toBe(-space.sm);
+});
+
 it('no control carries the wash at rest (FR-058, FR-059)', async () => {
   await renderWith(false);
 

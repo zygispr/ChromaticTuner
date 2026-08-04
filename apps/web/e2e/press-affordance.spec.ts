@@ -98,6 +98,69 @@ test('every control has rounded corners for the wash to follow (FR-058)', async 
 });
 
 /**
+ * "Done" is comfortably larger than its own label, without moving that label.
+ *
+ * Reported after the wash and the radius landed: the control still read as
+ * cramped, the word only just fitting inside it. It had no horizontal padding
+ * at all — 44 px of touch target around roughly 40 px of text.
+ *
+ * The catch is that the sheet's header is `space-between`, so the control sits
+ * on the sheet's content edge, the same edge "466" and the reset button align
+ * to. Padding alone would have pushed the word inwards and broken that
+ * alignment, so the padding is cancelled by an equal negative margin: the hit
+ * area and the wash grow outwards, the label does not move. Both halves are
+ * asserted, because fixing the first by breaking the second is the obvious way
+ * to get this wrong.
+ */
+test('the Done control is padded without leaving the content edge (FR-058)', async ({ page }) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+  await page.getByTestId('reference-badge').click();
+  await expect(page.getByTestId('settings-sheet')).toBeVisible();
+
+  const measured = await page.evaluate(() => {
+    const done = document.querySelector('[data-testid="settings-close"]')!;
+    const reset = document.querySelector('[data-testid="settings-reset"]')!;
+    const style = getComputedStyle(done);
+    const box = done.getBoundingClientRect();
+
+    return {
+      width: Math.round(box.width),
+      paddingLeft: parseFloat(style.paddingLeft),
+      paddingRight: parseFloat(style.paddingRight),
+      // Where the label actually ends, not where the box does.
+      labelRight: Math.round(box.right - parseFloat(style.paddingRight)),
+      contentRight: Math.round(reset.getBoundingClientRect().right),
+      badgePadding: parseFloat(
+        getComputedStyle(document.querySelector('[data-testid="reference-badge"]')!).paddingLeft
+      ),
+    };
+  });
+
+  // Matched against ReferenceBadge rather than a number picked by eye: that is
+  // the app's other compact control, and 16px is the padding it already uses.
+  // Before the fix Done had 6px — Chromium's UA default for <button>, which is
+  // why "no padding at all" still measured as non-zero and why an assertion of
+  // `> 0` would have passed on the broken control.
+  expect(measured.paddingLeft, 'Done is not padded like the other compact control').toBe(
+    measured.badgePadding
+  );
+  expect(measured.paddingRight).toBe(measured.paddingLeft);
+
+  expect(
+    measured.width,
+    'Done is not comfortably wider than the bare touch target'
+  ).toBeGreaterThanOrEqual(60);
+
+  // The label must not drift inwards as the box grows. Padding alone would put
+  // it a full 16px inside the edge; the negative margin is what keeps it here.
+  expect(
+    Math.abs(measured.labelRight - measured.contentRight),
+    'Done left the content edge the rest of the sheet aligns to'
+  ).toBeLessThanOrEqual(8);
+});
+
+/**
  * The touch half of the same requirement (FR-059).
  *
  * The web app runs on phones too, so "hover" alone would leave every touch user
