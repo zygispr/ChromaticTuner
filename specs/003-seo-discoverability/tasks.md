@@ -321,26 +321,126 @@ without scrolling on the smallest supported screen.
 
 ### Tests (write first, observe failing)
 
-- [ ] T015 [P] [US1] Extend `apps/web/e2e/no-script.spec.ts` to assert the `<h1>` text, the meta description, and every section heading and body are visible with `javaScriptEnabled: false` (P1, FR-060) — fails until T023
-- [ ] T016 [P] [US1] Add a raw-bytes assertion to `apps/web/e2e/no-script.spec.ts` (or a sibling node check) that reads the served HTML as text and finds the same strings — **this is the half that actually tests P1's "before any script executes"**; the Playwright half only proves a browser displays it
-- [ ] T017 [P] [US1] Extend `apps/web/e2e/fold.spec.ts` to measure, at the smallest supported viewport, that every tuning-display element and control has a bounding box entirely within the first viewport height with `scrollY === 0` (FR-066, SC-029) — measure **geometry, not DOM order**, using the bounding-box discipline of `apps/web/e2e/helpers.ts`
-- [ ] T018 [P] [US1] Add a fold-growth check to `apps/web/e2e/fold.spec.ts` and demonstrate it: temporarily inject a paragraph large enough to encroach, confirm the gate fails, remove it, record the observation here (FR-087, SC-032)
-- [ ] T019 [P] [US1] Add a scroll-restoration test to `apps/web/e2e/fold.spec.ts`: scroll to the content, reload, assert `scrollY === 0` (FR-067) — fails until T011 lands, and would silently regress without this
-- [ ] T020 [P] [US1] Add build-output assertions for `dist/robots.txt` and `dist/sitemap.xml` — sitemap lists the canonical URL and no other, robots names the sitemap's absolute URL, and a build with a non-canonical `VITE_SITE_URL` emits a disallow-all robots (P12, FR-072/073/076)
-- [ ] T021 [P] [US1] Assert neither `robots.txt` nor `sitemap.xml` appears in the precache manifest inside `dist/sw.js` (P12a) — **fails on the naive implementation**: plugin-emitted files land in Rollup's bundle object and the existing manifest derivation sweeps them in automatically
-- [ ] T022 [P] [US1] Extend `apps/web/e2e/metadata.spec.ts` to assert `<link rel="canonical">` is absolute, resolved, and **contains no `%` character** (P5) — a non-empty check passes on the unreplaced literal
+- [X] T015 [P] [US1] Extend `apps/web/e2e/no-script.spec.ts` to assert the `<h1>` text, the meta description, and every section heading and body are visible with `javaScriptEnabled: false` (P1, FR-060) — fails until T023
+- [X] T016 [P] [US1] Add a raw-bytes assertion to `apps/web/e2e/no-script.spec.ts` (or a sibling node check) that reads the served HTML as text and finds the same strings — **this is the half that actually tests P1's "before any script executes"**; the Playwright half only proves a browser displays it
+- [X] T017 [P] [US1] Extend `apps/web/e2e/fold.spec.ts` to measure, at the smallest supported viewport, that every tuning-display element and control has a bounding box entirely within the first viewport height with `scrollY === 0` (FR-066, SC-029) — measure **geometry, not DOM order**, using the bounding-box discipline of `apps/web/e2e/helpers.ts`
+- [X] T018 [P] [US1] Add a fold-growth check to `apps/web/e2e/fold.spec.ts` and demonstrate it: temporarily inject a paragraph large enough to encroach, confirm the gate fails, remove it, record the observation here (FR-087, SC-032)
+- [X] T019 [P] [US1] **Already done in Phase 2** — its implementation (T011) landed there, so the test was written alongside it. Add a scroll-restoration test to `apps/web/e2e/fold.spec.ts`: scroll to the content, reload, assert `scrollY === 0` (FR-067) — fails until T011 lands, and would silently regress without this
+- [X] T020 [P] [US1] Add build-output assertions for `dist/robots.txt` and `dist/sitemap.xml` — sitemap lists the canonical URL and no other, robots names the sitemap's absolute URL, and a build with a non-canonical `VITE_SITE_URL` emits a disallow-all robots (P12, FR-072/073/076)
+- [X] T021 [P] [US1] Assert neither `robots.txt` nor `sitemap.xml` appears in the precache manifest inside `dist/sw.js` (P12a) — **fails on the naive implementation**: plugin-emitted files land in Rollup's bundle object and the existing manifest derivation sweeps them in automatically
+- [X] T022 [P] [US1] Extend `apps/web/e2e/metadata.spec.ts` to assert `<link rel="canonical">` is absolute, resolved, and **contains no `%` character** (P5) — a non-empty check passes on the unreplaced literal
 
 ### Implementation
 
-- [ ] T023 [US1] Add the head identity to `apps/web/index.html` — `<title>`, `<meta name="description">`, `<link rel="canonical" href="%VITE_SITE_URL%/">`, `lang` — with values wired from `apps/web/src/content.ts` through the `siteIdentity()` plugin so no string is written twice (V-COPY-3)
-- [ ] T024 [US1] Add the static content section to `apps/web/index.html` as a sibling **after** `<div id="root">` — the single `<h1>`, section `<h2>`s, and ≥150 words of body text (target ~250), rendered from `content.sections` by the plugin (D1, FR-063/064, P2–P4). **This closes the one red test left by Phase 2** — `metadata.spec.ts` "the document has exactly one top-level heading", which has had zero to count since T013 demoted the explainer's. Also: `<main>` currently paints the page background and only covers the fold, so the content section needs the background applied to a box that covers it too, or the area below the fold renders on the default canvas in dark mode
-- [ ] T025 [US1] Add the scroll cue below the tuner (FR-068) — visible, and positioned so it cannot overlap the tuning display or its controls at the smallest supported width
-- [ ] T026 [US1] Emit `robots.txt` and `sitemap.xml` from `siteIdentity()` in `apps/web/vite.config.ts`, both derived from `VITE_SITE_URL`, with the disallow-all variant when the origin is not canonical (D5, D9, FR-072/073/076)
-- [ ] T027 [US1] Add the precache exclusion to `precache()` in `apps/web/vite.config.ts` as a **rule over the emitted set, not a list of two filenames** (P12a) — that function's own comment already records what happens when the list is hand-maintained
-- [ ] T028 [US1] Re-scope `apps/web/e2e/tuning-in-tune.spec.ts:24` "is fully visible without scrolling (FR-018)" — T004 found this is the **only** existing test D3 breaks: it asserts the *document* does not scroll vertically, where FR-018/FR-066 require the *tuning display* to be usable without scrolling. Keep the horizontal half (`scrolls.x`), replace the vertical half with the geometry gate from T017, and state the reasoning in the diff — this is a re-scope, not a deletion (Principle III). Record that `appearance.spec.ts`'s FR-021 check needed **no** change, contrary to the plan's prediction
-- [ ] T029 [US1] Run the full e2e suite and confirm T015–T022 pass and nothing regressed
+- [X] T023 [US1] Add the head identity to `apps/web/index.html` — `<title>`, `<meta name="description">`, `<link rel="canonical" href="%VITE_SITE_URL%/">`, `lang` — with values wired from `apps/web/src/content.ts` through the `siteIdentity()` plugin so no string is written twice (V-COPY-3)
+- [X] T024 [US1] Add the static content section to `apps/web/index.html` as a sibling **after** `<div id="root">` — the single `<h1>`, section `<h2>`s, and ≥150 words of body text (target ~250), rendered from `content.sections` by the plugin (D1, FR-063/064, P2–P4). **This closes the one red test left by Phase 2** — `metadata.spec.ts` "the document has exactly one top-level heading", which has had zero to count since T013 demoted the explainer's. Also: `<main>` currently paints the page background and only covers the fold, so the content section needs the background applied to a box that covers it too, or the area below the fold renders on the default canvas in dark mode
+- [X] T025 [US1] Add the scroll cue below the tuner (FR-068) — visible, and positioned so it cannot overlap the tuning display or its controls at the smallest supported width
+- [X] T026 [US1] Emit `robots.txt` and `sitemap.xml` from `siteIdentity()` in `apps/web/vite.config.ts`, both derived from `VITE_SITE_URL`, with the disallow-all variant when the origin is not canonical (D5, D9, FR-072/073/076)
+- [X] T027 [US1] Add the precache exclusion to `precache()` in `apps/web/vite.config.ts` as a **rule over the emitted set, not a list of two filenames** (P12a) — that function's own comment already records what happens when the list is hand-maintained
+- [X] T028 [US1] Re-scope `apps/web/e2e/tuning-in-tune.spec.ts:24` "is fully visible without scrolling (FR-018)" — T004 found this is the **only** existing test D3 breaks: it asserts the *document* does not scroll vertically, where FR-018/FR-066 require the *tuning display* to be usable without scrolling. Keep the horizontal half (`scrolls.x`), replace the vertical half with the geometry gate from T017, and state the reasoning in the diff — this is a re-scope, not a deletion (Principle III). Record that `appearance.spec.ts`'s FR-021 check needed **no** change, contrary to the plan's prediction
+- [X] T029 [US1] Run the full e2e suite and confirm T015–T022 pass and nothing regressed
 
 **Checkpoint**: US1 is complete and independently shippable. The page is indexable, the tuner still owns the fold, and crawlers know the canonical address. **This is the MVP.**
+
+### Phase 3 results — 2026-08-04
+
+**All gates green. e2e 91 passed, 0 failed** — including the test Phase 2 left red. lint clean, format
+clean, typecheck 5/5, unit 430, `verify:offline` passes, `verify:build-output` passes.
+
+The served document now carries the title, description, canonical address, one `<h1>`, and **254 words**
+of supporting content, all before any script runs. `robots.txt` and `sitemap.xml` are emitted at build
+and served in development.
+
+**T019 was already done.** Its implementation (T011) landed in Phase 2, so the scroll-restoration test
+was written there rather than here. No work remained.
+
+**The scroll cue landed on the microphone button, and the test caught it (T025, FR-068).**
+
+First attempt sized the cue at `space.xl` (40px) in the last 40px of the fold. `fold.spec.ts` failed with
+`the scroll cue overlaps: tuner-display, microphone-toggle`. Measured at 360×640:
+
+| Element | Occupies |
+| --- | --- |
+| viewport | 0–640 |
+| `tuner-display` | 29–611 |
+| `microphone-toggle` | **567–611** |
+| `scroll-cue` (first attempt) | **600–640** |
+
+So the cue sat on eleven pixels of the primary control. Fixed by sizing it to `space.lg` (24px), which
+places it at 616–640 with five pixels of clearance.
+
+**The more useful finding is why it was tight**: at the smallest supported viewport the tuner column
+measures **582px inside 592px of available height — ten pixels of slack.** Reserving room by adding
+bottom padding to `<main>`, which was the first instinct, would have overflowed the column and been
+clipped by that element's `overflow: hidden`. There is no space to reserve; the cue had to fit the gap
+that already existed. Recorded because anything else added inside the fold later faces the same ten
+pixels.
+
+**One assertion was narrowed, deliberately.** `tuner-display` is excluded from the overlap check: it is
+the flex container holding the other elements, paints nothing of its own — no background, no border — and
+its box spans the whole column, so overlapping it obscures no pixel a player can see. Every element that
+actually paints stays in the check, including the control that caught the defect.
+
+**Two test-harness errors of my own, both worth recording.**
+
+*The fold-growth probe pushed nothing (T018).* It prepended a 400px block to `<main>` and reported that
+nothing left the fold — apparently proving the gate could not detect encroachment. `<main>` is a flex
+**row**, so the filler landed *beside* the tuner rather than above it. The probe was wrong, not the gate.
+Retargeted at `[data-testid="tuner-display"]`, which is the column, and it discriminates.
+
+*`transformIndexHtml` returning `html` replaces the document.* The first version of the content injection
+returned `{ html: contentHtml, tags: [...] }`, which does not append the markup — it substitutes the
+entire document, deleting `#root` and the module script. Caught before running. The hook now returns tag
+descriptors only, with `injectTo: 'body'`, and the comment says why.
+
+**robots.txt in development is disallow-all, and that is correct (T020).**
+
+The test first asserted robots names the sitemap, and failed. The dev server runs on the fallback origin,
+which is by definition not canonical, so the correct output there is the disallow-all variant — the
+FR-076 fail-safe working exactly as Phase 2 designed it. Asserting *that* is a real check rather than a
+workaround: if it ever starts allowing crawlers, a preview deployment would compete with the live site.
+
+The canonical variant cannot be reached through the dev server at all, so it moved to a new
+`scripts/verify-build-output.mjs`, which drives both builds itself. Verifying one origin proves nothing
+about the other, and the non-canonical branch only ever runs on preview deploys — precisely the branch
+nobody notices is broken.
+
+**The precache exclusion was observed failing (T021, T027).** Removing the filter and re-running the
+verifier gives:
+
+```
+the service worker precaches crawler-only files: robots.txt, sitemap.xml
+  — exclude them from the manifest
+```
+
+The exclusion is stated as a rule over emitted file extensions (`.txt`, `.xml`) rather than the two
+filenames, so a future `ads.txt` or feed is covered without anyone remembering. Emitted precache manifest
+is now exactly `["/","/index.html","/manifest.webmanifest","/icon.svg","/assets/index-*.js"]`.
+
+**T028: the plan's prediction was wrong, as Phase 1 forecast.** `appearance.spec.ts`'s FR-021 dominance
+check needed **no change** — it measures `line.width` against `page.viewportSize()`. The one test that
+needed re-scoping was `tuning-in-tune.spec.ts`, which asserted the *document* does not scroll
+vertically. Re-scoped, not deleted: the horizontal half is unchanged and still binding, and the vertical
+half became "the page opens at the tuner", with the real FR-018 geometry measured properly in
+`fold.spec.ts`. The old assertion was a fair proxy while the tuner was the only thing on the page; it was
+never what FR-018 says.
+
+**Measurements**
+
+| | Baseline (T003) | After Phase 2 | **After Phase 3** |
+| --- | --- | --- | --- |
+| Cold start, median of 5 isolated runs | 141.5 ms | 118.0 ms | **131.2 ms** |
+| `dist/index.html` | 669 B | 1,735 B | **5,725 B** |
+| `dist/assets/*.js` | 236,213 B | 235,516 B | **235,516 B** |
+| `dist/` total, maps excluded | 241,489 B | 241,870 B | **246,051 B** |
+
+Cold start is **unchanged within measurement noise** — 131.2 ms against a 141.5 ms baseline, well inside
+the ±65 ms band T002 established. The correct statement is that adding 254 words and ~4 kB of markup had
+no measurable effect on cold start, not that it improved anything.
+
+The document is now 5,725 B, up 5,056 B from baseline: the token block (~1 kB) plus the content, its
+stylesheet, and the head identity. The JavaScript bundle is unchanged from Phase 2 — none of this
+feature's content reaches the app's module graph, which is the point of D1.
 
 ---
 

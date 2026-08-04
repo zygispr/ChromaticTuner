@@ -21,16 +21,36 @@ test('shows the horizontal line and its in-tune zone', async ({ page }) => {
   await expect(page.getByTestId('tuning-marker')).toBeVisible();
 });
 
-test('is fully visible without scrolling (FR-018)', async ({ page }) => {
+/**
+ * FR-018: the tuning display is usable without scrolling.
+ *
+ * **Re-scoped by 003, not weakened.** This used to assert that the *document*
+ * did not scroll vertically, which was a fair proxy while the tuner was the
+ * only thing on the page. It is not what FR-018 says: the requirement is that
+ * the *display* is fully visible and usable with no scrolling, tapping or
+ * expanding — and FR-066 restates it as the tuner owning the first viewport
+ * height. Neither has ever required the document itself to be unscrollable.
+ *
+ * Now that supporting content sits below the fold (FR-064), the old assertion
+ * would fail while the requirement it cites still holds perfectly. Kept as a
+ * proxy it would have to be deleted; stated as the requirement it can simply be
+ * measured, which `fold.spec.ts` does properly at the smallest supported
+ * viewport with real bounding boxes.
+ *
+ * The horizontal half is unchanged and still binding — nothing about this
+ * feature makes sideways scrolling acceptable.
+ */
+test('does not scroll sideways, and starts at the tuner (FR-018, FR-067)', async ({ page }) => {
   await page.goto('/');
   await waitForNote(page, 'E');
 
-  const scrolls = await page.evaluate(() => ({
-    x: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-    y: document.documentElement.scrollHeight > document.documentElement.clientHeight,
+  const state = await page.evaluate(() => ({
+    scrollsSideways: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    scrollY: window.scrollY,
   }));
-  expect(scrolls.x).toBe(false);
-  expect(scrolls.y).toBe(false);
+
+  expect(state.scrollsSideways, 'the page scrolls horizontally').toBe(false);
+  expect(state.scrollY, 'the page did not open at the tuner').toBe(0);
 });
 
 test('communicates tuning state through text as well as colour (FR-015)', async ({ page }) => {

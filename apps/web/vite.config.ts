@@ -24,6 +24,44 @@ import { defineConfig, type Plugin } from 'vite';
 // option that conflicts with the `declaration: true` in tsconfig.base.json.
 // `.js` is the one spelling both tools accept.
 import { color, type ThemedColor } from '../../packages/tokens/src/colors.js';
+import { space } from '../../packages/tokens/src/space.js';
+import { type as typeScale } from '../../packages/tokens/src/type.js';
+import { description, heading, sections, title } from './src/content.js';
+
+/**
+ * The origin this build believes it is deployed to.
+ *
+ * Not a `.env` file: `.gitignore` ignores `.env` and `.env.*` repo-wide,
+ * permitting only `.env.example`, which Vite does not read. Un-ignoring it was
+ * rejected — that path is where secrets are expected to live, and a negation
+ * rule there invites a key into the repository later. A public origin is not a
+ * secret and belongs in reviewable source.
+ *
+ * The fallback is deliberately localhost rather than a plausible production
+ * domain, and that choice is load-bearing (FR-076). A deploy that forgets to
+ * set `VITE_SITE_URL` gets an origin that is **not** canonical, so the
+ * disallow-all `robots.txt` below fires and the deployment is simply not
+ * indexed. A realistic-looking placeholder would instead ship a confidently
+ * wrong canonical address to production, which is the failure that is expensive
+ * to notice.
+ */
+const DEVELOPMENT_ORIGIN = 'http://localhost:5173';
+
+const siteOrigin = (process.env['VITE_SITE_URL'] ?? DEVELOPMENT_ORIGIN).replace(/\/+$/, '');
+
+/** Only the configured canonical origin is offered for indexing (FR-076, P12). */
+const isCanonicalOrigin = siteOrigin !== DEVELOPMENT_ORIGIN;
+
+const canonicalUrl = `${siteOrigin}/`;
+
+/** Minimal HTML escaping for copy interpolated into the document. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 /**
  * Every token as a CSS custom property, in both appearances.
@@ -68,6 +106,117 @@ ${themeBlock('dark')}
 `;
 
 /**
+ * Styling for the supporting content and the scroll cue.
+ *
+ * In the document rather than in the app's stylesheet, because the content it
+ * styles is in the document: a consumer that runs no scripts must receive both
+ * (FR-060). Colours are `var(--ct-*)` references, never literals, so this stays
+ * inside Principle IV even though `index.html` is outside the lint rule's reach.
+ *
+ * `body` carries the background: `<main>` paints it today but only covers the
+ * fold, so without this the area below the content renders on the browser's
+ * default canvas — white, in dark mode.
+ */
+const contentCss = `
+body {
+  background: var(--ct-background);
+  color: var(--ct-text);
+}
+
+/*
+ * The cue sits in the last ${space.lg}px of the fold and the content begins
+ * exactly at the viewport edge below it. The negative margin is what ties the
+ * two together: the cue is always immediately above wherever the content
+ * starts, with no second copy of the fold height to drift out of step (FR-068).
+ *
+ * ${space.lg}px and not more, because the fold has very little to spare. At the
+ * smallest supported viewport (360×640) the tuner column measures 582px inside
+ * 592px of available height — ten pixels of slack. A taller cue lands on the
+ * microphone control, which FR-068 forbids and which the overlap assertion in
+ * fold.spec.ts caught when this was first written at ${space.xl}px.
+ */
+#scroll-cue {
+  height: ${space.lg}px;
+  margin-top: -${space.lg}px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: ${typeScale.labelSize}px;
+  line-height: 1;
+  color: var(--ct-no-reading);
+  pointer-events: none;
+}
+
+#site-content {
+  max-width: 62ch;
+  margin: 0 auto;
+  padding: ${space.xl}px ${space.md}px ${space.xl}px;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+  font-size: ${typeScale.labelSize}px;
+  line-height: 1.65;
+}
+
+#site-content h1 {
+  font-size: ${typeScale.centsSize}px;
+  font-weight: ${typeScale.weightBold};
+  line-height: 1.2;
+  margin: 0 0 ${space.md}px;
+}
+
+#site-content h2 {
+  font-size: ${typeScale.labelSize}px;
+  font-weight: ${typeScale.weightMedium};
+  margin: ${space.lg}px 0 ${space.xs}px;
+}
+
+#site-content p {
+  margin: 0;
+}
+`;
+
+/**
+ * The supporting content, as markup (FR-064, P2–P4).
+ *
+ * The single `<h1>` lives here rather than in a component, because a heading
+ * owned by a component whose lifetime is shorter than the page's is the defect
+ * D4 removed: the app's only `<h1>` used to unmount the moment microphone
+ * permission was granted, leaving the steady-state page with none.
+ *
+ * The cue is `aria-hidden` and not focusable on purpose. `a11y.spec.ts` asserts
+ * the first Tab lands on the reference control — "the only control on the tuner
+ * screen" — so a focusable cue ahead of it in document order would break
+ * keyboard expectations to no benefit; the content it points at is reachable in
+ * document order regardless.
+ */
+const contentHtml = [
+  `<h1>${escapeHtml(heading)}</h1>`,
+  ...sections.map(
+    (section) =>
+      `<section><h2>${escapeHtml(section.heading)}</h2><p>${escapeHtml(section.body)}</p></section>`
+  ),
+].join('\n');
+
+/** Crawl directives (P12, FR-072, FR-073, FR-076). */
+function robotsTxt(): string {
+  return isCanonicalOrigin
+    ? `User-agent: *\nAllow: /\n\nSitemap: ${siteOrigin}/sitemap.xml\n`
+    : // Not the canonical origin, so this deployment must not compete with the
+      // live site for the same queries. No hosting configuration involved.
+      `User-agent: *\nDisallow: /\n`;
+}
+
+function sitemapXml(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${canonicalUrl}</loc>
+  </url>
+</urlset>
+`;
+}
+
+/**
  * Assembles everything the served document says about itself (research D1).
  *
  * The reflex fix for "a client-rendered app has no indexable content" is
@@ -105,14 +254,76 @@ function siteIdentity(): Plugin {
      * `head-prepend` so the tokens are defined before anything that reads them.
      */
     transformIndexHtml() {
+      // Tag descriptors only — never the `html` field. Returning `html` REPLACES
+      // the whole document rather than adding to it, which silently deletes
+      // `#root` and the module script along with everything else.
       return [
         {
           tag: 'style',
           attrs: { 'data-chromatic-tuner': 'tokens' },
-          children: themeCss,
+          children: themeCss + contentCss,
           injectTo: 'head-prepend' as const,
         },
+        { tag: 'title', children: title, injectTo: 'head' as const },
+        {
+          tag: 'meta',
+          attrs: { name: 'description', content: description },
+          injectTo: 'head' as const,
+        },
+        {
+          // Absolute and already resolved. 003 dropped Vite's `%VITE_SITE_URL%`
+          // substitution here on purpose: an undefined token is left in place
+          // rather than blanked, so a build with no origin configured would ship
+          // a canonical whose value is the literal `%VITE_SITE_URL%` — a
+          // URL-shaped string that every "non-empty" check waves through.
+          tag: 'link',
+          attrs: { rel: 'canonical', href: canonicalUrl },
+          injectTo: 'head' as const,
+        },
+        // `body`, so both land after `#root` in document order: the tuner keeps
+        // the fold and keyboard traversal reaches the content only after the
+        // tuner's own controls (FR-066, FR-071).
+        {
+          tag: 'div',
+          attrs: { id: 'scroll-cue', 'data-testid': 'scroll-cue', 'aria-hidden': 'true' },
+          children: '▾',
+          injectTo: 'body' as const,
+        },
+        {
+          tag: 'div',
+          attrs: { id: 'site-content', 'data-testid': 'site-content' },
+          children: contentHtml,
+          injectTo: 'body' as const,
+        },
       ];
+    },
+
+    /**
+     * Serve the crawl directives in development too.
+     *
+     * Not cosmetic: it means `metadata.spec.ts` can assert them over HTTP,
+     * against the same document a crawler would request, instead of reading
+     * `dist/` off disk and depending on a build having happened first.
+     */
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        if (request.url === '/robots.txt') {
+          response.setHeader('Content-Type', 'text/plain');
+          response.end(robotsTxt());
+          return;
+        }
+        if (request.url === '/sitemap.xml') {
+          response.setHeader('Content-Type', 'application/xml');
+          response.end(sitemapXml());
+          return;
+        }
+        next();
+      });
+    },
+
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'robots.txt', source: robotsTxt() });
+      this.emitFile({ type: 'asset', fileName: 'sitemap.xml', source: sitemapXml() });
     },
   };
 }
@@ -134,6 +345,24 @@ function precache(): Plugin {
       const assets = Object.keys(bundle)
         // Source maps are large and never needed to run the app offline.
         .filter((name) => !name.endsWith('.map'))
+        /*
+         * Crawler-facing files are not part of the app (P12a).
+         *
+         * `siteIdentity()` emits robots.txt and sitemap.xml through `emitFile`,
+         * which puts them in this very bundle object — so without this filter
+         * they are swept into the precache automatically, and every user's
+         * browser caches two files meant for crawlers. Worse, a cached
+         * sitemap.xml outlives the deployment that produced it and keeps
+         * answering with an address that may no longer be canonical.
+         *
+         * Stated as a rule over the emitted set rather than as the two
+         * filenames, because that is what this manifest's whole design is
+         * about: a hand-maintained list rots the moment something is added, and
+         * the failure mode is invisible online. Any future directive or feed —
+         * `ads.txt`, an RSS file — is excluded by the same rule without anyone
+         * having to remember.
+         */
+        .filter((name) => !/\.(?:txt|xml)$/.test(name))
         .map((name) => `/${name}`);
 
       const manifest = [

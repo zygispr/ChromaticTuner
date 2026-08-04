@@ -96,6 +96,160 @@ test('the document is free to scroll past the fold (FR-067)', async ({ page }) =
 });
 
 /**
+ * The elements FR-066 promises are usable without scrolling. The controls are
+ * included deliberately: a display you can read but not reach is not usable.
+ */
+const FOLD_ELEMENTS = [
+  'tuner-display',
+  'note-label',
+  'cents-readout',
+  'tuning-line',
+  'direction-cue',
+  'reference-badge',
+  'microphone-toggle',
+] as const;
+
+/**
+ * The smallest screen the constitution's "Supported targets" covers.
+ *
+ * iOS 16.4 reaches back to iPhone 8 (375×667) and Android 8 mid-range phones
+ * bottom out around 360×640, so 360×640 is the floor both ends agree on.
+ */
+const SMALLEST_VIEWPORT = { width: 360, height: 640 } as const;
+
+/**
+ * FR-066 / SC-029: on the smallest supported screen, everything is inside the
+ * first viewport height with nothing scrolled.
+ *
+ * **Geometry, not DOM order.** Asserting that the content section follows
+ * `#root` in the document says nothing about whether the tuner still fits — it
+ * passes just as happily with the readout half off-screen. `001` shipped
+ * exactly that shape of assertion (`transform !== 'none'`) and it hid a 144px
+ * positioning error for seven phases; `helpers.ts` exists because of it. So
+ * this measures real boxes against the real viewport.
+ */
+test('every tuning element fits the first viewport on the smallest screen (FR-066, SC-029)', async ({
+  page,
+}) => {
+  await page.setViewportSize(SMALLEST_VIEWPORT);
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  expect(await page.evaluate(() => window.scrollY), 'the page did not start at the top').toBe(0);
+
+  const overflowing = await page.evaluate((ids: readonly string[]) => {
+    const viewport = window.innerHeight;
+    const bad: string[] = [];
+    for (const id of ids) {
+      const element = document.querySelector(`[data-testid="${id}"]`);
+      if (!element) continue;
+      const box = element.getBoundingClientRect();
+      if (box.bottom > viewport + 0.5 || box.top < -0.5) {
+        bad.push(
+          `${id} spans ${Math.round(box.top)}–${Math.round(box.bottom)}px of a ${viewport}px viewport`
+        );
+      }
+    }
+    return bad;
+  }, FOLD_ELEMENTS);
+
+  expect(overflowing, `these elements do not fit the fold:\n  ${overflowing.join('\n  ')}`).toEqual(
+    []
+  );
+});
+
+/**
+ * FR-087 / SC-032: the gate above must actually fail when content encroaches.
+ *
+ * Supporting content is the kind of thing that gains a paragraph every few
+ * months. Without this, the fold erodes a little at a time and nobody notices
+ * until FR-018 is already broken — and a gate never observed failing is not
+ * known to work.
+ *
+ * The probe grows the tuner's own column rather than the content section,
+ * because that is the direction the erosion actually comes from: something
+ * added inside the fold pushing the rest down.
+ *
+ * Into `tuner-display`, not `<main>`. `<main>` is a flex **row**, so a block
+ * prepended there lands *beside* the tuner and pushes nothing down — the first
+ * version of this probe did exactly that and reported the gate as broken when
+ * it was the probe that was wrong.
+ */
+test('the fold gate fails when something encroaches on it (FR-087, SC-032)', async ({ page }) => {
+  await page.setViewportSize(SMALLEST_VIEWPORT);
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  const pushedOut = await page.evaluate((ids: readonly string[]) => {
+    const filler = document.createElement('div');
+    filler.style.height = '400px';
+    filler.style.flexShrink = '0';
+    document.querySelector('[data-testid="tuner-display"]')?.prepend(filler);
+
+    const viewport = window.innerHeight;
+    const bad = ids.filter((id) => {
+      const element = document.querySelector(`[data-testid="${id}"]`);
+      if (!element) return false;
+      return element.getBoundingClientRect().bottom > viewport + 0.5;
+    });
+
+    filler.remove();
+    return bad;
+  }, FOLD_ELEMENTS);
+
+  expect(
+    pushedOut.length,
+    'injecting 400px into the fold pushed nothing out of view — the gate above cannot detect encroachment'
+  ).toBeGreaterThan(0);
+});
+
+/**
+ * FR-068: something tells the reader there is more below.
+ *
+ * And the constraint that makes it awkward — the cue must not overlap the
+ * tuning display or any control. A cue that sits on top of the readout is worse
+ * than no cue, on the one screen the product exists to keep legible.
+ */
+test('the scroll cue is visible and overlaps nothing (FR-068)', async ({ page }) => {
+  await page.setViewportSize(SMALLEST_VIEWPORT);
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  const cue = page.getByTestId('scroll-cue');
+  await expect(cue).toBeVisible();
+
+  const overlaps = await page.evaluate((ids: readonly string[]) => {
+    const cueBox = document.querySelector('[data-testid="scroll-cue"]')!.getBoundingClientRect();
+    const hits: string[] = [];
+    for (const id of ids) {
+      // `tuner-display` is the flex container holding the others. It paints
+      // nothing of its own — no background, no border — and its box spans the
+      // full column, so overlapping it obscures no pixel a player can see.
+      // Every element that does paint stays in the check.
+      if (id === 'tuner-display') continue;
+      const element = document.querySelector(`[data-testid="${id}"]`);
+      if (!element) continue;
+      const box = element.getBoundingClientRect();
+      const intersects =
+        cueBox.left < box.right &&
+        cueBox.right > box.left &&
+        cueBox.top < box.bottom &&
+        cueBox.bottom > box.top;
+      if (intersects) hits.push(id);
+    }
+    return hits;
+  }, FOLD_ELEMENTS);
+
+  expect(overlaps, `the scroll cue overlaps: ${overlaps.join(', ')}`).toEqual([]);
+
+  // Within the fold, or it is not a cue — it is part of the content it points at.
+  const withinFold = await cue.evaluate(
+    (node) => node.getBoundingClientRect().bottom <= window.innerHeight + 0.5
+  );
+  expect(withinFold, 'the scroll cue is itself below the fold').toBe(true);
+});
+
+/**
  * FR-067: a return visit starts at the tuner, not where the reader left off.
  *
  * This is the half of D3 that was actually broken, and the only Phase 2

@@ -4,11 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="A chromatic guitar tuner. Pluck a string, see the note." />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icon.svg" />
-    <title>ChromaticTuner</title>
+    <!--
+      The title, description, canonical address, token stylesheet, and the whole
+      supporting content section are injected by `siteIdentity()` in
+      vite.config.ts, from `src/content.ts`.
+
+      Deliberately not written here as well. Each of those strings is consumed
+      more than once — as the page's own copy, as its preview identity, and as
+      its machine-readable description — and a value written into markup here
+      and into the plugin there is a value that will disagree with itself inside
+      two releases. Answer engines now cross-check schema claims against visible
+      page text and discount the page when the two differ (research D6), so
+      keeping one source is a correctness property rather than tidiness.
+    -->
   </head>
   <body>
     <div id="root"></div>
