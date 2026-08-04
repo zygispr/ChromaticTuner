@@ -1,10 +1,20 @@
-import { color, type ThemedColor } from '@chromatic-tuner/tokens';
 import type { TuningState } from '@chromatic-tuner/core';
 
 /**
- * Emits every token as a CSS custom property in both appearances, so components
- * reference `var(--ct-*)` and never a literal (Principle IV, FR-018 — enforced
- * by the `no-restricted-syntax` lint rule on apps/**).
+ * References a token by name, so components use `var(--ct-*)` and never a
+ * literal (Principle IV, FR-018 — enforced by the `no-restricted-syntax` lint
+ * rule on apps/**).
+ *
+ * The properties themselves are defined in the served document, generated from
+ * the palette at build time by `siteIdentity()` in vite.config.ts. They used to
+ * be built here and appended to `<head>` by `main.tsx` during module
+ * evaluation, which was invisible while nothing on the page could paint before
+ * that script ran — and stops being invisible the moment static content sits in
+ * the document (research D2).
+ *
+ * The generator moved rather than being duplicated: this module no longer
+ * imports the palette at all, so there is exactly one place the token values
+ * are written.
  */
 export function themedVar(name: string): string {
   return `var(--ct-${name})`;
@@ -16,38 +26,3 @@ export const stateColorVar: Record<TuningState, string> = {
   'in-tune': themedVar('in-tune'),
   'no-reading': themedVar('no-reading'),
 };
-
-function block(theme: keyof ThemedColor): string {
-  return Object.entries(color)
-    .map(([name, value]) => `  --ct-${kebab(name)}: ${value[theme]};`)
-    .join('\n');
-}
-
-function kebab(name: string): string {
-  return name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
-}
-
-/**
- * Both appearances are emitted: the media query follows the platform
- * preference by default (FR-019), and the `[data-theme]` selectors let a manual
- * override win in either direction.
- */
-export const themeCss = `
-:root {
-${block('light')}
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-${block('dark')}
-  }
-}
-
-:root[data-theme='light'] {
-${block('light')}
-}
-
-:root[data-theme='dark'] {
-${block('dark')}
-}
-`;

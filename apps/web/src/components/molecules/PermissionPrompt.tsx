@@ -32,7 +32,21 @@ export function PermissionPrompt({ onAllow }: PermissionPromptProps) {
         color: themedVar('text'),
       }}
     >
-      <h1
+      {/*
+        A <p>, not a heading (D4, contract P2).
+
+        This was the app's only <h1>, which made the document outline depend on
+        microphone permission: one top-level heading while the explainer was up,
+        and zero the moment it was granted and this element unmounted. The page's
+        steady state — the one a returning user and a crawler both see — had no
+        top-level heading at all.
+
+        The page's <h1> now lives in the served document, where it names the
+        tool and does not come and go. This line keeps its size and weight
+        because it is still the explainer's title visually; it simply is not the
+        subject of the page, and a screen-reader outline should not say it is.
+      */}
+      <p
         style={{
           margin: 0,
           fontSize: `${type.centsSize}px`,
@@ -40,7 +54,7 @@ export function PermissionPrompt({ onAllow }: PermissionPromptProps) {
         }}
       >
         Tune by ear-free listening
-      </h1>
+      </p>
 
       <p style={{ margin: 0, fontSize: `${type.labelSize}px`, lineHeight: 1.6, opacity: 0.85 }}>
         The tuner needs your microphone to hear the string you play and measure how far it is from

@@ -166,21 +166,147 @@ before any static content is added — otherwise the content renders unstyled (D
 
 ### Tests (write first, observe failing)
 
-- [ ] T005 [P] Create `apps/web/e2e/no-script.spec.ts` with `test.use({ javaScriptEnabled: false })` asserting every `--ct-*` custom property resolves to a real value on `:root` — **fails today**: the token block is appended by `apps/web/src/main.tsx`, so with scripting off nothing defines them
-- [ ] T006 [P] Create `apps/web/e2e/fold.spec.ts` asserting the document is scrollable (`scrollHeight > innerHeight`) once content exists, and that `#root`'s bounding box height equals exactly one viewport height — **fails today**: `overflow: hidden` and `height: 100%` make `scrollHeight === innerHeight`
-- [ ] T007 [P] Create `apps/web/e2e/metadata.spec.ts` asserting `document.querySelectorAll('h1')` has length **exactly 1**, both before permission is granted and after — **fails today in the second case**: the only `<h1>` lives in `PermissionPrompt` and unmounts on grant, leaving zero
+- [X] T005 [P] Create `apps/web/e2e/no-script.spec.ts` with `test.use({ javaScriptEnabled: false })` asserting every `--ct-*` custom property resolves to a real value on `:root` — **fails today**: the token block is appended by `apps/web/src/main.tsx`, so with scripting off nothing defines them
+- [X] T006 [P] Create `apps/web/e2e/fold.spec.ts` asserting the document is scrollable (`scrollHeight > innerHeight`) once content exists, and that `#root`'s bounding box height equals exactly one viewport height — **fails today**: `overflow: hidden` and `height: 100%` make `scrollHeight === innerHeight`
+- [X] T007 [P] Create `apps/web/e2e/metadata.spec.ts` asserting `document.querySelectorAll('h1')` has length **exactly 1**, both before permission is granted and after — **fails today in the second case**: the only `<h1>` lives in `PermissionPrompt` and unmounts on grant, leaving zero
 
 ### Implementation
 
-- [ ] T008 Create `apps/web/src/content.ts` exporting `title`, `description`, `heading`, `appName`, `sections`, and `features` per [data-model.md](./data-model.md) — plain exported constants, no class or factory (Principle II); the accuracy claim MUST carry its E1–E6 range or be softened, because "±1 cent" unqualified is false outside that band per the constitution
-- [ ] T009 [P] Create `apps/web/.env` committing a development default for `VITE_SITE_URL` (absolute origin, no trailing slash) — without it Vite leaves `%VITE_SITE_URL%` **unreplaced**, shipping a URL-shaped literal rather than an obviously-empty tag (research D5)
-- [ ] T010 Add a `siteIdentity()` plugin to `apps/web/vite.config.ts` alongside the existing `precache()`, using `transformIndexHtml` to inject the `themeCss` from `apps/web/src/theme.ts` as a `<style>` in `head-prepend` (D2) — this plugin is the assembly point US1/US2/US3 all extend
-- [ ] T011 Remove the runtime style injection from `apps/web/src/main.tsx`, change `html, body` from `height: 100%` to `min-height: 100%`, drop `height: 100%` from `#root`, and set `history.scrollRestoration = 'manual'` (D2, D3, FR-067)
-- [ ] T012 [P] Remove `overflow: 'hidden'` from `apps/web/src/components/templates/TunerLayout.tsx`, keeping `minHeight: '100dvh'` as the guarantee that the tuner owns the fold (D3) — `100dvh` not `100vh` matters more now that the page scrolls
-- [ ] T013 [P] Demote the `<h1>` in `apps/web/src/components/molecules/PermissionPrompt.tsx` to a `<p>` styled identically (or an `<h2>` if it should stay in the outline), per D4 — its text names no searchable concept and its element unmounts
-- [ ] T014 Run `pnpm lint && pnpm typecheck && pnpm test:e2e` and confirm T005–T007 now pass and nothing else regressed; record any fallout from T004's list here
+- [X] T008 Create `apps/web/src/content.ts` exporting `title`, `description`, `heading`, `appName`, `sections`, and `features` per [data-model.md](./data-model.md) — plain exported constants, no class or factory (Principle II); the accuracy claim MUST carry its E1–E6 range or be softened, because "±1 cent" unqualified is false outside that band per the constitution
+- [X] T009 [P] ~~Create `apps/web/.env`~~ — **blocked by `.gitignore`; design changed, see log.** The committed default moves into `vite.config.ts` and lands with T023, which is the first task that consumes it
+- [X] T010 Add a `siteIdentity()` plugin to `apps/web/vite.config.ts` alongside the existing `precache()`, using `transformIndexHtml` to inject the `themeCss` from `apps/web/src/theme.ts` as a `<style>` in `head-prepend` (D2) — this plugin is the assembly point US1/US2/US3 all extend
+- [X] T011 Remove the runtime style injection from `apps/web/src/main.tsx` and set `history.scrollRestoration = 'manual'` (D2, FR-067). **The height changes were not made** — measurement showed they are not needed; see log
+- [X] T012 [P] ~~Remove `overflow: 'hidden'` from `TunerLayout.tsx`~~ — **no change needed, and removing it is actively risky.** See log
+- [X] T013 [P] Demote the `<h1>` in `apps/web/src/components/molecules/PermissionPrompt.tsx` to a `<p>` styled identically (or an `<h2>` if it should stay in the outline), per D4 — its text names no searchable concept and its element unmounts
+- [X] T014 Run `pnpm lint && pnpm typecheck && pnpm test:e2e` and confirm T005–T007 now pass and nothing else regressed; record any fallout from T004's list here
 
 **Checkpoint**: the build assembles the theme, the page scrolls, the heading count is correct, and `content.ts` is the single source. User stories can now begin.
+
+### Phase 2 results — 2026-08-04
+
+**Gates: lint clean, format clean, typecheck 5/5, unit 430 passed, e2e 81 passed / 1 known-red.**
+
+The one red test is `metadata.spec.ts` "the document has exactly one top-level heading". It is red **by
+sequencing, not by defect** — see the correction below. Everything else is green with zero regressions.
+
+**Three planning assumptions were wrong, all found by measuring rather than reading.**
+
+**1. D3's premise is false: the page was never prevented from scrolling.**
+
+Research D3 states that three rules "conspire to make the document unscrollable". They do not.
+`overflow: hidden` sits on `<main>` *inside* `#root`, so it clips main's own overflow and never the
+document; `height: 100%` sets a box height without clipping anything. Probed on unmodified code by
+appending a content block after `#root`:
+
+```
+docScrolls: true      bodyOverflow: visible    htmlOverflow: visible
+mainOverflow: hidden  bodyHeight: 720px        scrolled to: 2104px
+```
+
+So of T011's four changes, only `history.scrollRestoration = 'manual'` was needed — and it was the one
+genuinely broken thing, since browsers restore scroll position by default and a returning reader would
+land on prose with the tuner off-screen. **The height changes were not made**: they fix nothing, and
+Principle II asks for the smallest change that satisfies the spec.
+
+**T012 was not done either, and should not be.** Removing `overflow: hidden` from `TunerLayout` is not
+merely unnecessary — it is the rule currently preventing *horizontal* overflow, which
+`tuning-in-tune.spec.ts` asserts and FR-018 requires. Removing it to satisfy a premise that was false
+would have risked a real regression for no benefit.
+
+**Consequence for the tests.** Two of `fold.spec.ts`'s three tests pass on unmodified code. By this
+file's own rule that is a defect in the test, so it is stated plainly in the file: they are
+characterisation tests pinning properties that were never broken, not red-to-green ones. The
+scroll-restoration test is the only Phase 2 assertion that actually failed first, and it did:
+`"the browser restored the previous scroll position"`.
+
+**2. `.env` cannot be committed — `.gitignore:25` ignores it (T009).**
+
+The repo ignores `.env` and `.env.*`, permitting only `.env.example`, which Vite does not read. So D5's
+committed development default is unreachable as specified. Un-ignoring `apps/web/.env` was rejected: that
+path is the conventional home for secrets, and a negation rule there invites a key into the repo later.
+
+**The replacement is better than the original.** The fallback origin becomes an explicit constant in
+`vite.config.ts`, resolved by the plugin, with `VITE_SITE_URL` overriding it. A public URL is not a
+secret and belongs in reviewable source rather than a dotfile. It is also fail-safe in a way the `.env`
+plan was not: a deploy that forgets to set the variable falls back to a localhost origin, which is *not*
+canonical, so FR-076's disallow-all `robots.txt` fires automatically. The `.env` version would have
+shipped a plausible-looking wrong canonical instead.
+
+No code was written for this at T009, deliberately: the value has no consumer until T023, and an unused
+constant is dead code (Principle I). The decision is recorded; the implementation is T023's.
+
+This also removes `%VITE_SITE_URL%` from the design. The plugin substitutes resolved absolute URLs
+directly, so the "unreplaced token ships to production" failure class disappears at the source rather
+than being caught by P5's no-`%` clause. That clause stays as a guard.
+
+**3. `vite.config.ts` cannot import the tokens package (T010).**
+
+Importing `themeCss` from `src/theme.ts` failed the entire build:
+
+```
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '.../packages/tokens/src/colors'
+  imported from .../packages/tokens/src/index.ts
+```
+
+Vite loads the config through Node, which treats bare specifiers as external and then rejects the
+extensionless imports inside the workspace package. Any module reachable from the config via a bare
+workspace specifier hits this — including `src/theme.ts`, transitively.
+
+`configLoader: 'runner'` / `'native'` were rejected: both are experimental and would change config
+loading for every Vite invocation in the project, which is a large blast radius for one import.
+
+The fix took three specific choices, each of which fails differently if reverted, so they are documented
+inline at the import site:
+
+- **relative path**, so the config bundler resolves it instead of Node;
+- **`src/colors.js` rather than the package barrel**, because `src/index.ts` re-exports extensionlessly
+  and Vite warns on every build about it — not worth editing a shared package over;
+- **`.js` on a `.ts` file**, because Vite's coming native loader requires an explicit extension while
+  `.ts` fails typecheck with TS5097 (`allowImportingTsExtensions`, which conflicts with
+  `declaration: true` in `tsconfig.base.json`). `.js` is the one spelling both tools accept.
+
+**The generator moved rather than being duplicated.** `themeCss` and its `block`/`kebab` helpers are gone
+from `src/theme.ts`, which no longer imports the palette at all; it keeps `themedVar()` and
+`stateColorVar` for components. Keeping a second copy would have put the palette in two places with
+nothing to keep them in step — the exact drift D2 exists to prevent.
+
+**Sequencing correction: T007's second assertion belongs to US1, not Phase 2.**
+
+`metadata.spec.ts` has two tests:
+
+- *heading count is invariant across the permission transition* — **green**. It failed first with exactly
+  the D4 defect, empirically confirmed: `"the document had 1 <h1> before permission and 0 after"`.
+- *exactly one `<h1>`* — **red, and stays red until T024** adds the static heading.
+
+This is a sequencing error in the task list, not a defect. T013 demotes the explainer's heading because
+the static one takes over; between T013 and T024 the page has **zero** `<h1>`, which is briefly worse
+than before. Both tasks are correct and they simply have to land together to satisfy FR-063.
+
+The test is left **written and red** rather than skipped or deleted. Principle III forbids removing a
+failing test to unblock a merge, and `test.fixme` would be exactly that move wearing a different hat. A
+test written ahead of its implementation and observed failing is test-first working as intended; the only
+error was filing it under Phase 2.
+
+**Measurements**
+
+| | Before (T002/T003) | After Phase 2 | Net |
+| --- | --- | --- | --- |
+| Cold start, median of 5 isolated runs | 141.5 ms | **118.0 ms** | −23.5 ms |
+| `dist/index.html` | 669 B | **1,735 B** | +1,066 B |
+| `dist/assets/*.js` | 236,213 B | **235,516 B** | −697 B |
+| `dist/` total, maps excluded | 241,489 B | **241,870 B** | +381 B |
+
+The cold-start move is **within the noise band** and must not be reported as an improvement: T002
+measured ±23% scatter on unmodified code, and 23.5 ms is smaller than that. It is consistent with D2
+removing a runtime step, not evidence of it. T054 re-measures with content in place.
+
+The document grew by the token block (~1 kB) and the bundle shrank by almost as much, because the
+generator left the app's module graph — the same bytes, moved from JavaScript that must execute into
+markup that does not.
+
+**Still true after Phase 2**: `appearance.spec.ts`, `a11y.spec.ts`, `layout-stability.spec.ts` and
+`tuning-in-tune.spec.ts`'s FR-018 check are all green and untouched. The last of those still passes
+because the document has nothing below the fold yet; T028 re-scopes it when T024 changes that.
 
 ---
 
@@ -207,7 +333,7 @@ without scrolling on the smallest supported screen.
 ### Implementation
 
 - [ ] T023 [US1] Add the head identity to `apps/web/index.html` — `<title>`, `<meta name="description">`, `<link rel="canonical" href="%VITE_SITE_URL%/">`, `lang` — with values wired from `apps/web/src/content.ts` through the `siteIdentity()` plugin so no string is written twice (V-COPY-3)
-- [ ] T024 [US1] Add the static content section to `apps/web/index.html` as a sibling **after** `<div id="root">` — the single `<h1>`, section `<h2>`s, and ≥150 words of body text (target ~250), rendered from `content.sections` by the plugin (D1, FR-063/064, P2–P4)
+- [ ] T024 [US1] Add the static content section to `apps/web/index.html` as a sibling **after** `<div id="root">` — the single `<h1>`, section `<h2>`s, and ≥150 words of body text (target ~250), rendered from `content.sections` by the plugin (D1, FR-063/064, P2–P4). **This closes the one red test left by Phase 2** — `metadata.spec.ts` "the document has exactly one top-level heading", which has had zero to count since T013 demoted the explainer's. Also: `<main>` currently paints the page background and only covers the fold, so the content section needs the background applied to a box that covers it too, or the area below the fold renders on the default canvas in dark mode
 - [ ] T025 [US1] Add the scroll cue below the tuner (FR-068) — visible, and positioned so it cannot overlap the tuning display or its controls at the smallest supported width
 - [ ] T026 [US1] Emit `robots.txt` and `sitemap.xml` from `siteIdentity()` in `apps/web/vite.config.ts`, both derived from `VITE_SITE_URL`, with the disallow-all variant when the origin is not canonical (D5, D9, FR-072/073/076)
 - [ ] T027 [US1] Add the precache exclusion to `precache()` in `apps/web/vite.config.ts` as a **rule over the emitted set, not a list of two filenames** (P12a) — that function's own comment already records what happens when the list is hand-maintained

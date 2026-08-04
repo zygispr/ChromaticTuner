@@ -8,10 +8,32 @@ import { WebAudioSource } from './adapters/web-audio-source';
 import { WebWakeLock } from './adapters/web-wake-lock';
 import { TunerPage } from './components/pages/TunerPage';
 import { registerServiceWorker } from './register-sw';
-import { themeCss } from './theme';
 
-// Tokens are injected as CSS custom properties so components can reference
-// var(--ct-*) and never a literal colour (Principle IV, FR-018).
+/**
+ * A return visit starts at the tuner, never where the reader left off (FR-067).
+ *
+ * Browsers restore scroll position on reload and on back-navigation by default.
+ * Now that supporting content sits below the fold, that default would land
+ * someone who read it yesterday on prose with the tuner off-screen — against an
+ * app whose entire premise is a readout legible at a glance.
+ *
+ * Set here rather than in the document because it is behaviour, and because
+ * `history` is not addressable from static markup.
+ */
+if ('scrollRestoration' in history) {
+  history.scrollRestoration = 'manual';
+}
+
+/**
+ * Layout rules only.
+ *
+ * The `--ct-*` token block used to be built here and appended to `<head>` at
+ * runtime. It now ships in the document itself, emitted at build time by
+ * `siteIdentity()` in vite.config.ts — see that plugin for why (D2). Components
+ * still reference `var(--ct-*)` and never a literal colour (Principle IV,
+ * FR-018); only the moment of definition moved, from module evaluation to the
+ * served bytes.
+ */
 const style = document.createElement('style');
 style.textContent = `
   *, *::before, *::after { box-sizing: border-box; }
@@ -85,8 +107,6 @@ style.textContent = `
       transition-duration: 0.01ms !important;
     }
   }
-
-  ${themeCss}
 `;
 document.head.appendChild(style);
 
