@@ -240,3 +240,87 @@ for (const scheme of ['light', 'dark'] as const) {
     ).toEqual([]);
   });
 }
+
+/**
+ * FR-070 / FR-071: the supporting content is as accessible as the tuner.
+ *
+ * The content section is markup in the served document rather than a React
+ * component, which makes it easy to forget it is subject to the same
+ * obligations as everything else — Axe over the whole page catches it because
+ * it does not care where the markup came from.
+ */
+test('the supporting content has no accessibility violations (FR-070)', async ({ page }) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  await page.getByTestId('site-content').scrollIntoViewIfNeeded();
+
+  const results = await analyze(page);
+  expect(
+    results.violations,
+    results.violations.map((v) => `${v.id}: ${v.help}`).join('\n')
+  ).toEqual([]);
+});
+
+/**
+ * The document outline is `h1` then `h2`s, with no level skipped.
+ *
+ * Axe's `heading-order` rule covers this, but only as one violation among
+ * dozens; asserting the sequence directly means a broken outline reports the
+ * actual sequence rather than a rule id.
+ */
+test('the heading outline descends without skipping a level (P3)', async ({ page }) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  const levels = await page.evaluate(() =>
+    [...document.querySelectorAll('h1, h2, h3, h4, h5, h6')].map((node) =>
+      Number(node.tagName.slice(1))
+    )
+  );
+
+  expect(levels[0], `the first heading is an h${levels[0]}, not an h1`).toBe(1);
+
+  const skips = levels
+    .map((level, index) => ({ level, previous: levels[index - 1] ?? level }))
+    .filter(({ level, previous }) => level - previous > 1)
+    .map(({ level, previous }) => `h${previous} → h${level}`);
+
+  expect(skips, `the outline skips heading levels: ${skips.join(', ')}`).toEqual([]);
+});
+
+/**
+ * FR-071: the content is reachable from the keyboard, and skippable.
+ *
+ * The requirement has two halves that pull against each other — the content
+ * must be reachable *after* the tuner, and a keyboard user must not have to
+ * traverse it to get back to the controls. Both hold here for a structural
+ * reason worth asserting rather than assuming: the content contains **no**
+ * focusable elements at all, so tab order is unchanged from before this feature
+ * and there is nothing to traverse.
+ *
+ * If a link is ever added to the copy, this fails — correctly. That is the
+ * moment to think about skip links, not before.
+ */
+test('the supporting content adds nothing to the tab order (FR-071)', async ({ page }) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  const focusableInContent = await page.evaluate(
+    () =>
+      document.querySelectorAll(
+        '#site-content a[href], #site-content button, #site-content input, #site-content select, #site-content textarea, #site-content [tabindex]:not([tabindex="-1"])'
+      ).length
+  );
+
+  expect(
+    focusableInContent,
+    'the content section now has focusable elements — keyboard users must still be able to reach the tuner controls without traversing the prose (FR-071)'
+  ).toBe(0);
+
+  // The scroll cue must not be focusable either: `a11y.spec.ts` above asserts
+  // the first Tab lands on the reference control, and the cue precedes it in
+  // nothing but visual order.
+  await page.keyboard.press('Tab');
+  await expect(page.getByTestId('reference-badge')).toBeFocused();
+});

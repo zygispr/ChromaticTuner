@@ -42,6 +42,24 @@ jobs:
       - name: Coverage (packages/core >= 90%)
         run: pnpm test:coverage
 
+      # quickstart.md has listed `pnpm build` among the gates that must pass on
+      # every PR since 001, but it was never actually wired into this workflow —
+      # so a change that broke the production build passed CI. Found by 003's
+      # T052 while checking that its own new gate ran here.
+      - name: Build
+        run: pnpm build
+
+      # The guarantees no browser can observe (contract P12, P12a; V-ENV-2):
+      # robots.txt and sitemap.xml correct for the canonical origin AND
+      # disallow-all for any other, no unresolved %VITE_*% tokens in any emitted
+      # file, and crawler-only files kept out of the service worker's precache.
+      #
+      # The script drives its own builds, including a non-canonical one — that
+      # branch runs only on preview deployments, which is exactly why it would
+      # otherwise be the branch nobody notices is broken.
+      - name: Build output (crawl directives, precache exclusion)
+        run: pnpm --filter @chromatic-tuner/web verify:build-output
+
   mobile-tests:
     runs-on: ubuntu-latest
     steps:

@@ -60,6 +60,7 @@ buildWith(CANONICAL);
 const html = read('index.html');
 const robots = read('robots.txt');
 const sitemap = read('sitemap.xml');
+const manifest = read('manifest.webmanifest');
 const serviceWorker = read('sw.js');
 
 // ---------------------------------------------------------------------------
@@ -74,6 +75,10 @@ for (const [name, source] of [
   ['index.html', html],
   ['robots.txt', robots],
   ['sitemap.xml', sitemap],
+  // Added when the manifest became a generated file rather than a static one:
+  // it now interpolates the same origin everything else does, so it can carry
+  // the same unresolved token.
+  ['manifest.webmanifest', manifest],
 ]) {
   if (!source) continue;
   const tokens = source.match(/%VITE_[A-Z0-9_]*%/g);

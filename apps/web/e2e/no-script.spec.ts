@@ -66,7 +66,15 @@ test('shows its heading, summary and supporting content with no scripting (P1, F
 
   await expect(page.locator('h1')).toHaveText(heading);
 
-  const metaDescription = await page.locator('meta[name="description"]').getAttribute('content');
+  // Read through `evaluate`, not a locator. A locator's `getAttribute` waits
+  // for its element, so a missing description costs the full 30-second timeout
+  // and then reports `locator.getAttribute: Test timeout` — which does not say
+  // *what* was missing. Found by T048's deliberate-failure run, which is the
+  // point of doing it: the same flaw was fixed in `metadata.spec.ts` in an
+  // earlier phase and this copy survived.
+  const metaDescription = await page.evaluate(
+    () => document.querySelector('meta[name="description"]')?.getAttribute('content') ?? null
+  );
   expect(metaDescription, 'no meta description in the served document').toBe(description);
 
   for (const section of sections) {

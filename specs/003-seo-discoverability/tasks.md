@@ -658,16 +658,109 @@ blocks a merge instead of surfacing months later as traffic that stopped arrivin
 
 **Independent Test**: Remove a required identity item and confirm the gate fails naming that item.
 
-- [ ] T046 [P] [US4] Add asset-reachability assertions to `apps/web/e2e/metadata.spec.ts` for every URL the page identity references — `og:image`, icons, manifest — each must return `200` (FR-085, P7)
-- [ ] T047 [P] [US4] Add a sweep asserting **no** unresolved `%VITE_*%` token survives anywhere in the built `dist/index.html`, `dist/robots.txt`, or `dist/sitemap.xml` (V-ENV-2)
-- [ ] T048 [US4] Demonstrate the gate fails for at least **three** different items — remove the description, empty the canonical, rename `og-image.png` — confirming each failure message **names the missing item** rather than reporting a generic assertion failure; restore afterwards and record the three messages here (FR-084, SC-031)
-- [ ] T049 [US4] Verify offline is intact: `pnpm build && pnpm --filter @chromatic-tuner/web preview --port 4173 &` then `pnpm --filter @chromatic-tuner/web verify:offline`, plus a grep confirming `robots`/`sitemap` appear nowhere in `dist/sw.js` (FR-086, V26)
-- [ ] T050 [P] [US4] Extend `apps/web/e2e/a11y.spec.ts` to cover the new content section — Axe clean, headings in order, keyboard traversal into the content and back out without stepping through every element (FR-070, FR-071)
-- [ ] T051 [P] [US4] Extend `apps/web/e2e/appearance.spec.ts` to assert the content section is themed and meets AA contrast in **both** appearances (FR-070) — the palette being correct is not evidence the composited result is; `001` shipped 3.9:1 text behind a correct token
-- [ ] T052 [US4] Confirm the three new specs run in CI via the existing `e2e` job in `.github/workflows/ci.yml` and need no workflow change; if they do need one, make it here
-- [ ] T053 [US4] Run every gate and record the counts in this file
+- [X] T046 [P] [US4] Add asset-reachability assertions to `apps/web/e2e/metadata.spec.ts` for every URL the page identity references — `og:image`, icons, manifest — each must return `200` (FR-085, P7)
+- [X] T047 [P] [US4] Add a sweep asserting **no** unresolved `%VITE_*%` token survives anywhere in the built `dist/index.html`, `dist/robots.txt`, or `dist/sitemap.xml` (V-ENV-2)
+- [X] T048 [US4] Demonstrate the gate fails for at least **three** different items — remove the description, empty the canonical, rename `og-image.png` — confirming each failure message **names the missing item** rather than reporting a generic assertion failure; restore afterwards and record the three messages here (FR-084, SC-031)
+- [X] T049 [US4] Verify offline is intact: `pnpm build && pnpm --filter @chromatic-tuner/web preview --port 4173 &` then `pnpm --filter @chromatic-tuner/web verify:offline`, plus a grep confirming `robots`/`sitemap` appear nowhere in `dist/sw.js` (FR-086, V26)
+- [X] T050 [P] [US4] Extend `apps/web/e2e/a11y.spec.ts` to cover the new content section — Axe clean, headings in order, keyboard traversal into the content and back out without stepping through every element (FR-070, FR-071)
+- [X] T051 [P] [US4] Extend `apps/web/e2e/appearance.spec.ts` to assert the content section is themed and meets AA contrast in **both** appearances (FR-070) — the palette being correct is not evidence the composited result is; `001` shipped 3.9:1 text behind a correct token
+- [X] T052 [US4] **Workflow change was needed, and for a bigger reason than expected.** The three new specs need none — `testDir` globs them. But `pnpm build` had never run in CI despite being a documented PR gate since `001`, and `verify:build-output` was absent too. Both added to the `gates` job
+- [X] T053 [US4] Run every gate and record the counts in this file
 
 **Checkpoint**: all four stories complete; the guarantees are enforced rather than documented.
+
+### Phase 6 results — 2026-08-04
+
+**All gates green: e2e 107 passed, unit 430, mobile 64, coverage 100% lines, lint / format / typecheck
+clean, `verify:offline` and `verify:build-output` both pass.**
+
+**T048 was the most valuable task in the phase, and it found two real defects.**
+
+The point of deliberately breaking things is that a gate never seen failing is not known to work. Doing
+it properly turned up problems in the gates themselves, not just in the app.
+
+*Item 1 — meta description removed.* Reported:
+
+```
+Error: locator.getAttribute: Test timeout of 30000ms exceeded.
+Error: og:description disagrees with the meta description
+```
+
+The timeout is the **same defect fixed in `metadata.spec.ts` during Phase 4**, surviving in
+`no-script.spec.ts`. A Playwright locator waits for its element, so a missing description cost 30
+seconds and then reported a message naming nothing. Fixed by reading through `evaluate`. After the fix:
+
+```
+Error: no meta description in the served document
+Error: og:description disagrees with the meta description
+```
+
+*Item 2 — canonical emptied.* Clean first time:
+
+```
+Error: no <link rel="canonical"> in the document
+Error: the sitemap lists more than the one real page
+```
+
+*Item 3 — `og-image.png` renamed.* This one exposed the more serious problem. It reported "og:image is
+not a PNG" rather than a 404 — because **the dev server answers a missing path with `200` and the app
+shell**. Measured directly:
+
+| Request | Response |
+| --- | --- |
+| `/og-image.png` | `200 image/png` |
+| `/icon.svg` | `200 image/svg+xml` |
+| `/does-not-exist.svg` | **`200 text/html`** |
+
+So T046's reachability check, as first written, **passed for every conceivable URL** — including deleted
+ones. A status-only check is nearly worthless against a single-page-app fallback, which is the same
+soft-404 behaviour research D10 records as a deployment obligation. The gate now also rejects a response
+whose content type is HTML, and item 3 re-run reports:
+
+```
+these referenced assets do not resolve:
+  http://localhost:5173/og-image.png → served the app shell (text/html), so the file itself is missing
+```
+
+**A third defect, in my own assertion (T046).** The first version required at least four referenced
+URLs. It failed on a correct build: `apple-touch-icon` reuses `icon.svg` and `twitter:image` reuses
+`og-image.png`, so the deduplicated set is **three**. The magic number would also have broken the day
+someone added a distinct touch icon — a legitimate change failing a gate for no reason. Replaced with a
+check by role (manifest present, an icon present, the preview image present), which is what the
+assertion was actually for.
+
+**T052 found that `pnpm build` has never run in CI.**
+
+The three new specs need no workflow change — `testDir: './e2e'` globs them and `pnpm test:e2e` runs
+them. But checking that turned up two absences:
+
+- **`pnpm build` is listed among the PR gates in `quickstart.md` and has never been in `ci.yml`.** A
+  change that broke the production build would have passed CI. Pre-existing since `001`; fixed here
+  because T052 is where it was found.
+- **`verify:build-output` was not in CI either**, which would have made US4's promise hollow for exactly
+  the half no browser can observe: the precache exclusion (P12a), the canonical/disallow robots branch
+  (FR-076), and the unresolved-token sweep (V-ENV-2).
+
+Both are now steps in the `gates` job. `verify:offline` stays out deliberately — it needs a preview
+server and `CLAUDE.md` already records it as a manual gate.
+
+**T047 extended the token sweep to the manifest**, which Phase 4 turned from a static file into a
+generated one that interpolates the same origin as everything else, and so can carry the same unresolved
+token.
+
+**T050/T051 notes.** The keyboard assertion is worth reading twice: it asserts the content section
+contains **zero** focusable elements. That is what makes FR-071's two halves — reachable after the
+tuner, skippable on the way back — both true without a skip link. If a link is ever added to the copy
+this fails, correctly, and that is the moment to design skip navigation rather than before. Contrast is
+checked with Axe scoped to `#site-content` in both appearances rather than a second copy of the WCAG
+luminance formula: Axe measures the composited result, which is the distinction that caught `001`'s
+3.9:1 text behind a correct token.
+
+**Precache after all of it** — unchanged, and still excluding the crawler files:
+
+```
+const PRECACHE = ["/","/index.html","/manifest.webmanifest","/icon.svg","/assets/index-*.js"]
+```
 
 ---
 

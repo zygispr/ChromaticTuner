@@ -448,3 +448,125 @@ test('claims no capability that is out of scope (P11, FR-065)', async ({ page })
     `the page claims capabilities 001 put out of scope: ${violations.join(', ')}`
   ).toEqual([]);
 });
+
+/**
+ * FR-085 / P7: every asset the page identity points at actually resolves.
+ *
+ * This is the gate that catches a moved, renamed or deleted file. None of the
+ * tags above notice: a `<link rel="icon">` pointing at nothing is still a
+ * well-formed tag, and an `og:image` 404 renders a card with no image, which
+ * reads as a design choice rather than a bug. The only way to know is to ask
+ * for the bytes.
+ *
+ * The URL list is **collected from the document**, not written out here. A
+ * hard-coded list checks the assets someone remembered in August and silently
+ * ignores whatever is referenced later — which is the same rot this whole story
+ * exists to prevent, one level down.
+ */
+test('every referenced asset resolves (FR-085, P7)', async ({ page, request }) => {
+  await page.goto('/');
+
+  const urls = await page.evaluate(() => {
+    const found = new Set<string>();
+    for (const link of document.querySelectorAll<HTMLLinkElement>(
+      'link[rel="icon"], link[rel="apple-touch-icon"], link[rel="manifest"]'
+    )) {
+      if (link.href) found.add(link.href);
+    }
+    for (const meta of document.querySelectorAll<HTMLMetaElement>(
+      'meta[property="og:image"], meta[name="twitter:image"]'
+    )) {
+      if (meta.content) found.add(meta.content);
+    }
+    return [...found];
+  });
+
+  /*
+   * "Every asset resolves" is vacuously true of a document that references
+   * none, so the selectors have to be shown to match something. Asserted by
+   * role rather than by count: the first version demanded four URLs and failed
+   * on a correct build, because `apple-touch-icon` reuses `icon.svg` and
+   * `twitter:image` reuses `og-image.png`, so the set collapses to three. A
+   * magic number would also have broken the day someone added a distinct
+   * touch icon — a legitimate change failing a gate for no reason.
+   */
+  const rolesMissing = [
+    ['the web manifest', /manifest\.webmanifest$/],
+    ['an icon', /\.(?:svg|png|ico)$/],
+    ['the preview image', /og-image\.png$/],
+  ]
+    .filter(([, pattern]) => !urls.some((url) => (pattern as RegExp).test(url)))
+    .map(([label]) => label as string);
+
+  expect(
+    rolesMissing,
+    `the document references no ${rolesMissing.join(', no ')} — the identity is incomplete or the selectors stopped matching`
+  ).toEqual([]);
+
+  const broken = await unresolved(request, urls);
+
+  expect(broken, `these referenced assets do not resolve:\n  ${broken.join('\n  ')}`).toEqual([]);
+});
+
+/**
+ * Which of these URLs does not actually serve the file it claims to.
+ *
+ * **Status alone is not enough, and that is not a theoretical worry.** Both the
+ * dev server and any static host configured for a single-page app answer a
+ * missing path with `200` and the app shell — measured here: a request for
+ * `/does-not-exist.svg` returns `200 text/html`. A reachability check that
+ * only reads the status code therefore passes for every conceivable URL,
+ * including ones that were deleted, and would have reported a renamed
+ * `og-image.png` as perfectly fine.
+ *
+ * So an asset also has to come back as something other than HTML. This is the
+ * same soft-404 behaviour research D10 records as a deployment obligation; here
+ * it is the reason the gate needs a second clause.
+ */
+async function unresolved(
+  request: import('@playwright/test').APIRequestContext,
+  urls: readonly string[]
+): Promise<string[]> {
+  const broken: string[] = [];
+
+  for (const url of urls) {
+    const response = await request.get(url);
+
+    if (response.status() !== 200) {
+      broken.push(`${url} → HTTP ${response.status()}`);
+      continue;
+    }
+
+    const type = response.headers()['content-type'] ?? '';
+    if (type.includes('text/html')) {
+      broken.push(`${url} → served the app shell (${type}), so the file itself is missing`);
+    }
+  }
+
+  return broken;
+}
+
+/**
+ * FR-080: the icons the manifest names resolve too.
+ *
+ * Separate from the check above because these are referenced from *inside* the
+ * manifest rather than from the document, so no DOM query reaches them — and an
+ * installed app with a broken icon is a blank square on someone's home screen.
+ */
+test('every icon the manifest names resolves (FR-080, FR-085)', async ({ request }) => {
+  const manifest = JSON.parse(await (await request.get('/manifest.webmanifest')).text()) as {
+    icons?: { src: string }[];
+  };
+
+  const icons = manifest.icons ?? [];
+  expect(icons.length, 'the manifest names no icons').toBeGreaterThan(0);
+
+  const broken = await unresolved(
+    request,
+    icons.map((icon) => icon.src)
+  );
+
+  expect(broken, `the manifest names icons that do not resolve:\n  ${broken.join('\n  ')}`).toEqual(
+    []
+  );
+});

@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { color } from '@chromatic-tuner/tokens';
 import { expect, test, type Page } from '@playwright/test';
 
@@ -206,3 +207,58 @@ test('a non-standard reference stays louder than the standard one (FR-053, FR-02
   expect(nonStandard.fontWeight).toBeGreaterThan(standard.fontWeight);
   expect(nonStandard.color).not.toBe(standard.color);
 });
+
+/**
+ * FR-070: the supporting content is themed and legible in both appearances.
+ *
+ * The content section is markup in the served document, styled by a stylesheet
+ * the build emits rather than by a component — so nothing about the React tree
+ * covers it, and it is the part of this page most easily left on the browser's
+ * default colours. Before 003 the background was painted by `<main>`, which
+ * covers only the fold; below it the canvas would have been white in dark mode.
+ *
+ * Contrast is asserted with Axe rather than a second copy of the WCAG
+ * luminance formula. Axe measures the **composited** result, which is the
+ * distinction that matters here: `001` shipped a correct colour token at
+ * `opacity: 0.55` measuring 3.9:1 against its background, and the tokens
+ * package's own contrast test could not see it because it checks the palette
+ * rather than what lands on the page.
+ */
+for (const scheme of ['light', 'dark'] as const) {
+  test(`the supporting content is themed in ${scheme} (FR-070)`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto('/');
+    await waitForNote(page, 'E');
+
+    const styles = await page.getByTestId('site-content').evaluate((el) => {
+      const own = getComputedStyle(el);
+      return { color: own.color, background: getComputedStyle(document.body).backgroundColor };
+    });
+
+    expect(styles.background, `the page canvas is not the ${scheme} background token`).toBe(
+      toRgb(color.background[scheme])
+    );
+    expect(styles.color, `the content text is not the ${scheme} text token`).toBe(
+      toRgb(color.text[scheme])
+    );
+  });
+
+  test(`the supporting content meets AA contrast in ${scheme} (FR-070)`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto('/');
+    await waitForNote(page, 'E');
+    await page.getByTestId('site-content').scrollIntoViewIfNeeded();
+
+    const results = await new AxeBuilder({ page })
+      .include('#site-content')
+      .withRules(['color-contrast'])
+      .analyze();
+
+    expect(
+      results.violations,
+      results.violations
+        .flatMap((v) => v.nodes.map((n) => `${v.id}: ${n.failureSummary ?? ''}`))
+        .join('\n')
+    ).toEqual([]);
+  });
+}
