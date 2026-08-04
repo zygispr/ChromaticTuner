@@ -46,12 +46,114 @@ a nicety.
 **Purpose**: Establish the before-numbers Principle V will demand, and find out which existing tests this
 feature is about to break.
 
-- [ ] T001 Confirm all gates pass on a clean checkout and record the counts in this file — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e && pnpm build`, plus `pnpm --filter @chromatic-tuner/mobile test`
-- [ ] T002 [P] Add a cold-start measurement to `apps/web/e2e/performance.spec.ts` — time from navigation to the tuning display being interactive — and record the baseline here; **no such measurement exists today**, and SC-028 requires before/after against the 2 s budget
-- [ ] T003 [P] Record baseline `dist/index.html` byte size and total bundle size from `pnpm build` in this file — the static content adds document bytes and D2 removes a runtime step, and the net must be attributable
-- [ ] T004 [P] Audit the existing e2e suite for assumptions this feature invalidates and record the list here — specifically `apps/web/e2e/appearance.spec.ts` "the tuning line is the dominant element of the screen (FR-021)", which may measure against the document rather than the viewport and would fail once content sits below the fold
+- [X] T001 Confirm all gates pass on a clean checkout and record the counts in this file — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e && pnpm build`, plus `pnpm --filter @chromatic-tuner/mobile test`
+- [X] T002 [P] Add a cold-start measurement to `apps/web/e2e/performance.spec.ts` — time from navigation to the tuning display being interactive — and record the baseline here; **no such measurement exists today**, and SC-028 requires before/after against the 2 s budget
+- [X] T003 [P] Record baseline `dist/index.html` byte size and total bundle size from `pnpm build` in this file — the static content adds document bytes and D2 removes a runtime step, and the net must be attributable
+- [X] T004 [P] Audit the existing e2e suite for assumptions this feature invalidates and record the list here — specifically `apps/web/e2e/appearance.spec.ts` "the tuning line is the dominant element of the screen (FR-021)", which may measure against the document rather than the viewport and would fail once content sits below the fold
 
 **Checkpoint**: baselines recorded; the blast radius on the existing suite is known rather than discovered mid-implementation.
+
+### Phase 1 results — 2026-08-04, commit `109bf67`, no source changes beyond T002's new test
+
+**All eight gates green.**
+
+| Gate | Result |
+| --- | --- |
+| `pnpm lint` | clean, `--max-warnings 0` |
+| `pnpm format:check` | clean |
+| `pnpm typecheck` | 5/5 projects |
+| `pnpm test` | **430 passed**, 18 files, 8.04 s |
+| `pnpm --filter @chromatic-tuner/mobile test` | **64 passed**, 9 suites |
+| `pnpm test:coverage` | **100% lines**, 98.5% statements, 94.81% branches, 97.29% functions |
+| `pnpm test:e2e` | **75 passed**, 37.4 s |
+| `pnpm build` | 241,489 B excluding maps, `sw.js` emitted |
+
+**T003 — build baseline for the before/after at T054:**
+
+| Artefact | Bytes |
+| --- | --- |
+| `dist/index.html` | **669** |
+| `dist/assets/index-Cv6wc-Yd.js` | 236,213 |
+| `dist/sw.js` | 3,069 |
+| **`dist/` total, maps excluded** | **241,489** |
+
+`dist/` currently holds six files: the three above plus `icon.svg`, `icon-maskable.svg`, and
+`manifest.webmanifest`. T026 adds `robots.txt` and `sitemap.xml` to that list, and T027 must keep both
+out of the precache manifest inside `sw.js`.
+
+**T002 — cold start, and a measurement protocol that T054 must match**
+
+The test is new (`performance.spec.ts`, "reaches a usable tuning display within the cold-start budget").
+The 2 s budget has been binding since ratification but was never measured: the suite covered frame time
+and DOM growth and nothing else on this axis.
+
+Six isolated runs (`-g "cold-start"`, one worker):
+
+| Run | 1 | 2 | 3 | 4 | 5 | 6 |
+| --- | --- | --- | --- | --- | --- | --- |
+| ms | 149.3 | 168.2 | 121.0 | 133.7 | 149.2 | 104.7 |
+
+**Baseline: median 141.5 ms** (min 104.7, max 168.2, spread 63.5 ms).
+
+Two things about this number that will corrupt T054's comparison if ignored:
+
+- **A single sample is not a comparable figure.** The scatter is ±23% on unmodified code — the same
+  lesson `002` recorded for frame-time `max`. Compare **medians of at least five isolated runs**; treat
+  a movement under ~65 ms as measurement noise, not a regression.
+- **Concurrency changes it by more than the change under test plausibly will.** Running the whole
+  `performance.spec.ts` file with `fullyParallel` gave **333.9 ms** against ~141 ms isolated — 2.4×.
+  T054 must re-measure the same way (isolated, `-g "cold-start"`, five runs) or it will report a
+  phantom regression of ~190 ms that is purely test-harness load.
+
+Also worth stating plainly: Playwright's `webServer` runs `pnpm dev`, so this measures the **dev server**,
+not a production build. It is a relative instrument for detecting a regression between two commits, not a
+statement about the 2 s budget on real hardware — that remains the on-device gate.
+
+**One defect found while writing the test, recorded because the same trap is waiting in Phase 2.**
+The first version installed its `MutationObserver` on `document.documentElement` inside
+`page.addInitScript`. That runs before any page script, which is early enough that `documentElement` is
+still `null` — `observe(null)` throws, the init script dies silently, and the measurement is simply never
+taken. It surfaced as `__coldStartMs` being `undefined` rather than as an error. Fixed by observing
+`document`. The reason it was diagnosable in one run rather than three is that the assertion carried a
+message ("the cold-start observer never fired") instead of just `toBeDefined()` — which is the discipline
+T048 makes an explicit deliverable.
+
+**T004 — audit of existing e2e assumptions. The plan named the wrong test.**
+
+The plan predicted `appearance.spec.ts`'s FR-021 dominance check would break. **It will not.** It reads
+`page.viewportSize()` and compares `line.width` against `viewport.width * 0.4` — width, against the
+viewport, not the document. Content below the fold does not touch it. T028 should record "no change
+needed" unless something else emerges.
+
+**The real breaker is a different test**, and there is exactly one:
+
+> `apps/web/e2e/tuning-in-tune.spec.ts:24` — `is fully visible without scrolling (FR-018)`
+>
+> ```ts
+> y: document.documentElement.scrollHeight > document.documentElement.clientHeight,
+> expect(scrolls.y).toBe(false);
+> ```
+
+This asserts **the document does not scroll at all**, which is precisely what D3 changes. It will fail at
+T011 and stay failing. It must be **re-scoped, not deleted**: FR-018 and FR-066 require the *tuning
+display* to be usable without scrolling, never that the *document* be unscrollable — and the horizontal
+half of the assertion (`scrolls.x`) stays valid and should be kept. Its replacement is the geometry gate
+T017 builds. Deleting a failing test to unblock a merge is prohibited (Principle III); re-scoping one
+whose assertion no longer matches the requirement it cites is not the same act, and the reasoning belongs
+in the diff.
+
+**T028 is therefore mis-aimed as written.** It should re-scope `tuning-in-tune.spec.ts:24` and record
+that `appearance.spec.ts` needed no change. Corrected in place below.
+
+Two further findings, neither blocking:
+
+- **`layout-stability.spec.ts`** measures top edges via `getBoundingClientRect().y` — viewport-relative.
+  Safe at `scrollY === 0`, which every one of its tests holds, but it would silently mis-measure if any
+  future test in that file scrolls first. Left alone; noted so it is not a surprise.
+- **`a11y.spec.ts:124`** asserts the **first** `Tab` lands on `reference-badge` ("the only control on the
+  tuner screen"). This constrains T025: if the scroll cue is focusable and precedes the badge in DOM
+  order, this test breaks. A non-focusable visual cue, or one placed after the tuner in DOM order, keeps
+  it green. Recorded as a design constraint on T025 rather than a change to the test.
 
 ---
 
@@ -109,7 +211,7 @@ without scrolling on the smallest supported screen.
 - [ ] T025 [US1] Add the scroll cue below the tuner (FR-068) — visible, and positioned so it cannot overlap the tuning display or its controls at the smallest supported width
 - [ ] T026 [US1] Emit `robots.txt` and `sitemap.xml` from `siteIdentity()` in `apps/web/vite.config.ts`, both derived from `VITE_SITE_URL`, with the disallow-all variant when the origin is not canonical (D5, D9, FR-072/073/076)
 - [ ] T027 [US1] Add the precache exclusion to `precache()` in `apps/web/vite.config.ts` as a **rule over the emitted set, not a list of two filenames** (P12a) — that function's own comment already records what happens when the list is hand-maintained
-- [ ] T028 [US1] Fix or re-scope any existing test T004 identified as broken, notably `appearance.spec.ts`'s FR-021 dominance check — re-scope it to the viewport rather than the document; record here whether it needed the change
+- [ ] T028 [US1] Re-scope `apps/web/e2e/tuning-in-tune.spec.ts:24` "is fully visible without scrolling (FR-018)" — T004 found this is the **only** existing test D3 breaks: it asserts the *document* does not scroll vertically, where FR-018/FR-066 require the *tuning display* to be usable without scrolling. Keep the horizontal half (`scrolls.x`), replace the vertical half with the geometry gate from T017, and state the reasoning in the diff — this is a re-scope, not a deletion (Principle III). Record that `appearance.spec.ts`'s FR-021 check needed **no** change, contrary to the plan's prediction
 - [ ] T029 [US1] Run the full e2e suite and confirm T015–T022 pass and nothing regressed
 
 **Checkpoint**: US1 is complete and independently shippable. The page is indexable, the tuner still owns the fold, and crawlers know the canonical address. **This is the MVP.**

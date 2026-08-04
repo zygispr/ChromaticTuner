@@ -127,3 +127,68 @@ test('does not grow its DOM while running (a leak would eventually stutter)', as
   // line, a live-region entry — shows up here long before it shows up as jank.
   expect(after).toBeLessThanOrEqual(before + 2);
 });
+
+/**
+ * Cold start to a usable tuning display (Principle V, budget 2 s / target 1 s).
+ *
+ * Added by 003 (T002). The budget has been binding since the constitution was
+ * ratified but was never measured — the suite covered frame time and DOM growth
+ * and nothing else on this axis, so a regression here would have been invisible.
+ * 003 moves the theme's token block from a runtime append to a build-time
+ * `<style>` and adds static content to the document, which push cold start in
+ * opposite directions; SC-028 wants the net, and a net needs a "before".
+ *
+ * "Usable" is the tuning line being in the DOM, not a note having been read.
+ * Waiting for a note would fold in fixture playback and detection latency —
+ * already measured by `packages/core/tests/latency.test.ts` — and report a
+ * number that moves when the WAV changes.
+ *
+ * The observer is installed via `addInitScript`, which runs before any page
+ * script, so nothing is missed between navigation and React's first paint.
+ * `performance.now()` is measured from the navigation start of the document it
+ * runs in, which is exactly the interval the budget names.
+ */
+test('reaches a usable tuning display within the cold-start budget (Principle V)', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const record = (): void => {
+      (window as unknown as { __coldStartMs?: number }).__coldStartMs = performance.now();
+    };
+
+    // Already present is possible in principle and free to handle; the observer
+    // below would never fire for an element that existed before it started.
+    if (document.querySelector('[data-testid="tuning-line"]')) {
+      record();
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      if (!document.querySelector('[data-testid="tuning-line"]')) return;
+      record();
+      observer.disconnect();
+    });
+
+    // `document`, not `document.documentElement`. This script runs before any
+    // page script, which is early enough that `documentElement` is still null —
+    // `observe(null)` throws, the init script dies silently, and the measurement
+    // is simply never taken. Observing the document catches <html> being created
+    // and everything appended beneath it.
+    observer.observe(document, { childList: true, subtree: true });
+  });
+
+  await page.goto('/');
+  await expect(page.getByTestId('tuning-line')).toBeVisible();
+
+  const coldStartMs = await page.evaluate(
+    () => (window as unknown as { __coldStartMs?: number }).__coldStartMs
+  );
+
+  expect(coldStartMs, 'the cold-start observer never fired').toBeDefined();
+
+  // Reported so a regression shows the number rather than only a red cross —
+  // and so 003's before/after comparison has something to read.
+  console.log(`cold start to usable display: ${coldStartMs!.toFixed(1)}ms`);
+
+  expect(coldStartMs!).toBeLessThanOrEqual(2_000);
+});
