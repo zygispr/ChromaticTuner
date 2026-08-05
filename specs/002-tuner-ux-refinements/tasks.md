@@ -728,6 +728,51 @@ Three things this turned up, none of which were visible from the report:
 
 ---
 
+## Post-review fix: a denied microphone offered to stop listening (2026-08-05)
+
+Reported from the browser: press **Use the microphone**, then block the browser's prompt, and the failure
+screen carries two buttons — the banner's **Try again**, and a capture control still reading **Stop
+listening**. The second one asserts the tuner holds the microphone that had just failed to open.
+
+**The defect is that `capturing` meant two things.** `TunerGate` owns `captureEnabled` as *intent*, which is
+correct and is what FR-040 needs — it is deliberately not derived from the session, because `idle` cannot
+tell a user-initiated stop from a start that has not happened yet. But `TunerDisplay` passed that same flag
+straight to `MicrophoneToggle`, whose label describes *what the microphone is doing* (FR-039). Intent
+survives a failed start; the microphone does not. On every screen where those two disagree — all four
+failure statuses — the label was wrong.
+
+`StatusBanner` had the reverse of this problem in US1 and got a dedicated `captureStopped` prop for it. This
+is the same seam, from the other side, and it kept the raw intent: a deliberate stop must still read as one.
+
+**Fixed in `packages/react/src/capture-control.ts`**, beside `captureControlLabel` and shared for the same
+reason — two platforms answering this differently is invisible by eye and obvious to anyone who denies
+permission on both. `captureControlState(status, captureEnabled)` returns what the control shows and what
+pressing it does; `failedToOpen` is an exhaustive switch, so a new `TunerStatus` kind has to decide which
+side it falls on rather than defaulting into "the microphone is fine".
+
+Two decisions inside it are worth stating:
+
+- **Pressing retries rather than flipping intent.** The control now says "Start listening" on a failure
+  screen, so it has to start — and flipping intent off would be wrong twice: the user asked for the opposite,
+  and the microphone is shut either way. It routes to `retry()`, the same path as the banner's button, so
+  the two controls on one screen cannot come to mean different things. Duplicating the action was chosen
+  over hiding the control, which FR-036 requires to be persistent.
+- **`idle` and `requesting-permission` still count as capturing.** With intent on they mean "starting",
+  which the banner already says. Treating them as not-capturing would flip the label to "Start listening"
+  for the first frames of every launch.
+
+**113 Playwright** (+1), **436 unit** (+6), **80 mobile Jest** (+2). Each was observed failing on the
+unfixed code first, and the two app-level tests failed on the exact string in the report (`Received: Stop
+listening`) rather than on a proxy for it.
+
+One unrelated flake seen once and not reproduced: `appearance.spec.ts`'s "legible without colour" measured
+the marker at **20.31 px** against its `< 20` threshold under full-suite parallel load, and passed on a
+re-run of the suite and in isolation on both the fixed and the unmodified tree. Nothing here touches the
+marker or the DSP path. Recorded rather than adjusted — the threshold is a real budget, and one boundary
+crossing under load is evidence about the harness, not about the number.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase dependencies

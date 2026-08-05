@@ -1,4 +1,9 @@
-import { readingAnnouncement, usePreferences, useTuner } from '@chromatic-tuner/react';
+import {
+  captureControlState,
+  readingAnnouncement,
+  usePreferences,
+  useTuner,
+} from '@chromatic-tuner/react';
 import { space, type as typeTokens } from '@chromatic-tuner/tokens';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -50,6 +55,11 @@ export function TunerDisplay({ capturing, onToggleCapture }: TunerDisplayProps) 
   const { a4Hz, isNonStandardReference } = usePreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // `capturing` is what the user asked for; this is what the microphone did.
+  // The two differ on every failure screen, and the banner keeps the raw intent
+  // below so a deliberate stop still reads as one.
+  const control = captureControlState(status, capturing);
+
   return (
     <View testID="tuner-display" style={styles.container}>
       {/* Above the note so a non-standard reference is read before the reading
@@ -72,7 +82,10 @@ export function TunerDisplay({ capturing, onToggleCapture }: TunerDisplayProps) 
       {/* Below the readout, not above it: the tuning display is what must be
           legible from a metre away (FR-018), and the control is something the
           player looks down at deliberately. */}
-      <MicrophoneToggle capturing={capturing} onToggle={onToggleCapture} />
+      <MicrophoneToggle
+        capturing={control.capturing}
+        onToggle={control.retries ? retry : onToggleCapture}
+      />
 
       {/* The one thing assistive technology reads for a live reading. Every
           visual channel above is hidden from it; this speaks all of them once,

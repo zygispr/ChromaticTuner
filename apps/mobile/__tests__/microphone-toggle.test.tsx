@@ -23,6 +23,20 @@ async function renderTuner(source: ScriptedAudioSource) {
 }
 
 /**
+ * Let the failure paths reach the screen.
+ *
+ * `startedPromise` never resolves when `start()` rejects, so the tests that
+ * begin from a blocked microphone have nothing to await — and the chain from
+ * the rejection to the rendered banner needs the event loop to turn, not just
+ * the microtask queue to drain.
+ */
+async function settle() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  });
+}
+
+/**
  * Capture the handler `useMicrophoneLifecycle` registers, so the test can drive
  * a real foreground/background transition.
  *
@@ -108,6 +122,39 @@ describe('microphone toggle (US1)', () => {
     const status = screen.getByTestId('tuner-status');
     expect(status).toHaveTextContent(/microphone is off/i);
     expect(status).not.toHaveTextContent(/starting/i);
+  });
+
+  it('does not offer to stop a microphone that never opened (FR-039)', async () => {
+    const source = new ScriptedAudioSource({
+      failWith: { kind: 'permission-denied', canRetry: true },
+    });
+    await renderTuner(source);
+    await settle();
+
+    // Capture intent survives a failed start, and the label was derived from
+    // intent alone — so a denied microphone showed "Try again" beside a "Stop
+    // listening" that claimed the tuner held it.
+    expect(source.isRunning).toBe(false);
+    expect(screen.getByTestId('microphone-toggle')).toHaveTextContent(/start listening/i);
+  });
+
+  it('retries from the capture control rather than switching intent off (FR-038)', async () => {
+    const source = new ScriptedAudioSource({
+      failWith: { kind: 'permission-denied', canRetry: true },
+    });
+    await renderTuner(source);
+    await settle();
+
+    // The user allows the microphone in Settings and comes back.
+    source.setFailure(null);
+    await act(async () => {
+      fireEvent.press(screen.getByTestId('microphone-toggle'));
+    });
+
+    // Treating this as an intent toggle would stop a session that was never
+    // running and leave the tuner switched off — from a button that said start.
+    expect(source.isRunning).toBe(true);
+    expect(screen.getByTestId('microphone-toggle')).toHaveTextContent(/stop listening/i);
   });
 
   it('keeps a user-initiated stop across backgrounding and returning (FR-040)', async () => {

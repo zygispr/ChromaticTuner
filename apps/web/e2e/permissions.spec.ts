@@ -91,6 +91,34 @@ test('the retry button reaches the tuner without waiting for the retry loop', as
   await waitForNote(page, 'E');
 });
 
+test('a blocked microphone is never presented as one that is listening', async ({ page }) => {
+  test.setTimeout(90_000);
+
+  await stubMicrophonePermission(page, false);
+  await page.goto('/');
+
+  await expect(page.getByTestId('status-banner')).toHaveAttribute(
+    'data-status',
+    'permission-denied',
+    { timeout: 15_000 }
+  );
+
+  // The regression: capture INTENT survives a failed start, and the control's
+  // label was derived from intent alone. Denying the prompt therefore left two
+  // buttons on screen — "Try again", and a "Stop listening" that asserted the
+  // tuner held the very microphone it had just failed to open (FR-039).
+  const toggle = page.getByTestId('microphone-toggle');
+  await expect(toggle).toHaveAccessibleName(/start listening/i);
+  await expect(toggle).toHaveAttribute('data-capturing', 'false');
+
+  // And it has to be a real way out, not just honest signage: pressing a
+  // control that says "start" must start, which here means retrying.
+  await allowMicrophone(page);
+  await toggle.click();
+
+  await waitForNote(page, 'E');
+});
+
 test('explains why the microphone is needed before the browser asks', async ({ page }) => {
   // FR-028 and FR-031: the explainer, including the promise that audio never
   // leaves the device, must come before the system prompt — so it is shown
