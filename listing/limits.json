@@ -1,0 +1,33 @@
+{
+  "$schema-note": "Per-store listing field limits (FR-109, contract L1). These are facts about two products owned by other companies, not about this project: they change without notice and silently truncate rather than erroring. Recorded here once so the gate reads them as data and a store's layout change is a data edit. Counted in Unicode code points.",
+  "ios": {
+    "fields": {
+      "name": 30,
+      "subtitle": 30,
+      "promotionalText": 170,
+      "description": 4000,
+      "keywords": 100
+    },
+    "descriptionOpening": 170,
+    "documentation": {
+      "title": "App Store Connect Help — Reference: App information",
+      "url": "https://developer.apple.com/help/app-store-connect/reference/app-information",
+      "lastChecked": null,
+      "note": "Recorded from prior knowledge rather than re-read from the live page. T066 confirms every limit against the published specification and sets lastChecked before first submission. A limit that silently tightened is a truncated store name nobody sees until it is live."
+    }
+  },
+  "android": {
+    "fields": {
+      "title": 30,
+      "shortDescription": 80,
+      "fullDescription": 4000
+    },
+    "descriptionOpening": 80,
+    "documentation": {
+      "title": "Play Console Help — Set up your app's store listing",
+      "url": "https://support.google.com/googleplay/android-developer/topic/9866151",
+      "lastChecked": null,
+      "note": "Recorded from prior knowledge rather than re-read from the live page. T066 confirms every limit against the published specification and sets lastChecked before first submission."
+    }
+  }
+}

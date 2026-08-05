@@ -142,17 +142,116 @@ gate harness, and the end of `app.json`'s duplicated identity.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T005 [P] Create `listing/limits.json` with the per-store field limits from data-model.md §3 (`ios`: name 30, subtitle 30, promotionalText 170, description 4000, keywords 100; `android`: title 30, shortDescription 80, fullDescription 4000), plus L4's fold lengths (`ios.descriptionOpening` 170, `android.descriptionOpening` 80) so a store layout change is a data edit. Each store block carries the documentation URL it was read from and a `lastChecked` date. Leave the `assets` section for T025.
-- [ ] T006 [P] Create `listing/out-of-scope-claims.json` holding the thirteen patterns currently at `apps/web/e2e/metadata.spec.ts:410` as **regex source strings** (`"\\btuning presets?\\b"`, …), each with the reason it is forbidden. Carry over the comment's word-boundary rationale — `async` contains `sync`, `accounting` contains `account` — because that is the half most likely to be rewritten as a substring check by whoever touches it next.
-- [ ] T007 Rewire `apps/web/e2e/metadata.spec.ts` to build its `OUT_OF_SCOPE` array from `listing/out-of-scope-claims.json` with `new RegExp(src, 'i')`, deleting the inline literals. Run `pnpm --filter @chromatic-tuner/web exec playwright test e2e/metadata.spec.ts` and confirm it is still green. **This is the only test file this feature may modify** (V37) — record that here.
-- [ ] T008 Create `listing/store-listing.json` containing the `claims` object only, per data-model.md §1: `appName` (matching `apps/web/src/content.ts`'s `appName`), `identifier` `com.chromatictuner.app` (D3, permanent), `purposeSentence` (the sentence currently duplicated in `app.json`), `collectsNoData: true`, `price`, `requirements`. The `stores` and `privacy` objects are deliberately absent so US1's and US3's checks have something to fail against.
-- [ ] T009 Create `listing/scripts/verify-listing.mjs` as a harness only — loads the three JSON files, runs a registry of named check groups, prints one line per group with counts (`fields: 13 ok · claims: 6 corroborated · assets: 9 ok · identity: ok`), and exits non-zero if any check reports a failure. A silent success is a failure of V30: the counts are what let a reviewer notice a field stopped being checked because it stopped existing. Header comment explains why this is `.mjs` and its data is JSON (D1: CI pins Node 20, which predates type stripping).
-- [ ] T010 Wire the gate — add `"verify:listing": "node listing/scripts/verify-listing.mjs"` to the root `package.json`, and a `Listing (fields, claims, assets, identity)` step to the `gates` job in `.github/workflows/ci.yml` **after** the existing `Build` step, because L7 reads `apps/web/dist/index.html`. Confirm the harness exits 0 with no checks registered.
-- [ ] T011 [P] Write `apps/mobile/__tests__/app-config.test.ts` **first** and observe it fail — it requires `../app.config`, and asserts: both iOS purpose strings (`ios.infoPlist.NSMicrophoneUsageDescription` and the `react-native-audio-api` plugin's `iosMicrophonePermission`) equal `claims.purposeSentence` verbatim; `ios.bundleIdentifier` and `android.package` both equal `claims.identifier`; `version` equals `apps/mobile/package.json`'s `version`; `ios.buildNumber` is the string form of the same integer `android.versionCode` is (L12.1, L12.2, FR-105–FR-107). Expected first-run failure: the module does not exist.
-- [ ] T012 Replace `apps/mobile/app.json` with `apps/mobile/app.config.ts` (D2) — a function returning the config, importing `../../listing/store-listing.json`, deriving name, `ios.bundleIdentifier`, `android.package`, `version` (from `./package.json`), and both purpose strings from it, with one `BUILD_NUMBER` integer constant feeding `ios.buildNumber` and `android.versionCode` (D10). **Delete `app.json`** — leaving it beside the config is the stale-copy failure D2 rejects. Carry `ios.supportsTablet` across unchanged for now; US2 decides it (T036). Run T011 and observe it pass.
-- [ ] T013 Set `apps/mobile/package.json`'s `version` to `0.1.0`, retiring the `0.0.0`/`0.1.0` disagreement recorded at T003, then confirm `pnpm --filter @chromatic-tuner/mobile exec expo config --json --type prebuild` resolves and prints the derived identifier, version, build number, and purpose strings. Record the resolved values here — this command is also how T046's gate check reads the config, since `.mjs` cannot import TypeScript.
+- [X] T005 [P] Create `listing/limits.json` with the per-store field limits from data-model.md §3 (`ios`: name 30, subtitle 30, promotionalText 170, description 4000, keywords 100; `android`: title 30, shortDescription 80, fullDescription 4000), plus L4's fold lengths (`ios.descriptionOpening` 170, `android.descriptionOpening` 80) so a store layout change is a data edit. Each store block carries the documentation URL it was read from and a `lastChecked` date. Leave the `assets` section for T025.
+- [X] T006 [P] Create `listing/out-of-scope-claims.json` holding the thirteen patterns currently at `apps/web/e2e/metadata.spec.ts:410` as **regex source strings** (`"\\btuning presets?\\b"`, …), each with the reason it is forbidden. Carry over the comment's word-boundary rationale — `async` contains `sync`, `accounting` contains `account` — because that is the half most likely to be rewritten as a substring check by whoever touches it next.
+- [X] T007 Rewire `apps/web/e2e/metadata.spec.ts` to build its `OUT_OF_SCOPE` array from `listing/out-of-scope-claims.json` with `new RegExp(src, 'i')`, deleting the inline literals. Run `pnpm --filter @chromatic-tuner/web exec playwright test e2e/metadata.spec.ts` and confirm it is still green. **This is the only test file this feature may modify** (V37) — record that here.
+- [X] T008 Create `listing/store-listing.json` containing the `claims` object only, per data-model.md §1: `appName` (matching `apps/web/src/content.ts`'s `appName`), `identifier` `com.chromatictuner.app` (D3, permanent), `purposeSentence` (the sentence currently duplicated in `app.json`), `collectsNoData: true`, `price`, `requirements`. The `stores` and `privacy` objects are deliberately absent so US1's and US3's checks have something to fail against.
+- [X] T009 Create `listing/scripts/verify-listing.mjs` as a harness only — loads the three JSON files, runs a registry of named check groups, prints one line per group with counts (`fields: 13 ok · claims: 6 corroborated · assets: 9 ok · identity: ok`), and exits non-zero if any check reports a failure. A silent success is a failure of V30: the counts are what let a reviewer notice a field stopped being checked because it stopped existing. Header comment explains why this is `.mjs` and its data is JSON (D1: CI pins Node 20, which predates type stripping).
+- [X] T010 Wire the gate — add `"verify:listing": "node listing/scripts/verify-listing.mjs"` to the root `package.json`, and a `Listing (fields, claims, assets, identity)` step to the `gates` job in `.github/workflows/ci.yml` **after** the existing `Build` step, because L7 reads `apps/web/dist/index.html`. Confirm the harness exits 0 with no checks registered.
+- [X] T011 [P] Write `apps/mobile/__tests__/app-config.test.ts` **first** and observe it fail — it requires `../app.config`, and asserts: both iOS purpose strings (`ios.infoPlist.NSMicrophoneUsageDescription` and the `react-native-audio-api` plugin's `iosMicrophonePermission`) equal `claims.purposeSentence` verbatim; `ios.bundleIdentifier` and `android.package` both equal `claims.identifier`; `version` equals `apps/mobile/package.json`'s `version`; `ios.buildNumber` is the string form of the same integer `android.versionCode` is (L12.1, L12.2, FR-105–FR-107). Expected first-run failure: the module does not exist.
+- [X] T012 Replace `apps/mobile/app.json` with `apps/mobile/app.config.ts` (D2) — a function returning the config, importing `../../listing/store-listing.json`, deriving name, `ios.bundleIdentifier`, `android.package`, `version` (from `./package.json`), and both purpose strings from it, with one `BUILD_NUMBER` integer constant feeding `ios.buildNumber` and `android.versionCode` (D10). **Delete `app.json`** — leaving it beside the config is the stale-copy failure D2 rejects. Carry `ios.supportsTablet` across unchanged for now; US2 decides it (T036). Run T011 and observe it pass.
+- [X] T013 Set `apps/mobile/package.json`'s `version` to `0.1.0`, retiring the `0.0.0`/`0.1.0` disagreement recorded at T003, then confirm `pnpm --filter @chromatic-tuner/mobile exec expo config --json --type prebuild` resolves and prints the derived identifier, version, build number, and purpose strings. Record the resolved values here — this command is also how T046's gate check reads the config, since `.mjs` cannot import TypeScript.
 
-**Checkpoint**: one identifier, one version, one build integer, one purpose sentence, one forbidden-vocabulary list, and a gate that runs in CI with nothing yet to say. User stories can now proceed.
+**Checkpoint**: one identifier, one version, one build integer, one purpose sentence, one forbidden-vocabulary list, and a gate that runs in CI with nothing yet to say. User stories can now proceed. ✅ **Reached 2026-08-05.**
+
+### Phase 2 results — 2026-08-05
+
+**All gates green after the phase**: lint, format, typecheck 5/5, `pnpm test` 430 passed, mobile
+**69 passed / 10 suites** (up from 64/9 — T011's five new assertions), `pnpm build` unchanged at
+`dist/index.html` 7,454 B, `pnpm test:e2e` 107 passed, `pnpm verify:listing` green.
+
+**The naming decision T003 asked for, now settled.** `claims.appName` is **`"Chromatic Tuner"`**, with
+the space, confirmed with the user during this phase. It now drives the home-screen label, the
+microphone prompt's first word, both listings, and agrees with `apps/web/src/content.ts:48`. The
+alternative — keeping `ChromaticTuner` and changing the web copy instead — was rejected because that
+copy is `003`'s shipped output and outside this feature's boundary. Recorded in
+`store-listing.json`'s `$appName-note` so the reasoning survives where the value lives.
+
+**The gate went red on its first run, and was right to.**
+
+```
+claims: 1 problem
+  claims.requirements claims a capability 001 put out of scope — matches \baccounts?\b
+```
+
+`claims.requirements` had been written as *"A microphone. No account, and no network connection after
+the first load."* FR-093 forbids the out-of-scope vocabulary **including inside a negation**, and this is
+exactly that case: a listing that says "no account" has still put the word *account* in front of a
+shopper and in front of a store's indexer. Rewritten positively — *"A microphone, and nothing else.
+After the first load it works with no network connection at all."* — which says the same true thing
+without naming the thing that does not exist.
+
+Worth stating plainly because it happened before any store copy was written: the negation clause is not
+a hypothetical hazard the spec invented. The first six sentences authored under it tripped it once.
+
+**Deviation from the task text: `limits.json` nests the field map under `fields`.** T005 describes
+`limits.ios.name`; the file has `limits.ios.fields.name`, with `descriptionOpening` and `documentation`
+as siblings of `fields`. The reason is L1's iteration — the check walks every entry in a store's field
+map, and metadata sitting in the same object would have to be filtered out by name, which is the kind of
+filter that goes stale silently. T014 and T016 read `limits.<store>.fields` and
+`limits.<store>.descriptionOpening`.
+
+**`lastChecked` is `null`, deliberately.** The limits are recorded from prior knowledge, not re-read
+from Apple's and Google's live specifications, and writing today's date beside them would have made an
+unverified value look verified. T066 is the gate that reads both published specifications and sets the
+dates; the `documentation.note` on each store says so where a person editing the file will see it.
+
+**T007 — the extraction, verified by removal.** `apps/web/e2e/metadata.spec.ts` now compiles its
+`OUT_OF_SCOPE` array from `listing/out-of-scope-claims.json`. Read with `readFileSync` rather than
+imported: `listing/` is outside the app, and a JSON import under Node ESM needs an import attribute the
+Playwright loader does not uniformly apply. Reading it also gives the missing-file case somewhere to
+fail loudly — proved by moving the file away and re-running:
+
+```
+Error: listing/out-of-scope-claims.json could not be read (…/listing/out-of-scope-claims.json). It is
+the shared source of the forbidden vocabulary for this suite and for pnpm verify:listing — an empty
+list here would silently permit every claim it forbids.
+```
+
+That probe is the point of the task. A spec that read a missing file as an empty list would go green
+while forbidding nothing. **`metadata.spec.ts` remains the only existing test file this feature
+modifies** (V37, T061), and its only change is where the list comes from.
+
+**T012 — two type errors worth recording, because both had a tempting wrong fix.**
+
+1. `newArchEnabled` is accepted by Expo and appears in the resolved config, but is **not declared** in
+   `@expo/config-types@57.0.2`'s `ExpoConfig`. The tempting fix is `as ExpoConfig` on the whole object,
+   which would silence every future typo in the one file that now assembles the identifiers and the
+   purpose string. Fixed by widening exactly one field: `type MobileConfig = ExpoConfig & {
+   newArchEnabled?: boolean }`.
+2. The test called `appConfig({ config: {} as never })`, which does not satisfy `ConfigContext`. Fixed
+   by passing the real shape (`projectRoot`, `staticConfigPath`, `packageJsonPath`, `config`) rather
+   than loosening the type — the three path fields go unread, which is itself the property that makes
+   this config testable.
+
+**T013 — the resolved config, and one finding for US3.**
+
+| Value | Resolved |
+| --- | --- |
+| `name` | `Chromatic Tuner` |
+| `version` | `0.1.0` (from `package.json`, now the only copy) |
+| `ios.bundleIdentifier` | `com.chromatictuner.app` |
+| `ios.buildNumber` | `"1"` |
+| `android.package` | `com.chromatictuner.app` |
+| `android.versionCode` | `1` |
+| iOS purpose string ≡ plugin purpose string | **true** |
+| `ios.supportsTablet` | `true` — T036 decides it |
+
+**`android.permissions` resolves to more than the config asks for.** The config requests
+`RECORD_AUDIO`; the resolved output is `RECORD_AUDIO`, `READ_EXTERNAL_STORAGE`,
+`WRITE_EXTERNAL_STORAGE`, **`INTERNET`** — added by autolinked plugins, `expo-dev-client` among them.
+This matters to FR-103 and T045: a Play data-safety form is answered against what the built app
+declares, and `INTERNET` in a manifest is the first thing a reviewer reading a "no data collected"
+declaration will ask about. **T045 must check the resolved permission list of a *release* configuration,
+not of this dev-client one**, and record the answer. It does not falsify the declaration — a permission
+is a capability, not a transmission, and `no-network.spec.ts` still asserts no requests are made — but
+"we never looked" is not the state to be in at review.
+
+**A note for T040.** The gate reads the resolved config by shelling out. Invoked as
+`pnpm --filter @chromatic-tuner/mobile exec expo config --json --type prebuild` from the repository root
+the output starts at `{`, but a differently-scoped pnpm invocation prefixes a `Scope: all 6 workspace
+projects` banner on **stdout**, which is not JSON. T040 should slice from the first `{` rather than
+trust the whole stream.
 
 ---
 

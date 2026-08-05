@@ -60,6 +60,17 @@ jobs:
       - name: Build output (crawl directives, precache exclusion)
         run: pnpm --filter @chromatic-tuner/web verify:build-output
 
+      # The store listing's own gate (004, contract L1–L12): field presence and
+      # limits, the out-of-scope vocabulary, asset dimensions, and the agreement
+      # between the two listings and the web page.
+      #
+      # It runs after Build deliberately — L7 compares the listing against the
+      # rendered text of dist/index.html, not against the constant that produces
+      # it, because comparing two references to one constant passes whatever the
+      # page actually says.
+      - name: Listing (fields, claims, assets, identity)
+        run: pnpm verify:listing
+
   mobile-tests:
     runs-on: ubuntu-latest
     steps:

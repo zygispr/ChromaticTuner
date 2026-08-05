@@ -1,0 +1,15 @@
+{
+  "$schema-note": "The single source of truth for both store listings (FR-088). Read by apps/mobile/app.config.ts in Node at prebuild time, by listing/scripts/verify-listing.mjs as a gate, and by a person preparing a submission (listing/submission.md). JSON because those three consumers have nothing else in common — research D1.",
+  "$what-lives-here": "claims are store-independent facts about the app. stores.* are one store's rendering of those facts into its own fields, bounded by listing/limits.json. Nothing here is bundled or present at runtime on any platform.",
+  "claims": {
+    "appName": "Chromatic Tuner",
+    "identifier": "com.chromatictuner.app",
+    "purposeSentence": "Chromatic Tuner listens to your instrument to show which note you are playing. Audio is analysed entirely on this device and is never recorded, stored, or sent anywhere.",
+    "collectsNoData": true,
+    "price": "Free, with no in-app purchases and no advertising.",
+    "requirements": "A microphone, and nothing else. After the first load it works with no network connection at all.",
+    "$identifier-note": "Permanent from first publication — neither store permits changing it afterwards (D3, FR-106). Chosen over com.prielaidas.chromatictuner because the Android package is the half a user sees, in the Play Store URL that gets pasted into a chat.",
+    "$appName-note": "One form, with the space, across the home-screen label, the microphone prompt, both listings, and apps/web/src/content.ts. app.json used to say ChromaticTuner while the web said Chromatic Tuner; FR-105 requires the prompt, the listing copy, and the privacy policy to explain the same purpose in the same terms, and two names for one product is where that starts to fail. Decided 2026-08-05.",
+    "$collectsNoData-note": "True because the app makes no network requests during use (FR-030), which apps/web/e2e/no-network.spec.ts asserts. FR-103 binds the store privacy declaration to that check rather than to a promise: adding analytics, crash reporting, or an update ping turns that gate red and makes this field false in the same commit."
+  }
+}

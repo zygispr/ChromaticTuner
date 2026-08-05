@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { expect, test } from '@playwright/test';
 
 import { audioArgs, waitForNote } from './helpers';
@@ -406,22 +408,40 @@ test('every advertised claim appears in the visible text (P10, FR-083)', async (
  * the raw HTML, because the served document also carries Vite's client in
  * development and its own markup everywhere — neither of which is a claim about
  * the product, and neither of which anyone here would be able to fix.
+ *
+ * The list itself moved to `listing/out-of-scope-claims.json` in 004 (research
+ * D8). It was inline here while this file was its only consumer; the two store
+ * listings are its second and third, which is where Principle I places
+ * extraction. The failure mode is also asymmetric — a term missing from one
+ * copy of the list does not fail, it silently permits the claim it forbids.
+ *
+ * Read rather than imported: `listing/` is outside this app, and a JSON import
+ * under Node ESM needs an import attribute the Playwright loader does not
+ * uniformly apply. Reading it also gives the missing-file case somewhere to
+ * fail loudly instead of scanning an empty list.
  */
-const OUT_OF_SCOPE = [
-  /\btuning presets?\b/i,
-  /\bdrop\s*d\b/i,
-  /\bDADGAD\b/i,
-  /\bcustom tunings?\b/i,
-  /\bper-string\b/i,
-  /\breference tones?\b/i,
-  /\bcapo\b/i,
-  /\btransposition\b/i,
-  /\bmetronome\b/i,
-  /\bchord librar(?:y|ies)\b/i,
-  /\bsign-?in\b/i,
-  /\baccounts?\b/i,
-  /\bsync(?:ing|ed|hronis|hroniz)?\b/i,
-];
+const CLAIMS_FILE = new URL('../../../listing/out-of-scope-claims.json', import.meta.url);
+
+const OUT_OF_SCOPE: RegExp[] = (() => {
+  let raw: string;
+  try {
+    raw = readFileSync(CLAIMS_FILE, 'utf8');
+  } catch {
+    throw new Error(
+      `listing/out-of-scope-claims.json could not be read (${CLAIMS_FILE.pathname}). ` +
+        'It is the shared source of the forbidden vocabulary for this suite and for ' +
+        'pnpm verify:listing — an empty list here would silently permit every claim it forbids.'
+    );
+  }
+
+  const patterns = (JSON.parse(raw) as { patterns?: { source: string }[] }).patterns;
+
+  if (!Array.isArray(patterns) || patterns.length === 0) {
+    throw new Error('listing/out-of-scope-claims.json has no `patterns` array to check against.');
+  }
+
+  return patterns.map(({ source }) => new RegExp(source, 'i'));
+})();
 
 test('claims no capability that is out of scope (P11, FR-065)', async ({ page }) => {
   await page.goto('/');
