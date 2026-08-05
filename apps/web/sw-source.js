@@ -57,11 +57,21 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // A navigation to any in-scope URL is the same single-page app shell, so it
-  // is served from the cached index rather than the network.
+  // A navigation is answered with that page if the site really has one, and
+  // with the single-page app shell otherwise.
+  //
+  // The shell-for-everything rule was correct while the site had exactly one
+  // document. 004 added `/privacy.html`, and under the old rule a navigation to
+  // it returned the tuner — from the cache, so the failure appears only once the
+  // service worker is active, which is never during development against
+  // `vite dev`. A store reviewer following the policy link on a second visit
+  // would have been shown a guitar tuner (FR-104).
   if (request.mode === 'navigate') {
     event.respondWith(
-      caches.match('/index.html', MATCH).then((cached) => cached ?? fetch(request))
+      caches
+        .match(url.pathname, MATCH)
+        .then((cached) => cached ?? caches.match('/index.html', MATCH))
+        .then((cached) => cached ?? fetch(request))
     );
     return;
   }

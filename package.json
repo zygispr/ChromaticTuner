@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@11.18.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.13"
   },
   "scripts": {
     "build": "pnpm --filter @chromatic-tuner/web build",
@@ -15,7 +15,10 @@
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
-    "test:e2e": "pnpm --filter @chromatic-tuner/web test:e2e"
+    "test:e2e": "pnpm --filter @chromatic-tuner/web test:e2e",
+    "verify:listing": "node listing/scripts/verify-listing.mjs",
+    "listing:assets": "node listing/scripts/generate-icons.mjs",
+    "listing:screenshots": "node listing/scripts/capture-screenshots.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

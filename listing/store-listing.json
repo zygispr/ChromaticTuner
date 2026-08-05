@@ -1,0 +1,84 @@
+{
+  "$schema-note": "The single source of truth for both store listings (FR-088). Read by apps/mobile/app.config.ts in Node at prebuild time, by listing/scripts/verify-listing.mjs as a gate, and by a person preparing a submission (listing/submission.md). JSON because those three consumers have nothing else in common — research D1.",
+  "$what-lives-here": "claims are store-independent facts about the app. stores.* are one store's rendering of those facts into its own fields, bounded by listing/limits.json. Nothing here is bundled or present at runtime on any platform.",
+  "claims": {
+    "appName": "Chromatic Tuner",
+    "identifier": "com.chromatictuner.app",
+    "purposeSentence": "Chromatic Tuner listens to your instrument to show which note you are playing. Audio is analysed entirely on this device and is never recorded, stored, or sent anywhere.",
+    "collectsNoData": true,
+    "price": "Free, with no in-app purchases and no advertising.",
+    "requirements": "A microphone, and nothing else. After the first load it works with no network connection at all.",
+    "$identifier-note": "Permanent from first publication — neither store permits changing it afterwards (D3, FR-106). Chosen over com.prielaidas.chromatictuner because the Android package is the half a user sees, in the Play Store URL that gets pasted into a chat.",
+    "$appName-note": "One form, with the space, across the home-screen label, the microphone prompt, both listings, and apps/web/src/content.ts. app.json used to say ChromaticTuner while the web said Chromatic Tuner; FR-105 requires the prompt, the listing copy, and the privacy policy to explain the same purpose in the same terms, and two names for one product is where that starts to fail. Decided 2026-08-05.",
+    "$collectsNoData-note": "True because the app makes no network requests during use (FR-030), which apps/web/e2e/no-network.spec.ts asserts. FR-103 binds the store privacy declaration to that check rather than to a promise: adding analytics, crash reporting, or an update ping turns that gate red and makes this field false in the same commit.",
+    "$corroboration-note": "Each claim restated as the concept a reader must be able to take away, with the phrasings that count as saying it. L6 requires every concept to appear in both stores' copy; L7 requires every concept to appear in the rendered text of the built web page. Concepts rather than sentences, because the two stores' field structures differ by design (spec edge case 1) — byte comparison would either fail always or force copy that wastes one store's fields. Adding a claim to a listing means adding it here, which means the web page has to say it too.",
+    "corroboration": [
+      {
+        "concept": "it tunes a guitar",
+        "phrasings": ["guitar"]
+      },
+      {
+        "concept": "it is chromatic — it names whatever note it hears",
+        "phrasings": ["chromatic"]
+      },
+      {
+        "concept": "it costs nothing",
+        "phrasings": ["free"]
+      },
+      {
+        "concept": "it listens through the microphone",
+        "phrasings": ["microphone"]
+      },
+      {
+        "concept": "the audio is analysed on the device",
+        "phrasings": ["on your device", "on your own device", "on this device", "in the browser"]
+      },
+      {
+        "concept": "nothing is recorded, stored, or sent anywhere",
+        "phrasings": ["never recorded", "not recorded"]
+      },
+      {
+        "concept": "it keeps working with no network connection",
+        "phrasings": ["no network connection", "no network", "offline"]
+      }
+    ]
+  },
+  "stores": {
+    "ios": {
+      "name": "Guitar Tuner: Chromatic",
+      "subtitle": "Free, accurate, offline",
+      "promotionalText": "Pluck one string and see the note you are playing and how far off it is, to within a single cent. It keeps working with no network at all, so it is there in any room.",
+      "description": "Chromatic Tuner is a free guitar tuner. Allow it to use your microphone, pluck one string, and it names the note you are playing and shows how far that string is from it.\n\nHOW IT WORKS\n\nPlay one string at a time and let it ring. The tuner names the note it hears and shows the distance from that note in cents — a cent is one hundredth of a semitone. The line moves left when the string is flat and needs tightening, and right when it is sharp and needs loosening. It reads one note at a time, so let each string sound cleanly rather than strumming.\n\nCHROMATIC, NOT GUESSWORK\n\nA chromatic tuner recognises every note in the twelve-tone scale rather than only the six a guitar is most often tuned to. It reads what your strings are actually sounding rather than assuming where they ought to be, which is what makes it useful on a badly slack string that a six-note tuner would name wrongly.\n\nDetection is accurate to within one cent across E1 to E6 — every note a guitar produces, from a slack low string to the highest fret on the top string. If you are matching an ensemble tuned away from A440, the reference pitch adjusts from 415 to 466 Hz.\n\nYOUR PLAYING STAYS ON YOUR DEVICE\n\nEverything is analysed on your device. Audio is never recorded, never stored, and never sent anywhere, and the app asks for the microphone and nothing else. There is nothing to create and nothing to join.\n\nOnce installed it keeps working with no network connection at all, so it is still there in a rehearsal room or a basement with no signal.\n\nWHAT IT COSTS\n\nNothing. No purchases inside the app, no advertising, and no paid tier holding anything back.",
+      "keywords": "pitch,note,strings,cents,acoustic,electric,intonation,semitone,microphone,a440",
+      "primaryCategory": "Music",
+      "secondaryCategory": "Utilities",
+      "ageRating": "4+",
+      "$keywords-note": "Comma-separated with no space after each comma — the separator costs a character out of the 100. Words already in `name` and `subtitle` are indexed by the store and are deliberately absent here: guitar, tuner, chromatic, free, accurate, offline.",
+      "$ageRating-note": "Recorded, not computed. Answered from Apple's questionnaire against the app's actual content: no objectionable material of any kind, no user-generated content, no external links out of the app. T048 lists the questionnaire as a console step no repository artefact can fill."
+    },
+    "android": {
+      "title": "Chromatic Guitar Tuner",
+      "shortDescription": "Free chromatic tuner for guitar. Uses your microphone, works offline.",
+      "fullDescription": "A free guitar tuner: allow the microphone, pluck a string, and read the note.\n\nChromatic Tuner names whatever note it hears and shows how far the string is from it, measured in cents — a cent is one hundredth of a semitone. The line moves left when the string is flat and needs tightening, and right when it is sharp and needs loosening. Play one string at a time and let it ring; it reads one note at a time rather than a strum.\n\nWHAT CHROMATIC MEANS HERE\n\nA chromatic tuner recognises every note in the twelve-tone scale rather than only the six a guitar is most often tuned to. It reads what your strings are actually sounding rather than assuming where they ought to be — which is what makes it useful on a badly slack string that a six-note tuner would name wrongly.\n\nDetection is accurate to within one cent across E1 to E6, which spans every note a guitar produces, from a slack low string up to the highest fret on the top string. If you are matching an ensemble tuned away from A440, the reference pitch adjusts from 415 to 466 Hz.\n\nYOUR PLAYING STAYS ON YOUR DEVICE\n\nEverything is analysed on your device. Audio is never recorded, never stored, and never sent anywhere. The app asks for the microphone and nothing else — there is nothing to create and nothing to join.\n\nIt keeps working with no network connection at all, so it is still there in a rehearsal room or a basement with no signal.\n\nWHAT IT COSTS\n\nNothing. No purchases inside the app, no advertising, and no paid tier holding anything back.",
+      "category": "Music & Audio",
+      "contentRating": "Everyone",
+      "$discovery-note": "Play has no keyword field, so the discovery terms live in this prose (FR-092). The terms iOS puts in `keywords` — pitch, note, strings, cents, acoustic, electric, intonation, semitone, microphone, A440 — appear here naturally rather than as a list, because Play indexes the description and penalises keyword stuffing.",
+      "$contentRating-note": "Recorded, not computed. The IARC questionnaire is answered in the Play Console and its outcome is what lives here; T048 lists it as a console step no repository artefact can fill."
+    }
+  },
+  "privacy": {
+    "$what-this-is": "What both stores' privacy forms are answered with (data-model §5, FR-103, FR-104). Apple's App Privacy questionnaire and Play's Data safety form ask the same three things in different words: where is your policy, what do you collect, and why do you hold each permission. This is the one answer both are filled in from.",
+    "policyPath": "/privacy.html",
+    "$policyUrl-note": "A path, not a URL, on purpose. The origin belongs to the deployment and reaches the built document as its canonical link (003 FR-075); writing an absolute address here would be a second copy of an origin that changes. pnpm verify:listing composes origin + policyPath and checks it against the canonical link the built privacy page actually carries, so the derivation is verified rather than asserted. The person filling in a console reads the address off the deployed page — listing/submission.md says so.",
+    "dataCollected": [],
+    "$dataCollected-note": "Empty, and the emptiness is structural rather than a promise. The app makes no network request during use (FR-030), which apps/web/e2e/no-network.spec.ts asserts on every run. FR-103 binds this declaration to that gate: if analytics, crash reporting, or an update ping is ever added, that spec goes red and this array becomes false in the same commit rather than a release later. A privacy declaration is a promise about the future, and this is the only mechanism in the repository that makes it one.",
+    "permissions": [
+      {
+        "id": "microphone",
+        "reasonFrom": "claims.purposeSentence"
+      }
+    ],
+    "$permissions-note": "The reason is a pointer, not a copy. The sentence itself is claims.purposeSentence, which also becomes both iOS purpose strings via apps/mobile/app.config.ts and the opening of apps/web/privacy.html; FR-105 requires all of them to explain the microphone in the same terms, and the only way to guarantee that is for there to be one sentence. verify:listing resolves this pointer and fails if it names nothing.",
+    "$android-manifest-note": "A release Android build declares MORE permissions than this file names, and that is a fact to walk into a review knowing rather than discovering. `expo prebuild -p android` generates a main manifest declaring INTERNET, SYSTEM_ALERT_WINDOW, VIBRATE, READ_EXTERNAL_STORAGE and WRITE_EXTERNAL_STORAGE alongside RECORD_AUDIO — none of them requested by app.config.ts, all of them contributed by the React Native template and by autolinked modules, expo-dev-client among them. It does not falsify dataCollected: a permission is a capability, not a transmission, and no-network.spec.ts asserts nothing is transmitted. But INTERNET in a manifest is the first thing a reviewer reading a no-data-collected declaration asks about. listing/submission.md carries this as a pre-submission action with the remedy; it is recorded here because this is the file a person answering the Data safety form is looking at."
+  }
+}

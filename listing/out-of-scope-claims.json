@@ -1,0 +1,64 @@
+{
+  "$schema-note": "Capabilities 001-chromatic-guitar-tuner put explicitly out of scope. Any surface that describes this product — the web page's identity, either store listing, the privacy policy — must not claim one, including inside a negation (FR-093, FR-110, contract L5).",
+  "$why-one-file": "This list had one consumer (apps/web/e2e/metadata.spec.ts) and 004 gives it a second and third: the iOS listing and the Android listing. Principle I places extraction at the third occurrence. The hazard is also asymmetric in a way ordinary duplication is not — a term missing from one copy of the list does not fail, it silently permits the claim it was written to forbid.",
+  "$why-regex-source-strings": "JSON is the only format all three consumers already speak (research D1: CI pins Node 20, so the gate is .mjs and cannot import a .ts module). Storing the pattern source rather than a plain word keeps word-boundary matching, which is the property that makes the list usable at all.",
+  "$why-word-boundaries": "Matched with \\b rather than as substrings. Nothing authored today trips a naive `includes` — that was checked, not assumed — but the hazard is one ordinary word away: `async` contains `sync` and `accounting` contains `account`. A gate that reports a violation for prose containing nothing wrong gets muted, and a muted gate protects nothing. Compile with new RegExp(source, 'i') on every side.",
+  "patterns": [
+    {
+      "source": "\\btuning presets?\\b",
+      "reason": "Tuning presets are out of scope in 001. The app is chromatic: it names whatever note it hears."
+    },
+    {
+      "source": "\\bdrop\\s*d\\b",
+      "reason": "An alternate tuning, and the highest-volume tempting phrase of the lot."
+    },
+    {
+      "source": "\\bDADGAD\\b",
+      "reason": "An alternate tuning."
+    },
+    {
+      "source": "\\bcustom tunings?\\b",
+      "reason": "Custom tunings are out of scope in 001."
+    },
+    {
+      "source": "\\bper-string\\b",
+      "reason": "Per-string targets are out of scope in 001; the app has no notion of which string is being played."
+    },
+    {
+      "source": "\\breference tones?\\b",
+      "reason": "Reference-tone playback is out of scope in 001. The app listens; it never emits sound."
+    },
+    {
+      "source": "\\bcapo\\b",
+      "reason": "Capo compensation is out of scope in 001."
+    },
+    {
+      "source": "\\btransposition\\b",
+      "reason": "Transposition is out of scope in 001."
+    },
+    {
+      "source": "\\bmetronome\\b",
+      "reason": "A practice tool, out of scope in 001, and a common cross-sell claim on tuner listings."
+    },
+    {
+      "source": "\\bchord librar(?:y|ies)\\b",
+      "reason": "A practice tool, out of scope in 001."
+    },
+    {
+      "source": "\\bsign-?in\\b",
+      "reason": "There are no accounts. Nothing to sign in to."
+    },
+    {
+      "source": "\\bsign-?up\\b",
+      "reason": "The same capability as sign-in from the other side, and the word the copy reaches for first when boasting about not having one. Added in 004 after a draft iOS description said 'there is no sign-up' — the same negation defect the account pattern had already caught once, in a word the list did not yet cover."
+    },
+    {
+      "source": "\\baccounts?\\b",
+      "reason": "Accounts are out of scope in 001, and claiming one would also contradict the store privacy declaration (FR-103)."
+    },
+    {
+      "source": "\\bsync(?:ing|ed|hronis|hroniz)?\\b",
+      "reason": "Sync is out of scope in 001, and there is no network request to sync over (FR-030). The alternation is what keeps this from firing on `async`."
+    }
+  ]
+}

@@ -48,6 +48,21 @@ export const heading = 'Free Online Guitar Tuner';
 export const appName = 'Chromatic Tuner';
 
 /**
+ * The privacy page's own identity (004 FR-104, research D9).
+ *
+ * A second document needs a second title and a second description, or the two
+ * pages compete for the same queries and a store reviewer following the policy
+ * link lands on a tab labelled "Online Guitar Tuner". The page's *prose* is not
+ * here — it is markup in `privacy.html`, because a reviewer must be able to read
+ * a policy without running a script, and because it is read once rather than
+ * consumed three times over the way the strings above are.
+ */
+export const privacyTitle = 'Privacy Policy — Chromatic Tuner';
+
+export const privacyDescription =
+  'Chromatic Tuner analyses audio on your own device, records nothing, and sends nothing anywhere. What that means in practice, and the one permission the app asks for.';
+
+/**
  * The supporting content (FR-064). Written to answer a first-time user's
  * questions, not to reach a word count — SC-023's 150-word floor is a gate
  * against the copy being quietly emptied, not a target.

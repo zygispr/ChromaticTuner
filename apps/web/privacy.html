@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <!--
+      The policy prose below is in the served document, not rendered by React and
+      not fetched at runtime (research D9). A store reviewer must not have to run
+      a script to read a privacy policy, and both stores' reviewers request this
+      URL with tooling that may not run one at all.
+
+      The title, description, canonical address, and token stylesheet are
+      injected by `siteIdentity()` in vite.config.ts, exactly as they are for
+      index.html.
+
+      The CT_APP_NAME and CT_PURPOSE_SENTENCE placeholders below (each written
+      between percent signs) are replaced at build time from
+      `listing/store-listing.json`. They are placeholders rather than literal
+      text because FR-105 requires the permission prompt, both store listings,
+      and this page to explain the same purpose *in the same terms* — and the
+      whole point of 004 is that the sentence is authored once. A hand-copied
+      copy here would be the fifth, and the one nobody would think to update. The
+      build fails loudly if either placeholder survives.
+    -->
+  </head>
+  <body>
+    <main id="site-content">
+      <h1>Privacy Policy</h1>
+
+      <p class="lede">
+        %CT_APP_NAME% collects nothing. This page says what that means in practice, because a policy
+        that only says "we respect your privacy" gives you nothing you can check.
+      </p>
+
+      <section>
+        <h2>What the app does with sound</h2>
+        <p>%CT_PURPOSE_SENTENCE%</p>
+        <p>
+          The microphone is open only while the tuner is listening. Leaving or closing the app
+          releases it, and the recording indicator your device shows goes out at the same moment.
+        </p>
+      </section>
+
+      <section>
+        <h2>What is collected</h2>
+        <p>
+          Nothing at all — there is no analytics, no crash reporting, and no advertising identifier.
+        </p>
+        <ul>
+          <li>
+            No audio leaves your device. Sound is measured as it arrives and then discarded; nothing
+            is written to storage and nothing is uploaded.
+          </li>
+          <li>Nothing is kept about what you played, when you played it, or for how long.</li>
+          <li>
+            There is nothing to create and nothing to join, so there is no name, address, or
+            identifier of yours for the app to hold.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>The one permission the app asks for</h2>
+        <p>
+          The microphone, and nothing else. A tuner either hears the string or guesses at it, so
+          this permission is what the app is for rather than an extra it would be convenient to
+          have. It is requested when you first start tuning, and you can withdraw it at any time in
+          your device settings — the app then stops hearing anything and shows you why.
+        </p>
+      </section>
+
+      <section>
+        <h2>Where the audio goes</h2>
+        <p>
+          Nowhere. The app makes no network requests while you use it, which is a property of how it
+          is built rather than a promise about how it is operated: an automated check in this
+          project fails the build if any request is made during use. After the first load it works
+          with no network connection at all.
+        </p>
+      </section>
+
+      <section>
+        <h2>Children</h2>
+        <p>
+          The app is suitable for all ages. Because it collects nothing from anyone, it collects
+          nothing from children either.
+        </p>
+      </section>
+
+      <section>
+        <h2>If this ever changes</h2>
+        <p>
+          If the app ever begins doing something this page does not describe, this page changes in
+          the same release that changes the app — it is stored beside the source and reviewed with
+          it, not published separately afterwards. The date below is when it last changed.
+        </p>
+      </section>
+
+      <section>
+        <h2>Questions</h2>
+        <p>
+          The contact address for %CT_APP_NAME% is published on its App Store and Google Play
+          listing pages, beside the developer name.
+        </p>
+      </section>
+
+      <p class="updated">Last updated 5 August 2026.</p>
+
+      <p><a href="/">Back to the tuner</a></p>
+    </main>
+  </body>
+</html>

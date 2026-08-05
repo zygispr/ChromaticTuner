@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import react from '@vitejs/plugin-react';
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, type IndexHtmlTransformResult, type Plugin } from 'vite';
 
 // Three deliberate choices in one import line, each forced by how Vite loads
 // this file. None of them is stylistic, and reverting any one breaks the build.
@@ -26,7 +26,39 @@ import { defineConfig, type Plugin } from 'vite';
 import { color, type ThemedColor } from '../../packages/tokens/src/colors.js';
 import { space } from '../../packages/tokens/src/space.js';
 import { type as typeScale } from '../../packages/tokens/src/type.js';
-import { appName, description, features, heading, sections, title } from './src/content.js';
+import {
+  appName,
+  description,
+  features,
+  heading,
+  privacyDescription,
+  privacyTitle,
+  sections,
+  title,
+} from './src/content.js';
+
+/**
+ * The claims 004 authors once (`listing/store-listing.json`, FR-088).
+ *
+ * Read with `readFileSync` rather than imported: this file is loaded by Node
+ * outside the app's module graph, `listing/` is outside the app entirely, and a
+ * JSON import here would need an import attribute the config loader does not
+ * apply uniformly. `listing/scripts/verify-listing.mjs` reads the same file the
+ * same way.
+ *
+ * Only the microphone purpose sentence and the app name are used, and only by
+ * the privacy page — which is the point of FR-105: the permission prompt, both
+ * store listings, and the policy must explain the same purpose in the same
+ * terms, so there is one sentence and four readers of it rather than four copies.
+ */
+const claims = (
+  JSON.parse(
+    readFileSync(
+      fileURLToPath(new URL('../../listing/store-listing.json', import.meta.url)),
+      'utf8'
+    )
+  ) as { claims: { appName: string; purposeSentence: string } }
+).claims;
 
 /**
  * The origin this build believes it is deployed to.
@@ -176,6 +208,57 @@ body {
 `;
 
 /**
+ * The little the privacy page needs on top of the shared content styling (D9).
+ *
+ * Injected only into `privacy.html`. The tuner page's document is unchanged by
+ * this feature, which FR-113 and SC-044 make a verified claim rather than an
+ * intention — so this is a separate block rather than four more rules in
+ * `contentCss`.
+ *
+ * `--ct-flat` for the link colour: it is the only blue in the palette and its
+ * contrast against the background is asserted in both appearances by
+ * `packages/tokens/tests/contrast.test.ts`. Chosen for that measurement, not for
+ * its meaning on the tuner — a link is not a flat string, and the token names a
+ * colour rather than a state here.
+ */
+const privacyCss = `
+#site-content section {
+  margin-top: ${space.lg}px;
+}
+
+#site-content p + p,
+#site-content ul {
+  margin-top: ${space.sm}px;
+}
+
+#site-content ul {
+  padding-left: ${space.md}px;
+}
+
+#site-content li + li {
+  margin-top: ${space.xs}px;
+}
+
+/*
+ * Weight rather than size. The type scale has three sizes and the next one up
+ * is the 32px cents readout, which is a display size — arithmetic on a token to
+ * invent a fourth is how a scale stops being a scale.
+ */
+#site-content .lede {
+  font-weight: ${typeScale.weightMedium};
+}
+
+#site-content .updated {
+  margin-top: ${space.lg}px;
+  color: var(--ct-no-reading);
+}
+
+#site-content a {
+  color: var(--ct-flat);
+}
+`;
+
+/**
  * The supporting content, as markup (FR-064, P2–P4).
  *
  * The single `<h1>` lives here rather than in a component, because a heading
@@ -247,12 +330,27 @@ function robotsTxt(): string {
       `User-agent: *\nDisallow: /\n`;
 }
 
+/**
+ * Every page this site actually has, in document order of importance.
+ *
+ * One list, read three times — by the sitemap, by the service worker's precache
+ * array, and by the canonical link each page carries. 004 added the second page
+ * and D9 names all three as registrations that ship quietly when missed: an
+ * unlisted policy, a policy that breaks offline, and a policy claiming the
+ * tuner's own address as its canonical.
+ */
+const PAGES = [
+  { path: '/', file: 'index.html' },
+  { path: '/privacy.html', file: 'privacy.html' },
+] as const;
+
+const pageUrl = (path: string): string => `${siteOrigin}${path}`;
+
 function sitemapXml(): string {
+  const entries = PAGES.map(({ path }) => `  <url>\n    <loc>${pageUrl(path)}</loc>\n  </url>`);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>${canonicalUrl}</loc>
-  </url>
+${entries.join('\n')}
 </urlset>
 `;
 }
@@ -293,6 +391,66 @@ function webManifest(): string {
   )}\n`;
 }
 
+const PRIVACY_PAGE = 'privacy.html';
+
+/**
+ * The privacy page's build-time substitutions (D9, FR-105).
+ *
+ * The purpose sentence and the app name are authored in
+ * `listing/store-listing.json` and read from there by `app.config.ts` (both iOS
+ * purpose strings), by both store listings, and here. Writing them into
+ * `privacy.html` as literal text would make this the fourth hand-maintained
+ * copy of a sentence FR-105 requires to be identical everywhere — and the copy
+ * nobody would think to update, because a policy page is edited once.
+ *
+ * A surviving placeholder throws rather than shipping. Vite leaves an unknown
+ * `%TOKEN%` in place rather than blanking it, which is the same failure mode
+ * `003` removed from the canonical link: a value-shaped string that every
+ * "non-empty" check waves through.
+ */
+function privacyDocument(html: string): IndexHtmlTransformResult {
+  const filled = Object.entries({
+    '%CT_APP_NAME%': claims.appName,
+    '%CT_PURPOSE_SENTENCE%': claims.purposeSentence,
+  }).reduce((document, [token, value]) => document.replaceAll(token, escapeHtml(value)), html);
+
+  const unresolved = [...new Set(filled.match(/%CT_[A-Z_]+%/g) ?? [])];
+  if (unresolved.length > 0) {
+    throw new Error(
+      `privacy.html has unresolved placeholders: ${unresolved.join(', ')}. They are replaced from ` +
+        'listing/store-listing.json in vite.config.ts; add the value there rather than typing it ' +
+        'into the page (FR-105).'
+    );
+  }
+
+  return {
+    html: filled,
+    tags: [
+      {
+        tag: 'style',
+        attrs: { 'data-chromatic-tuner': 'tokens' },
+        children: themeCss + contentCss + privacyCss,
+        injectTo: 'head-prepend' as const,
+      },
+      { tag: 'title', children: privacyTitle, injectTo: 'head' as const },
+      {
+        tag: 'meta',
+        attrs: { name: 'description', content: privacyDescription },
+        injectTo: 'head' as const,
+      },
+      {
+        // Its own address, not the tuner's. The store privacy declaration's
+        // `policyUrl` is derived from this origin plus the page's path, and
+        // `pnpm verify:listing` compares the two — so a canonical pointing at
+        // `/` would hand both stores an address for a page that is not this one.
+        tag: 'link',
+        attrs: { rel: 'canonical', href: pageUrl(`/${PRIVACY_PAGE}`) },
+        injectTo: 'head' as const,
+      },
+    ],
+  };
+}
+
 /**
  * Assembles everything the served document says about itself (research D1).
  *
@@ -330,7 +488,14 @@ function siteIdentity(): Plugin {
      *
      * `head-prepend` so the tokens are defined before anything that reads them.
      */
-    transformIndexHtml() {
+    transformIndexHtml(html, ctx) {
+      // 004 gave this site a second page, so the injection is now per-page.
+      // Without the branch, `privacy.html` would receive the tuner's `<title>`,
+      // the tuner's canonical address, and a second `<h1>` from the supporting
+      // content — three defects that all look fine until a store reviewer opens
+      // the policy link.
+      if (ctx.path.endsWith(PRIVACY_PAGE)) return privacyDocument(html);
+
       // Tag descriptors only — never the `html` field. Returning `html` REPLACES
       // the whole document rather than adding to it, which silently deletes
       // `#root` and the module script along with everything else.
@@ -505,6 +670,23 @@ function precache(): Plugin {
         // Source maps are large and never needed to run the app offline.
         .filter((name) => !name.endsWith('.map'))
         /*
+         * Empty chunks are deleted from the output after this hook runs, and
+         * precaching one is fatal (found while adding privacy.html in 004).
+         *
+         * An HTML input with no `<script>` of its own still gets an entry chunk
+         * from Rollup — `assets/privacy-BvRk9kiK.js`, zero bytes of code — and
+         * Vite's own HTML plugin drops it later in the same build. It was
+         * therefore listed in the precache manifest and never written to disk,
+         * so `cache.addAll` rejected on install, so the service worker never
+         * activated and the app was not offline-capable at all. One missing file
+         * fails the whole `addAll`, and nothing about it is visible online: the
+         * page works, and only a reload with the network off shows the damage.
+         */
+        .filter((name) => {
+          const item = bundle[name];
+          return item?.type !== 'chunk' || item.code.length > 0;
+        })
+        /*
          * Crawler-facing files are not part of the app (P12a).
          *
          * `siteIdentity()` emits robots.txt and sitemap.xml through `emitFile`,
@@ -524,8 +706,27 @@ function precache(): Plugin {
         .filter((name) => !/\.(?:txt|xml)$/.test(name))
         .map((name) => `/${name}`);
 
+      /*
+       * The pages are listed explicitly, and `/privacy.html` is not redundant
+       * with `assets` above.
+       *
+       * Vite's own HTML plugin emits the documents in its `generateBundle`, and
+       * plugin hook order does not guarantee it has run before this one — so
+       * `bundle` may not contain them yet. The tuner page has always been
+       * listed here for that reason; the policy needs the same treatment, and
+       * D9 names its absence as one of the three registrations that ship
+       * quietly when missed. A policy is the one page a store reviewer is
+       * certain to open, and "works online, blank offline" is precisely the
+       * failure nobody stumbles into during development.
+       */
       const manifest = [
-        ...new Set(['/', '/index.html', '/manifest.webmanifest', '/icon.svg', ...assets]),
+        ...new Set([
+          '/',
+          ...PAGES.map(({ file }) => `/${file}`),
+          '/manifest.webmanifest',
+          '/icon.svg',
+          ...assets,
+        ]),
       ];
 
       // The cache name changes whenever the asset set does, which is what makes
@@ -555,5 +756,17 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: true,
+    rollupOptions: {
+      // Both documents, or the second one is simply not built (D9). Vite's
+      // default input is `index.html` alone, and an unbuilt page fails no
+      // existing check — `dist/` would just quietly hold one fewer file than
+      // the sitemap advertises.
+      input: Object.fromEntries(
+        PAGES.map(({ file }) => [
+          file.replace(/\.html$/, ''),
+          fileURLToPath(new URL(`./${file}`, import.meta.url)),
+        ])
+      ),
+    },
   },
 });

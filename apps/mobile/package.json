@@ -1,6 +1,6 @@
 {
   "name": "@chromatic-tuner/mobile",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "main": "index.js",
   "scripts": {
@@ -9,7 +9,8 @@
     "android": "expo run:android",
     "prebuild": "expo prebuild",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "verify:release-bundle": "node scripts/verify-release-bundle.mjs"
   },
   "dependencies": {
     "@chromatic-tuner/core": "workspace:*",

@@ -1,0 +1,102 @@
+import type { ConfigContext, ExpoConfig } from 'expo/config';
+
+import listing from '../../listing/store-listing.json';
+
+import pkg from './package.json';
+
+/**
+ * Expo configuration, derived rather than transcribed (research D2).
+ *
+ * This replaced `app.json` in 004. The reason is FR-105: the microphone purpose
+ * sentence must read the same at the permission prompt, in both store listings,
+ * and in the privacy policy — and it was already written **twice** inside
+ * `app.json` alone, once under `ios.infoPlist` and once in the
+ * `react-native-audio-api` plugin's config. Two listings would have made four
+ * hand-maintained copies of one sentence, and a gate proving four copies are
+ * identical is strictly worse than having one.
+ *
+ * Reading `listing/store-listing.json` from here works because this file
+ * executes in **Node**, during `expo prebuild` and `expo start` — not inside
+ * the Metro bundle. That matters in this workspace specifically:
+ * `pnpm-workspace.yaml` sets `nodeLinker: hoisted` because Metro cannot resolve
+ * pnpm's symlinks, and anything routed through Metro inherits that fragility.
+ * This is not.
+ *
+ * `apps/mobile/__tests__/app-config.test.ts` asserts the derivation at the
+ * source; `pnpm verify:listing` asserts it again against the *resolved* config
+ * (contract L12.1, L12.2), because the resolved output is what actually reaches
+ * `Info.plist` and `AndroidManifest.xml`.
+ */
+
+/**
+ * One integer for both stores (D10, FR-107).
+ *
+ * Increment on **every** submission, including a resubmission of an unchanged
+ * marketing version — that is the case FR-107 names, and the case where two
+ * independently maintained numbers drift into one store accepting a build and
+ * the other rejecting it. The marketing version comes from `package.json` and
+ * changes when the app changes; this changes when a build is submitted.
+ * `listing/submission.md` states the rule where a person preparing a submission
+ * will read it.
+ */
+const BUILD_NUMBER = 1;
+
+/**
+ * `newArchEnabled` is accepted by Expo and appears in the resolved config, but
+ * `@expo/config-types@57.0.2` does not declare it. Widening by exactly one
+ * known-good field keeps the rest of the object type-checked — a blanket
+ * `as ExpoConfig` here would have silenced every future typo in this file, and
+ * this config is now the only place the identifiers and purpose string are
+ * assembled.
+ */
+type MobileConfig = ExpoConfig & { newArchEnabled?: boolean };
+
+export default ({ config }: ConfigContext): MobileConfig => ({
+  ...config,
+  name: listing.claims.appName,
+  slug: 'chromatic-tuner',
+  version: pkg.version,
+  orientation: 'portrait',
+  userInterfaceStyle: 'automatic',
+  newArchEnabled: true,
+  ios: {
+    // Withdrawn deliberately (research D4, FR-099). Declaring tablet support
+    // obliges a complete 13" iPad screenshot set and an interface that looks
+    // deliberate at that size. No tablet layout has ever been designed — 001 and
+    // 002 specified and measured a phone viewport, and FR-018's no-scroll
+    // guarantee is stated against the *smallest* supported screen, not the
+    // largest. A centred readout scaled to 13 inches is not a tablet layout, and
+    // a screenshot of one is an argument against installing.
+    //
+    // iPad users get the phone app letterboxed, which is what a tablet-declared
+    // app with no tablet layout gives them anyway, minus the review risk. Unlike
+    // the bundle identifier, this is reversible at any time: a real tablet
+    // layout is a feature with its own spec, and this is what stops it being
+    // half-claimed in the meantime.
+    supportsTablet: false,
+    bundleIdentifier: listing.claims.identifier,
+    buildNumber: String(BUILD_NUMBER),
+    deploymentTarget: '16.4',
+    infoPlist: {
+      NSMicrophoneUsageDescription: listing.claims.purposeSentence,
+    },
+  },
+  android: {
+    package: listing.claims.identifier,
+    versionCode: BUILD_NUMBER,
+    permissions: ['android.permission.RECORD_AUDIO'],
+  },
+  plugins: [
+    'expo-dev-client',
+    [
+      'react-native-audio-api',
+      {
+        iosMicrophonePermission: listing.claims.purposeSentence,
+        androidPermissions: ['android.permission.RECORD_AUDIO'],
+      },
+    ],
+  ],
+  experiments: {
+    typedRoutes: false,
+  },
+});

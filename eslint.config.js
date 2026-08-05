@@ -145,8 +145,14 @@ export default tseslint.config(
   // Verification scripts are Node programs that drive a browser, so the bodies
   // of their page.evaluate() callbacks are browser code living inside a Node
   // file. Both sets of globals are legitimately in scope.
+  //
+  // listing/scripts/ is the same kind of program for 004's release artefacts:
+  // the icon generator rasterises through the installed Chromium exactly as
+  // apps/web/scripts/generate-og-image.mjs does (research D6), and the listing
+  // gate is plain Node. They live outside apps/ because three of their inputs
+  // and outputs are not mobile-only — see 004's plan, "Structure Decision".
   {
-    files: ['apps/web/scripts/*.mjs'],
+    files: ['apps/web/scripts/*.mjs', 'listing/scripts/*.mjs', 'apps/mobile/scripts/*.mjs'],
     languageOptions: {
       globals: { ...globals.node, ...globals.browser },
     },

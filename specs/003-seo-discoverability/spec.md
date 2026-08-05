@@ -363,7 +363,8 @@ the preview image — and confirm the automated gate fails and names what is mis
 
 - **Web only.** "This app" in the request means the web tuner. `apps/mobile` has no crawlable surface,
   and app-store listing optimisation is a different discipline with different artefacts; it is out of
-  scope here.
+  scope here. It is now `004-app-store-listings`, which binds its store copy back to this feature's
+  content so the two surfaces cannot make different claims.
 - **Single page, single locale.** The tuner is one page in English. Multiple language versions,
   region targeting, and a multi-page content site are out of scope. If a future feature adds pages, the
   address list added here is the place they get registered.
@@ -399,9 +400,15 @@ the preview image — and confirm the automated gate fails and names what is mis
 
 Recorded so they are not silently reintroduced during planning:
 
-- App-store listing optimisation for the iOS and Android shells
+- App-store listing optimisation for the iOS and Android shells — **moved to
+  `004-app-store-listings`** (2026-08-05). Out of scope *here* still, for the reason below: it is a
+  different discipline with different artefacts and no crawlable surface. It is no longer out of
+  scope for the project.
 - Multiple languages, translated pages, or region targeting
-- A blog, article library, content management system, or any second content page
+- A blog, article library, content management system, or any second content page — with one
+  exception since granted: `004-app-store-listings` FR-104 adds a privacy policy page to the web app,
+  because both stores require a publicly reachable policy address and this is the only address the
+  project controls. That page is `004`'s to build and gate, not this feature's.
 - Backlink building, outreach, directory submission, and paid search
 - Analytics, tag managers, tracking pixels, or any third-party script on the page
 - User accounts, sign-in, comments, ratings, or user-generated content
