@@ -26,7 +26,7 @@
  * because it stopped existing. A gate that says only "listing invalid" gets
  * muted, so every failure names the specific field or file at fault.
  */
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = new URL('../../', import.meta.url);
@@ -476,6 +476,341 @@ group('corroboration', ({ listing: doc, ROOT: root }) => {
   }
 
   return { label: `${list.length} corroborated`, failures };
+});
+
+/**
+ * The PNG header, read directly (L8, FR-111). No image dependency — Principle
+ * II's rule against a package standing in for work the platform already does.
+ *
+ * A PNG is an 8-byte signature followed by length-prefixed chunks; IHDR is
+ * always first. Bytes 16–23 are width and height as big-endian uint32, byte 24
+ * is the bit depth, and byte 25 is the colour type: 0 grey, 2 RGB, 3 palette,
+ * 4 grey+alpha, 6 RGBA. Alpha is present for colour types 4 and 6, and for a
+ * palette image carrying a tRNS chunk.
+ */
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+function readPng(path) {
+  const bytes = readFileSync(path);
+
+  if (bytes.length < 26 || !bytes.subarray(0, 8).equals(PNG_SIGNATURE)) {
+    return { error: 'is not a PNG' };
+  }
+
+  const colourType = bytes[25];
+  const hasAlpha = colourType === 4 || colourType === 6 || bytes.includes('tRNS');
+
+  return {
+    width: bytes.readUInt32BE(16),
+    height: bytes.readUInt32BE(20),
+    colourType,
+    hasAlpha,
+    bytes: bytes.length,
+  };
+}
+
+const pngFiles = (dir) => {
+  try {
+    return readdirSync(dir)
+      .filter((name) => name.toLowerCase().endsWith('.png'))
+      .sort();
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * L8 (FR-111): every required asset exists, at the right size, in the right
+ * format, with alpha present or absent as its store requires.
+ *
+ * The gate checks the **committed pixels**, not the device profile the capture
+ * script asked for. A capture that silently landed at the wrong resolution is
+ * precisely the case where asking the script would agree with itself.
+ */
+group('assets', ({ limits, ROOT: root }) => {
+  const failures = [];
+  let checked = 0;
+
+  const declared = limits.assets?.files ?? {};
+
+  for (const [relative, spec] of Object.entries(declared)) {
+    const path = fileURLToPath(new URL(relative, root));
+    let png;
+
+    try {
+      png = readPng(path);
+    } catch {
+      failures.push(`${relative} is missing — required by ${spec.requiredBy}`);
+      continue;
+    }
+
+    checked += 1;
+
+    if (png.error) {
+      failures.push(`${relative} ${png.error} — required by ${spec.requiredBy}`);
+      continue;
+    }
+
+    if (png.width !== spec.width || png.height !== spec.height) {
+      failures.push(
+        `${relative} is ${png.width}×${png.height}, expected ${spec.width}×${spec.height} ` +
+          `(${spec.requiredBy})`
+      );
+    }
+
+    if (spec.alpha === 'forbidden' && png.hasAlpha) {
+      failures.push(
+        `${relative} has an alpha channel (PNG colour type ${png.colourType}) and ${spec.requiredBy} ` +
+          'rejects one'
+      );
+    }
+
+    if (spec.alpha === 'required' && !png.hasAlpha) {
+      failures.push(
+        `${relative} has no alpha channel (PNG colour type ${png.colourType}), but ${spec.requiredBy} ` +
+          'masks it to a device-chosen shape and needs transparency'
+      );
+    }
+
+    if (spec.maxBytes && png.bytes > spec.maxBytes) {
+      failures.push(`${relative} is ${png.bytes} bytes, over the ${spec.maxBytes}-byte limit`);
+    }
+  }
+
+  // Screenshots are counted and measured per platform and appearance. Their
+  // sizes are a range for Android and a short list for iOS, so they cannot use
+  // the fixed-size table above.
+  const appearances = limits.assets?.appearances ?? [];
+
+  for (const spec of Object.values(limits.assets?.screenshots ?? {})) {
+    for (const appearance of appearances) {
+      const dir = fileURLToPath(new URL(`${spec.root}/${appearance}`, root));
+      const files = pngFiles(dir);
+
+      if (files === null) {
+        failures.push(
+          `${spec.root}/${appearance}/ does not exist — ${spec.requiredBy} needs this set`
+        );
+        continue;
+      }
+
+      if (files.length < spec.countPerAppearance.min) {
+        failures.push(
+          `${spec.root}/${appearance}/ holds ${files.length} screenshots, at least ` +
+            `${spec.countPerAppearance.min} required by ${spec.requiredBy}`
+        );
+      }
+
+      if (files.length > spec.countPerAppearance.max) {
+        failures.push(
+          `${spec.root}/${appearance}/ holds ${files.length} screenshots, at most ` +
+            `${spec.countPerAppearance.max} accepted by ${spec.requiredBy}`
+        );
+      }
+
+      for (const name of files) {
+        const png = readPng(`${dir}/${name}`);
+        checked += 1;
+
+        if (png.error) {
+          failures.push(`${spec.root}/${appearance}/${name} ${png.error}`);
+          continue;
+        }
+
+        if (spec.sizes) {
+          const ok = spec.sizes.some(([w, h]) => png.width === w && png.height === h);
+          if (!ok) {
+            failures.push(
+              `${spec.root}/${appearance}/${name} is ${png.width}×${png.height}; ` +
+                `${spec.requiredBy} accepts ${spec.sizes.map(([w, h]) => `${w}×${h}`).join(' or ')}`
+            );
+          }
+        }
+
+        if (spec.sideRange) {
+          const [min, max] = spec.sideRange;
+          const shortest = Math.min(png.width, png.height);
+          const longest = Math.max(png.width, png.height);
+
+          if (shortest < min || longest > max) {
+            failures.push(
+              `${spec.root}/${appearance}/${name} is ${png.width}×${png.height}; ` +
+                `${spec.requiredBy} needs every side between ${min} and ${max}`
+            );
+          }
+
+          if (longest > shortest * spec.maxAspectRatio) {
+            failures.push(
+              `${spec.root}/${appearance}/${name} is ${png.width}×${png.height}, ratio ` +
+                `${(longest / shortest).toFixed(2)}:1 — ${spec.requiredBy} rejects anything over ` +
+                `${spec.maxAspectRatio}:1`
+            );
+          }
+        }
+      }
+    }
+  }
+
+  return { label: `${checked} ok`, failures };
+});
+
+/**
+ * L9 (FR-101): both appearances are represented, and they are not the same
+ * image.
+ *
+ * The inequality is the whole point. A capture script whose appearance switch
+ * silently failed writes two directories of identical bytes, which satisfies
+ * every presence check ever written and still ships a listing that shows one
+ * appearance twice.
+ */
+group('appearances', ({ limits, ROOT: root }) => {
+  const failures = [];
+  let compared = 0;
+
+  const [light, dark] = limits.assets?.appearances ?? [];
+
+  for (const [platform, spec] of Object.entries(limits.assets?.screenshots ?? {})) {
+    const dirs = Object.fromEntries(
+      [light, dark].map((appearance) => [
+        appearance,
+        fileURLToPath(new URL(`${spec.root}/${appearance}`, root)),
+      ])
+    );
+
+    const files = Object.fromEntries(
+      Object.entries(dirs).map(([appearance, dir]) => [appearance, pngFiles(dir) ?? []])
+    );
+
+    if (files[light].length === 0 || files[dark].length === 0) {
+      failures.push(
+        `${platform} is missing a ${files[light].length === 0 ? light : dark} screenshot — ` +
+          'Principle IV requires both appearances be represented'
+      );
+      continue;
+    }
+
+    const first = readFileSync(`${dirs[light]}/${files[light][0]}`);
+    const second = readFileSync(`${dirs[dark]}/${files[dark][0]}`);
+    compared += 1;
+
+    if (first.equals(second)) {
+      failures.push(
+        `${platform}'s ${light} and ${dark} screenshots are byte-identical — the appearance ` +
+          'switch did not take effect during capture, and a presence check alone would pass this'
+      );
+    }
+  }
+
+  return { label: `${compared} platforms, both appearances`, failures };
+});
+
+/**
+ * L11 (FR-098): the artwork derives from the tokens rather than from literals.
+ *
+ * **This check is not the grep the contract describes, and the difference is
+ * deliberate.** L11 says "no colour literal appears in any generator template or
+ * committed SVG". The first half is checkable as written and is checked as
+ * written. The second half is not satisfiable by any SVG that renders: a
+ * standalone icon has to carry its colours somewhere, so "no literal in the
+ * committed SVG" would forbid the file from working at all.
+ *
+ * What the contract is actually protecting is that the colours are **derived**
+ * rather than hand-transcribed — the defect D5 found, where `icon.svg` carried
+ * five hex values hand-copied from the dark palette and drifted freely because
+ * the `apps/**` ESLint rule reaches TypeScript and not SVG in `public/`.
+ *
+ * So the committed SVGs are checked two ways, because either alone is
+ * satisfiable by the wrong thing:
+ *
+ * 1. **Every colour literal must appear in the built `--ct-*` block.** Catches
+ *    drift — a token changes, the SVG is not regenerated, and its now-stale
+ *    literal no longer matches the palette.
+ * 2. **The file must carry the generator's provenance marker.** Catches
+ *    hand-authoring. Check 1 alone does *not* catch the D5 defect as it stood,
+ *    because those five literals were transcribed *correctly* — they were
+ *    palette values on the day they were typed. A check that passed on the
+ *    defect it was written for would be this feature's own headline mistake.
+ *
+ * V34's "regenerate and see no diff" is the third leg, and the only one that
+ * proves the bytes themselves; it is manual because it needs a browser.
+ */
+const COLOUR_LITERAL = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/g;
+
+/** Written into every SVG the generator emits, and required of every SVG here. */
+const GENERATED_BY = 'listing/scripts/generate-icons.mjs';
+
+group('artwork', ({ ROOT: root }) => {
+  const failures = [];
+  let scanned = 0;
+
+  // Half one, exactly as the contract states it: the generator's own templates
+  // carry no colour of their own. Everything they draw with is a var(--ct-*).
+  const scriptsDir = fileURLToPath(new URL('listing/scripts', root));
+  for (const name of readdirSync(scriptsDir).filter((f) => f.endsWith('.mjs'))) {
+    scanned += 1;
+    const source = readFileSync(`${scriptsDir}/${name}`, 'utf8');
+    // This file names colour literals inside a regex and a comment; scanning it
+    // for them would be self-defeating. The generators are what matter.
+    if (name === 'verify-listing.mjs') continue;
+
+    const found = source.match(COLOUR_LITERAL);
+    if (found) {
+      failures.push(
+        `listing/scripts/${name} contains colour literals (${[...new Set(found)].join(', ')}) — ` +
+          'artwork colours must come from the built token block, not from the template (D5, D6)'
+      );
+    }
+  }
+
+  // Half two: every literal in the committed SVGs is a palette value.
+  const tokenBlock = (() => {
+    try {
+      const html = readFileSync(fileURLToPath(new URL('apps/web/dist/index.html', root)), 'utf8');
+      return /<style data-chromatic-tuner="tokens">([\s\S]*?)<\/style>/.exec(html)?.[1] ?? null;
+    } catch {
+      return null;
+    }
+  })();
+
+  if (!tokenBlock) {
+    return {
+      label: `${scanned} scanned`,
+      failures: [
+        ...failures,
+        'apps/web/dist/index.html has no token <style> block to compare the SVGs against — ' +
+          'run `pnpm build` first',
+      ],
+    };
+  }
+
+  const palette = new Set(
+    (tokenBlock.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).map((c) => c.toLowerCase())
+  );
+  const publicDir = fileURLToPath(new URL('apps/web/public', root));
+
+  for (const name of readdirSync(publicDir).filter((f) => f.endsWith('.svg'))) {
+    scanned += 1;
+    const source = readFileSync(`${publicDir}/${name}`, 'utf8');
+
+    if (!source.includes(GENERATED_BY)) {
+      failures.push(
+        `apps/web/public/${name} is hand-authored — it carries no ${GENERATED_BY} marker. ` +
+          'Its colours may match the palette today and drift the moment a token changes, ' +
+          'which is exactly what D5 found in this file'
+      );
+    }
+
+    for (const literal of new Set(source.match(COLOUR_LITERAL) ?? [])) {
+      if (!palette.has(literal.toLowerCase())) {
+        failures.push(
+          `apps/web/public/${name} uses ${literal}, which is not a --ct-* token value — ` +
+            'the artwork has drifted from the palette it is supposed to be generated from'
+        );
+      }
+    }
+  }
+
+  return { label: `${scanned} scanned`, failures };
 });
 
 const context = { listing, limits, forbidden, ROOT };

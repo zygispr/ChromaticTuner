@@ -431,26 +431,188 @@ tuner; run `pnpm listing:assets` and `pnpm listing:screenshots` from a clean che
 
 ### Checks for User Story 2 ⚠️ Write these first and observe them failing
 
-- [ ] T025 [US2] Add the `assets` section to `listing/limits.json` per data-model.md §4 — for each artefact its pixel dimensions, format, and whether an alpha channel is required, forbidden, or ignored; for Android screenshots the range form (320–3840 per side, **longest side ≤ 2× shortest**). The Android aspect rule is data here rather than folklore in the capture script because a default phone emulator profile boots at 1080×2400 (2.22:1) and Play rejects it.
-- [ ] T026 [US2] Implement L8 in `verify-listing.mjs` — for every entry in `limits.assets`: the file exists, and its dimensions, colour type, and alpha are read **from the PNG header directly** (bytes 16–24 of the IHDR give width and height; byte 25 is the colour type — 2 is RGB, 6 is RGBA), no image dependency (Principle II). Failure names the file, what was expected, and what was found, plus which store requires it. Expected first-run failure: every asset missing (FR-111).
-- [ ] T027 [P] [US2] Implement L9 — for each platform at least one screenshot under `light/` and one under `dark/`, and the two are **not byte-identical**. The inequality is the point: a capture script whose appearance switch silently failed produces two directories of the same image, which passes a presence check and fails Principle IV (FR-101).
-- [ ] T028 [P] [US2] Implement L11 — no `#rrggbb`, `rgb(`, or `hsl(` literal appears in `listing/scripts/*.mjs` or in `apps/web/public/*.svg`. Expected first-run failure: the five literals in `apps/web/public/icon.svg` recorded at T002. This check is what closes the gap D5 found — the `apps/**` hex rule is an ESLint rule and does not reach SVG in `public/` (FR-098).
+- [X] T025 [US2] Add the `assets` section to `listing/limits.json` per data-model.md §4 — for each artefact its pixel dimensions, format, and whether an alpha channel is required, forbidden, or ignored; for Android screenshots the range form (320–3840 per side, **longest side ≤ 2× shortest**). The Android aspect rule is data here rather than folklore in the capture script because a default phone emulator profile boots at 1080×2400 (2.22:1) and Play rejects it.
+- [X] T026 [US2] Implement L8 in `verify-listing.mjs` — for every entry in `limits.assets`: the file exists, and its dimensions, colour type, and alpha are read **from the PNG header directly** (bytes 16–24 of the IHDR give width and height; byte 25 is the colour type — 2 is RGB, 6 is RGBA), no image dependency (Principle II). Failure names the file, what was expected, and what was found, plus which store requires it. Expected first-run failure: every asset missing (FR-111).
+- [X] T027 [P] [US2] Implement L9 — for each platform at least one screenshot under `light/` and one under `dark/`, and the two are **not byte-identical**. The inequality is the point: a capture script whose appearance switch silently failed produces two directories of the same image, which passes a presence check and fails Principle IV (FR-101).
+- [X] T028 [P] [US2] Implement L11 — no `#rrggbb`, `rgb(`, or `hsl(` literal appears in `listing/scripts/*.mjs` or in `apps/web/public/*.svg`. Expected first-run failure: the five literals in `apps/web/public/icon.svg` recorded at T002. This check is what closes the gap D5 found — the `apps/**` hex rule is an ESLint rule and does not reach SVG in `public/` (FR-098).
 
 ### Implementation for User Story 2
 
-- [ ] T029 [US2] Write `listing/scripts/generate-icons.mjs` (D6) — read `apps/web/dist/index.html`, lift the `<style data-chromatic-tuner="tokens">` block, render an HTML template whose every colour is a `var(--ct-*)` reference, and screenshot it with the `@playwright/test` Chromium already installed. Follow `apps/web/scripts/generate-og-image.mjs` deliberately, including its failure path when `dist/index.html` is absent or has changed shape. No new dependency.
-- [ ] T030 [US2] Design the mark itself inside that template — it must read as a tuner at 48 px among unrelated icons (SC-040), not as an unlabelled shape or a wordmark, and compose all meaning inside the **centre 66% safe zone** so an adaptive-icon mask cannot cut it. Record the reasoning here; this is the one task in the feature whose output a gate cannot judge.
-- [ ] T031 [US2] Emit `listing/assets/icon-play-512.png` (512×512, 32-bit PNG, ≤1 MB), `icon-adaptive-foreground.png` (1024×1024, alpha, safe-zone composed), and `feature-graphic-1024x500.png` (1024×500, **no alpha** — Play will not publish without this asset and it is the one most easily forgotten because no other store has an equivalent).
-- [ ] T032 [US2] Emit `listing/assets/icon-ios-1024.png` with **no alpha channel and no pre-applied corner rounding** — Apple rejects both. Chromium's PNG encoder writes colour type 6 (RGBA) even for a fully opaque screenshot, so the raster must be re-encoded to colour type 2. Do it with `node:zlib` (`inflateSync` the IDAT, drop the alpha byte per pixel, re-filter, `deflateSync`, recompute the CRC32) rather than adding an image dependency; if that proves unworkable, record the reason here and raise it rather than shipping an alpha channel Apple will reject. T026 is what makes the failure loud.
-- [ ] T033 [US2] Regenerate `apps/web/public/icon.svg` and `apps/web/public/icon-maskable.svg` from the same generator as `var(--ct-*)`-free resolved output, replacing the hand-transcribed literals (D5). Confirm the web app's icon and manifest still render, and that T028 now passes.
-- [ ] T034 [US2] Write `apps/mobile/src/adapters/captureAudioSource.ts` — an `AudioSource` emitting a generated tone, mirroring the reference-signal approach `apps/web/e2e/fixtures/generate.mjs` already uses. Add a contract test at `apps/mobile/__tests__/capture-audio-source.contract.test.ts` running `packages/core/testing/port-contract-tests.ts` against it, exactly as `rn-audio-source.contract.test.ts` does — a port implementation that skips the contract suite is the thing that suite exists to prevent.
-- [ ] T035 [US2] Select the capture source in `apps/mobile/src/App.tsx` behind one `EXPO_PUBLIC_*` boolean, read at one call site (the plan's single Complexity Tracking entry). Comment it with why it exists and that T047 asserts its absence from release output; a flag whose justification lives only in a spec file gets copied.
-- [ ] T036 [US2] Set `ios.supportsTablet: false` in `apps/mobile/app.config.ts` (D4, FR-099) and record the consequence here — iPad users get the phone app letterboxed, which is what a tablet-declared app with no tablet layout gives them anyway, minus the review risk and minus a screenshot axis. Reversible; D3's identifier is not.
-- [ ] T037 [US2] Write `listing/scripts/capture-screenshots.mjs` (D7) — boot a simulator and an emulator, set appearance with `xcrun simctl ui booted appearance {light,dark}` and `adb shell cmd uimode night {no,yes}`, launch the capture build, capture with `xcrun simctl io booted screenshot` and `adb exec-out screencap -p`, and verify each captured file against `limits.assets` before writing it. Pin the Android profile to **1080×1920** (1.78:1); the common 1080×2400 default is 2.22:1 and is rejected. Add `listing:assets` and `listing:screenshots` scripts to the root `package.json`. Document that this cannot run on CI's Ubuntu runners.
-- [ ] T038 [US2] Capture and commit the screenshot set under `listing/assets/screenshots/{ios,android}/{light,dark}/`, each showing the tuner displaying a note — not an empty state and not the permission prompt. Then run `pnpm listing:screenshots` again and confirm `git status --porcelain listing/assets/screenshots` is empty (V33, SC-039). Compare one light against one dark capture: byte-identical means the appearance switch silently failed.
-- [ ] T039 [US2] Run `pnpm build && pnpm listing:assets && pnpm verify:listing`; confirm T026–T028 green and `git diff --stat apps/web/public listing/assets` is empty on a second run (V34). Record the asset counts here.
+- [X] T029 [US2] Write `listing/scripts/generate-icons.mjs` (D6) — read `apps/web/dist/index.html`, lift the `<style data-chromatic-tuner="tokens">` block, render an HTML template whose every colour is a `var(--ct-*)` reference, and screenshot it with the `@playwright/test` Chromium already installed. Follow `apps/web/scripts/generate-og-image.mjs` deliberately, including its failure path when `dist/index.html` is absent or has changed shape. No new dependency.
+- [X] T030 [US2] Design the mark itself inside that template — it must read as a tuner at 48 px among unrelated icons (SC-040), not as an unlabelled shape or a wordmark, and compose all meaning inside the **centre 66% safe zone** so an adaptive-icon mask cannot cut it. Record the reasoning here; this is the one task in the feature whose output a gate cannot judge.
+- [X] T031 [US2] Emit `listing/assets/icon-play-512.png` (512×512, 32-bit PNG, ≤1 MB), `icon-adaptive-foreground.png` (1024×1024, alpha, safe-zone composed), and `feature-graphic-1024x500.png` (1024×500, **no alpha** — Play will not publish without this asset and it is the one most easily forgotten because no other store has an equivalent).
+- [X] T032 [US2] Emit `listing/assets/icon-ios-1024.png` with **no alpha channel and no pre-applied corner rounding** — Apple rejects both. Chromium's PNG encoder writes colour type 6 (RGBA) even for a fully opaque screenshot, so the raster must be re-encoded to colour type 2. Do it with `node:zlib` (`inflateSync` the IDAT, drop the alpha byte per pixel, re-filter, `deflateSync`, recompute the CRC32) rather than adding an image dependency; if that proves unworkable, record the reason here and raise it rather than shipping an alpha channel Apple will reject. T026 is what makes the failure loud.
+- [X] T033 [US2] Regenerate `apps/web/public/icon.svg` and `apps/web/public/icon-maskable.svg` from the same generator as `var(--ct-*)`-free resolved output, replacing the hand-transcribed literals (D5). Confirm the web app's icon and manifest still render, and that T028 now passes.
+- [X] T034 [US2] Write `apps/mobile/src/adapters/captureAudioSource.ts` — an `AudioSource` emitting a generated tone, mirroring the reference-signal approach `apps/web/e2e/fixtures/generate.mjs` already uses. Add a contract test at `apps/mobile/__tests__/capture-audio-source.contract.test.ts` running `packages/core/testing/port-contract-tests.ts` against it, exactly as `rn-audio-source.contract.test.ts` does — a port implementation that skips the contract suite is the thing that suite exists to prevent.
+- [X] T035 [US2] Select the capture source in `apps/mobile/src/App.tsx` behind one `EXPO_PUBLIC_*` boolean, read at one call site (the plan's single Complexity Tracking entry). Comment it with why it exists and that T047 asserts its absence from release output; a flag whose justification lives only in a spec file gets copied.
+- [X] T036 [US2] Set `ios.supportsTablet: false` in `apps/mobile/app.config.ts` (D4, FR-099) and record the consequence here — iPad users get the phone app letterboxed, which is what a tablet-declared app with no tablet layout gives them anyway, minus the review risk and minus a screenshot axis. Reversible; D3's identifier is not.
+- [X] T037 [US2] Write `listing/scripts/capture-screenshots.mjs` (D7) — boot a simulator and an emulator, set appearance with `xcrun simctl ui booted appearance {light,dark}` and `adb shell cmd uimode night {no,yes}`, launch the capture build, capture with `xcrun simctl io booted screenshot` and `adb exec-out screencap -p`, and verify each captured file against `limits.assets` before writing it. Pin the Android profile to **1080×1920** (1.78:1); the common 1080×2400 default is 2.22:1 and is rejected. Add `listing:assets` and `listing:screenshots` scripts to the root `package.json`. Document that this cannot run on CI's Ubuntu runners.
+- [~] T038 [US2] **iOS done, Android blocked — see Phase 4 results.** Capture and commit the screenshot set under `listing/assets/screenshots/{ios,android}/{light,dark}/`, each showing the tuner displaying a note — not an empty state and not the permission prompt. Then run `pnpm listing:screenshots` again and confirm `git status --porcelain listing/assets/screenshots` is empty (V33, SC-039). Compare one light against one dark capture: byte-identical means the appearance switch silently failed.
+- [X] T039 [US2] Run `pnpm build && pnpm listing:assets && pnpm verify:listing`; confirm T026–T028 green and `git diff --stat apps/web/public listing/assets` is empty on a second run (V34). Record the asset counts here.
 
-**Checkpoint**: the listing has an icon and screenshots, both regenerable from a clean checkout, and the web app no longer carries a second hand-hexed copy of the dark palette.
+**Checkpoint**: the listing has an icon and screenshots, both regenerable from a clean checkout, and the web app no longer carries a second hand-hexed copy of the dark palette. ⚠️ **Partially reached 2026-08-05 — iOS complete, Android screenshots blocked.**
+
+### Phase 4 results — 2026-08-05
+
+**`pnpm verify:listing` after the phase — green except the one tracked gap:**
+
+```
+claims: 25 fields ok · fields: 8 ok · names: 2 ok · openings: 2 ok
+vocabulary: 38 strings clean · agreement: 7 claims × 2 stores · corroboration: 7 corroborated
+assets: 2 problems
+  listing/assets/screenshots/android/light/ does not exist — Google Play … needs this set
+  listing/assets/screenshots/android/dark/ does not exist — Google Play … needs this set
+appearances: 1 problem
+  android is missing a light screenshot — Principle IV requires both appearances be represented
+artwork: 5 scanned
+```
+
+**Every other gate green**: lint, format, typecheck 5/5, 430 unit, **78 mobile / 11 suites** (up from
+69/10 — T034's nine), `pnpm build` unchanged at 7,454 B, 107 e2e.
+
+#### T038 — Android is blocked, and the gate says so
+
+**This machine has no Android SDK**: no `adb`, no `~/Library/Android`, `ANDROID_HOME` unset. The four
+missing files are exactly what `verify:listing` names, and **the decision was to leave the gate red and
+track the gap** rather than soften the check. Play genuinely requires those screenshots; a
+`required: false` flag would have turned the gate green over a listing that cannot be published, which
+is the softening US4 exists to prevent.
+
+**To close it**: install the Android SDK platform-tools, create a **1080×1920** AVD (the common
+1080×2400 default is 2.22:1 and Play rejects it — `limits.assets.screenshots.android.maxAspectRatio`),
+install a capture build, and run `pnpm listing:screenshots`. The script already handles the Android
+half; it reports the skip and exits non-zero rather than passing silently.
+
+#### T038 — iOS is done, and getting there found four things
+
+**1. A debug build cannot produce a store screenshot.** The first capture attempt used the dev client.
+It showed the real tuner — `A4 440 Hz`, a big `A₄` — with expo-dev-client's developer-menu sheet
+covering the bottom half of the screen, and the floating dev-tools button over it. A store screenshot
+carrying developer chrome misrepresents the product as surely as a mockup would. The fix is a **Release
+configuration**, which also inlines the JS bundle so no Metro has to be running during capture. The
+script now says so in a comment rather than leaving the next person to rediscover it.
+
+**2. The device profile is not a preference.** The first clean capture came from an iPhone 17 Pro at
+**1206×2622** — and Apple's 6.9" slot is **1320×2868**, which only the Pro Max produces. `limits.json`
+already listed the accepted pairs, so the gate would have caught it; the script now pins
+`IOS_DEVICE = 'iPhone 17 Pro Max'` and explains why.
+
+**3. Permission has to be granted by the script, not by a person.** A fresh simulator has no answer
+recorded for the microphone, so the app shows its permission explainer instead of a reading. `xcrun
+simctl privacy booted grant microphone` is what makes the capture reproducible; the alternative is a
+human tapping Allow, which SC-039 rules out.
+
+**4. The status bar defeats byte-exact reproduction, and pinning it only mostly fixes that.** The clock
+is part of the captured pixels, so consecutive runs differed by the minute. `simctl status_bar override`
+pins the time to 9:41, the battery to charged/100, and the bars — after which **light reproduces
+byte-identically across five runs**.
+
+**Dark still alternates between exactly two byte values, and the difference is 18 pixels.** Measured by
+diffing two dark captures pixel by pixel:
+
+| Measurement | Value |
+| --- | --- |
+| Differing pixels | **18** of 3,786,960 (0.0005%) |
+| Bounding box | x 471–848, y 69–143 |
+| What is there | the Dynamic Island cut-out, in the status bar |
+| The tuner region | **byte-identical** |
+
+So the *app* renders deterministically; the simulator's own status-bar chrome does not. This matters for
+how **V33 is run**: `git status --porcelain listing/assets/screenshots` reporting clean is not achievable
+for the dark capture, and treating that as a failure would train whoever runs it to ignore the check.
+**V33's reproduction step should be read as "no change outside the status bar", not as byte equality** —
+a UI change, which is what SC-039 actually protects against, moves far more than 18 pixels in a region
+400 px lower down. Recorded here rather than quietly relaxing the scenario in `quickstart.md`.
+
+#### T030 — the mark, and an honest note about SC-040
+
+The icon is the tuner's own display reduced until it survives being a fingernail wide: the line, the
+centred marker, the flat and sharp cues as dots, and **two tick marks**. Every colour is a `var(--ct-*)`.
+
+The first version had no ticks and put the dots inboard of the line, and looking at it at 48 px killed
+both decisions:
+
+- **The line's rounded ends poked out past the dots** as grey stubs, which at icon size reads as a
+  rendering mistake rather than a design. The dots now cap the line (`dotOffset` 0.22 → 0.26).
+- **A bar on a line is a slider, not a tuner.** Ticks are what make it a measuring instrument, and they
+  are the app's own `TickMark` rather than an invention for the icon.
+
+Extreme extent is 0.26 + 0.03 = **0.29 of the width from centre**, so the whole mark sits inside the
+centre 58% — within the 66% adaptive-icon safe zone with room for a circular mask.
+
+**SC-040 has not been run and this mark may come back.** Rendered at 48/64/96/128 px among neutral
+chrome, it reads as a scale with a centred indicator; whether a stranger says *tuner* is exactly the
+question T064 asks and I cannot answer it by looking at my own work. It is at least not an unlabelled
+blob and not a wordmark, which is what T030 asked for.
+
+#### T032 — the alpha strip worked, and why it had to
+
+Chromium writes PNG colour type 6 (RGBA) for every screenshot, including a fully opaque one, and Apple
+rejects an app icon with an alpha channel. `generate-icons.mjs` decodes the IDAT with `node:zlib`,
+reverses PNG's per-scanline filtering (all five filter types, Paeth included), drops the alpha byte,
+re-encodes as colour type 2, and recomputes the CRC32 — about 100 lines and **no new dependency**, which
+is what Principle II asks before reaching for `sharp`.
+
+`icon-ios-1024.png` and `feature-graphic-1024x500.png` come out as colour type 2;
+`icon-adaptive-foreground.png` keeps its alpha, because the launcher masks it to a device-chosen shape
+and an opaque foreground defeats the mask. L8 checks all three from the PNG header.
+
+#### T039 / V34 — generation is deterministic
+
+`md5` of all six artefacts across two consecutive `pnpm listing:assets` runs: **identical**.
+`git diff --stat apps/web/public listing/assets` after regeneration: empty.
+
+#### T028 — the check I wrote first was satisfiable by the defect it was written for
+
+Worth recording in full, because it is this feature's own headline hazard and I walked into it.
+
+L11 as the contract states it — *"no colour literal appears in any generator template or committed
+SVG"* — **is not satisfiable by any SVG that renders**. A standalone icon has to carry its colours
+somewhere; a maskable icon cannot inherit `var(--ct-*)` from a document it is not in. Forbidding
+literals outright would forbid the file from working.
+
+So I first wrote the check as *"every colour literal in the committed SVGs must be a current `--ct-*`
+value"*. It passed immediately — **because D5's five literals were transcribed correctly**. They were
+palette values on the day they were typed. A check that passes on the defect it was written for is
+worth nothing.
+
+The check now has two halves, because either alone is satisfiable by the wrong thing:
+
+| Half | Catches | Would miss alone |
+| --- | --- | --- |
+| Every literal is a current `--ct-*` value | drift — a token changes and the SVG is not regenerated | the original defect, which matched at the time |
+| The file carries the generator's provenance marker | hand-authoring | a stale generated file whose colours no longer match |
+
+Both were observed failing:
+
+```
+artwork: 2 problems
+  apps/web/public/icon-maskable.svg is hand-authored — it carries no
+  listing/scripts/generate-icons.mjs marker. Its colours may match the palette today and drift the
+  moment a token changes, which is exactly what D5 found in this file
+  apps/web/public/icon.svg is hand-authored — …
+```
+
+```
+artwork: 1 problem
+  apps/web/public/icon.svg uses #00FF00, which is not a --ct-* token value — the artwork has drifted
+  from the palette it is supposed to be generated from
+```
+
+**This is a deviation from contract L11 and it is deliberate.** The grep the contract describes is the
+weaker check; this is what it was protecting. V34's "regenerate and see no diff" is the third leg and
+the only one that proves the bytes, which is why it stays manual.
+
+#### T036 — the tablet withdrawal, verified in the native project
+
+`ios.supportsTablet: false`. Confirmed by `expo prebuild -p ios --clean` and reading the generated
+`Info.plist`: `UIDeviceFamily = [1]` — iPhone only.
+
+The same prebuild confirmed the whole of D2 end to end, which no test had yet done: `Info.plist`'s
+`NSMicrophoneUsageDescription` is `claims.purposeSentence` **verbatim**, and
+`PRODUCT_BUNDLE_IDENTIFIER` is `com.chromatictuner.app` in both build configurations. T011 asserted
+that against the config object; this is the same fact read out of the native project Expo generated
+from it.
 
 ---
 

@@ -60,7 +60,20 @@ export default ({ config }: ConfigContext): MobileConfig => ({
   userInterfaceStyle: 'automatic',
   newArchEnabled: true,
   ios: {
-    supportsTablet: true,
+    // Withdrawn deliberately (research D4, FR-099). Declaring tablet support
+    // obliges a complete 13" iPad screenshot set and an interface that looks
+    // deliberate at that size. No tablet layout has ever been designed — 001 and
+    // 002 specified and measured a phone viewport, and FR-018's no-scroll
+    // guarantee is stated against the *smallest* supported screen, not the
+    // largest. A centred readout scaled to 13 inches is not a tablet layout, and
+    // a screenshot of one is an argument against installing.
+    //
+    // iPad users get the phone app letterboxed, which is what a tablet-declared
+    // app with no tablet layout gives them anyway, minus the review risk. Unlike
+    // the bundle identifier, this is reversible at any time: a real tablet
+    // layout is a feature with its own spec, and this is what stops it being
+    // half-claimed in the meantime.
+    supportsTablet: false,
     bundleIdentifier: listing.claims.identifier,
     buildNumber: String(BUILD_NUMBER),
     deploymentTarget: '16.4',

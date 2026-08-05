@@ -16,7 +16,9 @@
     "test": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "test:e2e": "pnpm --filter @chromatic-tuner/web test:e2e",
-    "verify:listing": "node listing/scripts/verify-listing.mjs"
+    "verify:listing": "node listing/scripts/verify-listing.mjs",
+    "listing:assets": "node listing/scripts/generate-icons.mjs",
+    "listing:screenshots": "node listing/scripts/capture-screenshots.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

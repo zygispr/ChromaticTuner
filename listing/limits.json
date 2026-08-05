@@ -29,5 +29,62 @@
       "lastChecked": null,
       "note": "Recorded from prior knowledge rather than re-read from the live page. T066 confirms every limit against the published specification and sets lastChecked before first submission."
     }
+  },
+  "assets": {
+    "$note": "What each committed artefact must be for its store to accept it (FR-111, contract L8). Dimensions and alpha are read from the PNG header by the gate — no image dependency (Principle II). Three of these are rejection-at-review conditions rather than cosmetic ones, and each is marked.",
+    "files": {
+      "listing/assets/icon-ios-1024.png": {
+        "width": 1024,
+        "height": 1024,
+        "format": "png",
+        "alpha": "forbidden",
+        "requiredBy": "App Store",
+        "note": "REJECTION CONDITION. Apple rejects an app icon with an alpha channel and one with pre-applied corner rounding. An icon exported from a design tool with a transparent background looks correct everywhere except at submission."
+      },
+      "listing/assets/icon-play-512.png": {
+        "width": 512,
+        "height": 512,
+        "format": "png",
+        "alpha": "allowed",
+        "maxBytes": 1048576,
+        "requiredBy": "Google Play"
+      },
+      "listing/assets/icon-adaptive-foreground.png": {
+        "width": 1024,
+        "height": 1024,
+        "format": "png",
+        "alpha": "required",
+        "requiredBy": "Android adaptive launcher icon",
+        "note": "The launcher masks this to a shape the device chooses, so every meaningful pixel sits inside the centre safe zone. Transparency is the point here — an opaque foreground defeats the mask."
+      },
+      "listing/assets/feature-graphic-1024x500.png": {
+        "width": 1024,
+        "height": 500,
+        "format": "png",
+        "alpha": "forbidden",
+        "requiredBy": "Google Play",
+        "note": "REJECTION CONDITION. Play will not publish a listing without a feature graphic, and it is the asset most easily forgotten because no other store has an equivalent."
+      }
+    },
+    "appearances": ["light", "dark"],
+    "screenshots": {
+      "ios": {
+        "root": "listing/assets/screenshots/ios",
+        "sizes": [
+          [1290, 2796],
+          [1320, 2868]
+        ],
+        "countPerAppearance": { "min": 1, "max": 10 },
+        "requiredBy": "App Store — a 6.9\" iPhone set; the store derives the smaller sizes from it"
+      },
+      "android": {
+        "root": "listing/assets/screenshots/android",
+        "sideRange": [320, 3840],
+        "maxAspectRatio": 2,
+        "countPerAppearance": { "min": 1, "max": 4 },
+        "requiredBy": "Google Play — 2 to 8 phone screenshots in total",
+        "note": "REJECTION CONDITION. Play requires the longest side to be no more than twice the shortest. A modern phone emulator boots at 1080×2400, which is 2.22:1 and is rejected — so the capture profile is pinned to 1080×1920 (1.78:1) and the gate checks the committed pixels rather than trusting the device profile."
+      }
+    }
   }
 }
