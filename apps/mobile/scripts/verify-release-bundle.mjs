@@ -47,10 +47,71 @@ import { fileURLToPath } from 'node:url';
 
 const APP = fileURLToPath(new URL('..', import.meta.url));
 const FLAG = 'EXPO_PUBLIC_SCREENSHOT_CAPTURE';
-const CAPTURE_MODULE = /capture/i;
+/**
+ * The screenshot-capture adapter, named rather than pattern-matched on a word.
+ *
+ * Narrow on purpose. The obvious objection is that a rename would silently
+ * disable the check — but that is what the positive control at the bottom is
+ * for: move or rename this module and the control build stops finding it, which
+ * is a loud failure saying the detection is looking for the wrong thing. A
+ * broad pattern buys no protection against a rename and costs the ability to
+ * tell this module from any other with "capture" in its name.
+ */
+const CAPTURE_MODULE = /adapters[/\\]captureAudioSource/;
 const PLATFORMS = ['ios', 'android'];
 
 const failures = [];
+
+/**
+ * The pattern discriminates, before four Metro exports are spent on it.
+ *
+ * `CAPTURE_MODULE` used to be `/capture/i`, which matched any module path
+ * containing the word. That held until `9100379` added
+ * `packages/react/src/capture-control.ts` — production code deciding whether the
+ * MICROPHONE control belongs on screen (FR-036, FR-039), where "capture" means
+ * audio capture and has nothing to do with screenshots. The gate went red
+ * against a module that must ship, and stayed red unnoticed because it is a
+ * release gate rather than a CI one.
+ *
+ * The worse half was silent. The same pattern feeds the positive control below,
+ * so that leg began passing on `capture-control.ts` — meaning it would have
+ * reported "presence is detectable" even with `captureAudioSource` detection
+ * completely broken. A check whose control is satisfied by the wrong module
+ * proves nothing in either direction, which is the exact failure this file's
+ * header warns about.
+ *
+ * So the pattern is asserted against known paths rather than trusted to be
+ * narrow. Cheap, and it fails in milliseconds instead of after four exports.
+ */
+const MUST_FLAG = ['/apps/mobile/src/adapters/captureAudioSource.ts'];
+const MUST_NOT_FLAG = [
+  // The defect this check exists for: legitimate, ships, name collides.
+  '/packages/react/src/capture-control.ts',
+];
+
+for (const source of MUST_FLAG) {
+  if (!CAPTURE_MODULE.test(source)) {
+    failures.push(
+      `the detection pattern does not match ${source}, the module contract L12.3 is about — ` +
+        'every result below would be a clean bill of health for a bundle nobody inspected'
+    );
+  }
+}
+
+for (const source of MUST_NOT_FLAG) {
+  if (CAPTURE_MODULE.test(source)) {
+    failures.push(
+      `the detection pattern matches ${source}, which is production code that must ship — ` +
+        'it fails the release check against a legitimate module, and it satisfies the positive ' +
+        'control below without the screenshot-capture source being present at all'
+    );
+  }
+}
+
+if (failures.length > 0) {
+  console.error(`\nRelease bundle verification failed:\n  ${failures.join('\n  ')}\n`);
+  process.exit(1);
+}
 
 /**
  * Export one platform's production bundle and return its module list.
