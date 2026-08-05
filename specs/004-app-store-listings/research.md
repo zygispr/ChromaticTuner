@@ -103,6 +103,22 @@ small permanent wart this decision exists to avoid.
 and scales to a second app under the same namespace. Rejected because it puts the author's handle in
 every shared Play Store link for a product that is not named after the author.
 
+**Superseded 2026-08-05 — the value is `pro.chromatictuner.app`.** The reasoning above stands
+unchanged; only the string moved, and for a reason nothing here anticipated. `com.chromatictuner.app`
+is **not obtainable**: Apple refuses to register it — "the app identifier cannot be registered to your
+development team because it is not available" — which means another Apple account already holds it.
+The decision treated availability as a given and checked only the *domain* caveat, which is the weaker
+of the two constraints: a domain mismatch is a wart, an unavailable identifier is a hard stop, and it
+surfaced only when a device build was first attempted rather than during planning.
+
+`pro.chromatictuner.app` keeps every property argued for above — it is the product's name rather than
+the author's, it is the same string on both platforms, and it reads as the reverse DNS of
+`chromatictuner.pro`. It was verified free on Apple by registering it: Xcode issued
+`iOS Team Provisioning Profile: pro.chromatictuner.app` and a Release build signed against it. **Google
+Play is unverified**; that check moved into `listing/submission.md`'s open action 1, because a Play
+package name is permanent even after an app is deleted, so a collision found after publishing cannot be
+undone.
+
 ---
 
 ## D4 — Withdraw `supportsTablet`

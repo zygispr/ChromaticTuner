@@ -192,6 +192,6 @@ Run before submission, not before merge. Record results in `tasks.md`.
 | Icon identifiable (SC-040) | Show `icon-play-512.png` scaled to store-search size among unrelated icons | A majority identify it as a tuner |
 | Screenshot legibility (L10, SC-039) | View each at store thumbnail size | The note readout is legible |
 | `limits.json` still current | Re-read both stores' published metadata specifications; update the last-checked dates | No limit has tightened below a field's current length |
-| Identifier caveat (D3) | Confirm the origin chosen for `VITE_SITE_URL` matches `com.chromatictuner.app` | They agree, or the mismatch is accepted in writing before submission — it is permanent afterwards |
+| Identifier caveat (D3) | Confirm the origin chosen for `VITE_SITE_URL` matches `pro.chromatictuner.app`, **and** that the package name is free in the Play Console | They agree or the mismatch is accepted in writing, and Play accepts the package — both permanent afterwards. Apple is already verified; Play is not |
 | Review outcome (SC-041) | Submit | Zero rejections attributable to metadata, privacy declarations, missing assets, or claims |
 | Store search (SC-045) | 30 days after publication, search each store for the app's name and for its primary intent term | Returned for its name; on the first page for the intent term |
