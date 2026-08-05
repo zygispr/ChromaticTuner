@@ -978,18 +978,206 @@ malformed break never reaches the check it was aimed at — worth knowing before
 
 **Purpose**: Prove nothing about the tuner changed, then the four outcomes no repository can assert.
 
-- [ ] T058 [P] Update `CLAUDE.md`'s Commands section with `pnpm verify:listing`, `pnpm listing:assets`, and `pnpm listing:screenshots`, noting which of them cannot run in CI and why (macOS/Xcode/emulator, D7). Note also that `app.json` is gone and `app.config.ts` derives identity from `listing/store-listing.json`. **Also correct "Node 20+" to Node 22.13+** — T050 found that pnpm 11.18 cannot run on Node 20 at all, and add `pnpm --filter @chromatic-tuner/mobile verify:release-bundle` as a release gate rather than a merge gate.
-- [ ] T059 [P] Add a header comment to `listing/store-listing.json`'s companion — since JSON carries no comments, put the orientation in `listing/submission.md`: what is authored here, what derives from it, and that `claims.identifier` is permanent from first publication.
-- [ ] T060 Run the full suite: `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm --filter @chromatic-tuner/mobile test && pnpm build && pnpm test:e2e && pnpm verify:listing`. Record every count against T001's baseline (V37, FR-113).
-- [ ] T061 **The half of V37 that is the real assertion** — run `git diff --stat main...HEAD` and confirm the diff modifies no file under `packages/`, no file under `apps/mobile/src/components/`, and no test anywhere except `apps/web/e2e/metadata.spec.ts` (whose only change is where it reads its forbidden list from) plus the new test files this feature adds. A green suite after a behaviour change proves the suite missed it; the file list is what proves there was no behaviour change to miss (SC-044).
-- [ ] T062 Record the de-duplication result against T003's census — purpose sentence 2→1, palette 2→1, marketing version 2→1, identifier 2→1, forbidden vocabulary 1-heading-for-3→1 — against one new directory of data and three scripts. This is the plan's central claim; state whether it held.
+- [X] T058 [P] Update `CLAUDE.md`'s Commands section with `pnpm verify:listing`, `pnpm listing:assets`, and `pnpm listing:screenshots`, noting which of them cannot run in CI and why (macOS/Xcode/emulator, D7). Note also that `app.json` is gone and `app.config.ts` derives identity from `listing/store-listing.json`. **Also correct "Node 20+" to Node 22.13+** — T050 found that pnpm 11.18 cannot run on Node 20 at all, and add `pnpm --filter @chromatic-tuner/mobile verify:release-bundle` as a release gate rather than a merge gate.
+- [X] T059 [P] Add a header comment to `listing/store-listing.json`'s companion — since JSON carries no comments, put the orientation in `listing/submission.md`: what is authored here, what derives from it, and that `claims.identifier` is permanent from first publication.
+- [X] T060 Run the full suite: `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm --filter @chromatic-tuner/mobile test && pnpm build && pnpm test:e2e && pnpm verify:listing`. Record every count against T001's baseline (V37, FR-113).
+- [X] T061 **The half of V37 that is the real assertion** — run `git diff --stat main...HEAD` and confirm the diff modifies no file under `packages/`, no file under `apps/mobile/src/components/`, and no test anywhere except `apps/web/e2e/metadata.spec.ts` (whose only change is where it reads its forbidden list from) plus the new test files this feature adds. A green suite after a behaviour change proves the suite missed it; the file list is what proves there was no behaviour change to miss (SC-044).
+- [X] T062 Record the de-duplication result against T003's census — purpose sentence 2→1, palette 2→1, marketing version 2→1, identifier 2→1, forbidden vocabulary 1-heading-for-3→1 — against one new directory of data and three scripts. This is the plan's central claim; state whether it held.
 - [ ] T063 **manual, release gate** (L3, SC-036): show the store name and short summary alone — no icon, no description — to reviewers using the same human-validation method as `001`–`003`'s UX gates. Pass when they state what the app does and that it is free. Record the responses verbatim here.
 - [ ] T064 [P] **manual, release gate** (SC-040): show `listing/assets/icon-play-512.png` scaled to store-search size among unrelated app icons. Pass when a majority identify it as a tuner. Record the count here.
-- [ ] T065 [P] **manual, release gate** (L10, FR-102, SC-039): view every screenshot at store thumbnail size and confirm the note readout is legible and the tuner is showing a real reading. Record which, if any, needed recapture.
-- [ ] T066 [P] **manual, release gate**: re-read both stores' published metadata specifications, confirm no limit has tightened below a current field's length, and update `limits.json`'s `lastChecked` dates. A limit that silently tightened is a truncated store name nobody sees until it is live.
+- [X] T065 [P] **manual, release gate** (L10, FR-102, SC-039): view every screenshot at store thumbnail size and confirm the note readout is legible and the tuner is showing a real reading. Record which, if any, needed recapture.
+- [X] T066 [P] **manual, release gate**: re-read both stores' published metadata specifications, confirm no limit has tightened below a current field's length, and update `limits.json`'s `lastChecked` dates. A limit that silently tightened is a truncated store name nobody sees until it is live.
 - [ ] T067 **manual, release gate** (D3): confirm the origin chosen for `VITE_SITE_URL` agrees with `com.chromatictuner.app`, or record the accepted mismatch **in writing before submission** — it is permanent afterwards.
 - [ ] T068 **manual, release gate** (SC-041): submit both listings. Pass with zero rejections attributable to metadata, privacy declarations, missing assets, or claims not matching the app. Record any rejection and its cause here.
 - [ ] T069 **manual, release gate** (SC-045): 30 days after publication, search each store for the app's own name and for its primary intent term. Pass when it is returned for its name and appears on the first page for the intent term. Record the results here.
+
+### Phase 7 results — 2026-08-05
+
+#### The release gates: two done, five need a person or an account
+
+| Task | Status | What it needs |
+| --- | --- | --- |
+| T063 — name + summary read in isolation (SC-036) | **open** | Other people. No panel can be simulated |
+| T064 — icon identified as a tuner at search size (SC-040) | **open** | Other people. "A majority identify it" is the pass condition |
+| T065 — screenshots legible at thumbnail size | **done** | One viewer's judgement — performed and recorded below |
+| T066 — re-read both stores' published specifications | **done** | The live pages, re-read below |
+| T067 — the identifier against the deployed origin (D3) | **open** | A decision about where the site is deployed |
+| T068 — submit both listings (SC-041) | **open** | Developer accounts on both stores |
+| T069 — store search ranking 30 days after publication (SC-045) | **open** | Publication, and 30 days |
+
+T063 and T064 are the two the spec always called human validation, and they stay that way: their pass
+conditions are about what *other* people say, and one reader agreeing with their own work is not the
+measurement. T065 is different — it asks a single viewer whether text is legible at a given size, which
+is a judgement that can be made and shown.
+
+#### T065 — every screenshot at store thumbnail size
+
+Rendered through Chromium at 120 px (roughly a search-result thumbnail) and 200 px (a product-page
+card), both appearances:
+
+| Size | Note name `A₄` | `+6 cents` | `A4 440 Hz` badge | `↓ LOOSEN` | The line and marker |
+| --- | --- | --- | --- | --- | --- |
+| 200 px | clear | clear | clear | clear | clear, marker visibly off centre |
+| 120 px | **clear and dominant** | legible | small but readable | at the edge of legibility | reads as a scale with an off-centre indicator |
+
+**Pass. Nothing needed recapture.** The note name is the readout FR-102 is about and it survives the
+worst case comfortably; the direction cue is the first thing to go, which is the right ordering, since
+it is the one channel that is also carried by the marker's position and by colour. Both captures show a
+real reading — `A4`, `+6 cents`, marker off centre, `LOOSEN` — rather than an empty state or the
+permission prompt (FR-100).
+
+**One observation that is not a failure**: there is exactly **one** screenshot per appearance. Apple
+accepts up to 10 for the slot and Play 8, and a listing with a single image is thin next to
+competitors'. Adding more is a capture-script run, not a code change — `SHOTS` in
+`capture-screenshots.mjs` is a list with one entry.
+
+#### T066 — both specifications re-read, and three things were wrong
+
+Re-read on 2026-08-05 from the published pages, and `lastChecked` set. **No limit has tightened below a
+current field's length** — every number recorded at T005 is still correct:
+
+| Field | Recorded | Specification says | Current value |
+| --- | --- | --- | --- |
+| iOS `name` | 30 | "no more than 30 characters" | 23 |
+| iOS `subtitle` | 30 | "can't be longer than 30 characters" | 23 |
+| iOS `promotionalText` | 170 | "can't be longer than 170 characters" | 166 |
+| iOS `description` | 4000 | "Limited to 4000 characters" | 1,634 |
+| iOS `keywords` | 100 | "up to 100 **bytes** of content" | 78 |
+| Android `title` | 30 | "30 characters or less" | 22 |
+| Android `shortDescription` | 80 | "80 characters or less" | 69 |
+| Android `fullDescription` | 4000 | "4,000 characters" | 1,512 |
+| Play feature graphic | 1024×500, no alpha | "1024px by 500px", "JPEG or 24-bit PNG (no alpha)" | matches |
+| Play icon | 512×512, ≤1 MB | "512px by 512px", "32-bit PNG (with alpha)", "Maximum file size: 1024KB" | matches |
+| Play screenshots | 320–3840 per side, longest ≤ 2× shortest | "Minimum dimension: 320px", "Maximum dimension: 3840px", "can't be more than twice as long as the minimum dimension" | matches |
+
+**1. One of the two recorded documentation URLs was dead.** The Play entry pointed at a *topic* id
+(`…/android-developer/topic/9866151`) which returns **404**. The pages that actually state the limits
+are two answer ids, now both recorded. A limits file whose provenance link 404s is a limits file nobody
+can re-check, which is the whole point of recording the link.
+
+**2. Apple counts the keyword field in BYTES, and the gate counted code points.** The specification says
+"you can provide up to 100 **bytes** of content" — every other field is characters. For the current
+ASCII keywords the two agree exactly (78 and 78), which is why nothing was ever wrong and why nothing
+ever would have been noticed. They diverge the moment anyone writes an accented word, and they diverge
+in the dangerous direction: more bytes than code points, so the gate would have passed a field the store
+truncates.
+
+`limits.json` now allows a limit to be `{ max, unit }`, and L1 honours it. Observed failing on a case
+the previous rule waved through:
+
+```
+fields: 1 problem
+  stores.ios.keywords is 102 bytes, limit 100
+```
+
+That value is **95 code points** — comfortably inside a 100-*character* limit, and the old check
+reported `fields: 8 ok` for it. This is the same failure mode L1 already guarded against by counting
+code points rather than UTF-16 units; the guard was simply one level short of where the store actually
+counts.
+
+**3. Apple's screenshot cap is per display size, not per appearance.** `countPerAppearance.max` was 10,
+and light and dark are one display size to Apple — so the encoding permitted **20** files for a slot
+that accepts 10. Two are committed, so nothing was ever wrong in practice: it was a limit encoded
+against the wrong axis, the kind that is only wrong on the day someone needs it.
+`maxTotalAcrossAppearances` added for both stores (10 and 8) and observed failing:
+
+```
+assets: 1 problem
+  ios has 12 screenshots across all appearances, and App Store … accepts 10 for the slot —
+  the store's cap is on the whole set, not on each appearance of it
+```
+
+**All three are the shape this feature keeps finding**: a value that is correct today, unchecked, and
+wrong on the first day it matters. `lastChecked` being `null` until now was the honest state — T005
+declined to write a date beside numbers nobody had verified, and re-reading them found two encoding
+errors that a rubber-stamped date would have hidden.
+
+#### T060 — the full suite against T001's baseline (SC-044)
+
+| Gate | T001 baseline | Now | Δ |
+| --- | --- | --- | --- |
+| `pnpm lint` | clean | clean | — |
+| `pnpm format:check` | clean | clean | — |
+| `pnpm typecheck` | 5/5 projects | 5/5 projects | — |
+| `pnpm test` | **430 passed**, 18 files, 7.95 s | **430 passed**, 18 files, 7.95 s | **none** |
+| `pnpm test:coverage` | 100% lines, 98.5% stmts, 94.81% branches, 97.29% funcs | **identical, to the decimal** | **none** |
+| `pnpm --filter …/mobile test` | 64 passed, 9 suites | **78 passed, 11 suites** | +14, +2 — this feature's own |
+| `pnpm build` → `dist/index.html` | **7,454 B** | **7,454 B** | **none** |
+| `pnpm build` → `assets/index-*.js` | 235.52 kB, hash `Dz1jTnFE` | 235.52 kB, hash **`Dz1jTnFE`** | **none — same hash** |
+| `pnpm build` → `sw.js` | 3,069 B | 3,624 B | +555, the privacy page and the navigation fix |
+| `dist/` file count | 9 | **10** | `privacy.html` |
+| `pnpm test:e2e` | 107 passed, 39.8 s | **112 passed**, 40.1 s | +5, this feature's own |
+| `verify:build-output` | OK | OK | — |
+| `pnpm verify:listing` | did not exist | green but for T038 | — |
+| `verify:release-bundle` | did not exist | OK | — |
+
+**The unit numbers are not merely equal, they are the same numbers.** 430 tests, the same coverage to
+two decimal places, and — the strongest single line here — `assets/index-Dz1jTnFE.js` carries the
+**same content hash** as it did at T001. Vite derives that hash from the bundle's bytes, so an identical
+hash is proof the tuner's entire JavaScript is byte-for-byte what it was before this feature started.
+Phase 1 predicted `dist/` would go from nine files to ten; it did, and nothing else moved.
+
+#### T061 — the file list, which is what proves there was no behaviour change to miss
+
+`git diff --stat main...HEAD`: 47 files, +6,096 / −91.
+
+| Assertion | Result |
+| --- | --- |
+| No file under `packages/` | **none** — passes |
+| No file under `apps/mobile/src/components/` | **none** — passes |
+| No test modified except `apps/web/e2e/metadata.spec.ts` | passes — one `M`, three `A` |
+
+The three added test files are this feature's own: `apps/mobile/__tests__/app-config.test.ts` (T011),
+`apps/mobile/__tests__/capture-audio-source.contract.test.ts` (T034), `apps/web/e2e/privacy.spec.ts`
+(T044). `metadata.spec.ts` is modified **twice**, not once — the forbidden list moved to a shared file
+(T007), and the sitemap assertion became a set when the site gained a second page (T043). Both are
+recorded in Phase 5's deviations; V37's parenthetical said one change and should say two.
+
+**Two modifications outside the plan's expectation, both deliberate and neither a behaviour change:**
+
+- `specs/003-seo-discoverability/spec.md` (+13/−4), from `ac57fb8` during this feature's spec phase.
+  `003` listed app-store listing optimisation and "any second content page" as out of scope; both are
+  now `004`'s, so the entries say so rather than silently contradicting the repository.
+- `.github/workflows/ci.yml` and `package.json`'s `engines`, from T050 — the Node 20 → 22.13 fix. Not
+  in any task's text, because nobody knew CI was not running.
+
+A green suite after a behaviour change proves the suite missed it. This list is what proves there was
+no behaviour change: nothing under `packages/`, nothing under either app's components, and every
+modified test file accounted for by name.
+
+#### T062 — the de-duplication result, measured against T003's census
+
+The plan's central claim was that this feature is **net de-duplication**. Measured with `git grep` over
+tracked files, excluding `specs/` (prose *about* a value is not a copy of it):
+
+| Fact | T003 | Now | Where it lives |
+| --- | --- | --- | --- |
+| Microphone purpose sentence | **2**, byte-identical | **1** | `listing/store-listing.json` |
+| Marketing version | **2**, disagreeing (`0.1.0` / `0.0.0`) | **1** | `apps/mobile/package.json` |
+| Application identifier | **2**, disagreeing | **1** | `listing/store-listing.json` |
+| Forbidden vocabulary | **1**, heading for 3 | **1**, with 3 consumers | `listing/out-of-scope-claims.json` |
+| Dark palette | **2 authors** | **1 author** | `packages/tokens` |
+
+`apps/mobile/app.json` is gone — 0 tracked files — and with it both copies of the purpose sentence and
+both disagreeing identifiers. The vocabulary list is now read by `metadata.spec.ts` and by
+`verify-listing.mjs`, which applies it to both listings and the privacy page: one author, four surfaces.
+
+**The palette row needs stating precisely, because the naive count moved the wrong way.** The committed
+SVGs hold **7 colour literals each, 6 distinct — up from 5** at T002. That is not regression: the
+generated mark has more parts than the hand-drawn one did (tick marks, and `--ct-no-reading` which the
+old artwork never used). What changed is the number of *authors*, from two to one. Every literal is now
+emitted by `generate-icons.mjs` from the built token block, every file carries the generator's
+provenance marker, and the `artwork` check fails if a literal is not a current `--ct-*` value or if the
+marker is missing. Before, five correct values sat in a file nothing checked; that is the D5 defect,
+and correctness on the day of typing is exactly what made it invisible.
+
+**The cost side, stated honestly.** One new directory (`listing/`: 4 data/doc files, 3 scripts, 6
+committed binary artefacts) and one script outside it — `apps/mobile/scripts/verify-release-bundle.mjs`,
+which the plan did not anticipate because it did not know a static import would put the capture source
+in the release bundle. So **four** new scripts, not the three the plan costed.
+
+**The claim held.** Five facts with nine occurrences between them became five facts with five, the two
+disagreements are gone, and what replaced them is data with a gate over it rather than more prose.
 
 ---
 

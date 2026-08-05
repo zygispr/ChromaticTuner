@@ -14,7 +14,8 @@ the fields **no artefact can fill** — so that gap is deliberate rather than di
 
 ## Where the values live
 
-Three files, and nothing is authored twice:
+JSON carries no comments, so the orientation for `store-listing.json` lives here. Three files, and
+nothing is authored twice:
 
 | File                               | Holds                                                                                             |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------- |
@@ -22,8 +23,36 @@ Three files, and nothing is authored twice:
 | `listing/limits.json`              | Each store's field limits and asset specifications, with the documentation URL each was read from |
 | `listing/out-of-scope-claims.json` | The vocabulary no surface may use, shared with `apps/web/e2e/metadata.spec.ts`                    |
 
-`claims.identifier` is **permanent from first publication**. Neither store permits changing it
-afterwards. Everything else on this page can be edited later; that one cannot.
+### What is authored, and what derives from it
+
+Edit the left column. Never edit anything in the right column — it is generated or derived, and a hand
+edit there is a second copy of a fact that has one author.
+
+| Authored by a person                          | Derives from it, automatically                                                                                                                                      |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `claims.appName`                              | The mobile home-screen label, the first word of the microphone prompt, the privacy page's prose                                                                     |
+| `claims.purposeSentence`                      | `Info.plist`'s `NSMicrophoneUsageDescription`, the `react-native-audio-api` plugin's own copy of it, the privacy page's opening, and both stores' permission reason |
+| `claims.identifier`                           | `ios.bundleIdentifier`, `android.package`, and the address a Play Store URL is built from                                                                           |
+| `claims.corroboration`                        | What L6 requires both listings to say and L7 requires the built web page to say                                                                                     |
+| `stores.ios.*`, `stores.android.*`            | Nothing — these are the leaves, bounded by `limits.json`                                                                                                            |
+| `privacy.policyPath`                          | The policy URL, composed with the origin the build decided on                                                                                                       |
+| `apps/mobile/package.json`'s `version`        | The marketing version in both stores                                                                                                                                |
+| `BUILD_NUMBER` in `apps/mobile/app.config.ts` | `ios.buildNumber` and `android.versionCode`, which is why they cannot drift                                                                                         |
+| `packages/tokens`                             | Every colour in `listing/assets/*.png` and in `apps/web/public/*.svg`, via `pnpm listing:assets`                                                                    |
+
+Keys beginning with `$` in the JSON are annotations explaining the data rather than data. Every check
+skips them, which is deliberate: a note recording _why_ a term is forbidden would otherwise trip the
+check that forbids it.
+
+`apps/mobile/app.json` is gone. It used to hold the identity these values now derive into, including two
+byte-identical copies of the purpose sentence.
+
+### The one value that is permanent
+
+`claims.identifier` — `com.chromatictuner.app` — is **permanent from first publication**. Neither store
+permits changing it afterwards, and it is the half of the identity a user sees, in the Play Store URL
+that gets pasted into a chat. Everything else on this page can be edited after release; that one cannot.
+Open action 1 below is the check to run before it becomes irreversible.
 
 ---
 
@@ -85,11 +114,17 @@ These are answered by a person, in a browser, and their outcomes are recorded ba
 5. **Pricing, availability, and distribution countries.** `claims.price` says free with no in-app
    purchases; the console is where that becomes true.
 6. **Export-compliance declarations.** The app uses no encryption of its own.
-7. **Re-checking `listing/limits.json` against current store documentation.** Both files carry the URL
-   each limit was read from and a `lastChecked` date. They are `null` today: the limits were recorded
-   from prior knowledge rather than re-read from the published specifications, and writing a date beside
-   an unverified value would make it look verified. **Set them before the first submission.** A limit
-   that silently tightened is a truncated store name nobody sees until it is live.
+7. **Re-checking `listing/limits.json` against current store documentation.** Each store block carries
+   the URLs its limits were read from and a `lastChecked` date. **Re-read them and reset the date every
+   time this listing is submitted.** A limit that silently tightened is a truncated store name nobody
+   sees until it is live — these are facts about two products owned by other companies, and they change
+   without notice.
+
+   Last read **2026-08-05**. No limit had tightened, but the exercise found three things worth knowing
+   before doing it again: one of the two recorded URLs had gone 404, Apple measures the keyword field in
+   **bytes** rather than characters, and Apple's screenshot cap is per **display size** rather than per
+   appearance — so light and dark share one allowance of ten. All three are now encoded in
+   `limits.json` and enforced by `pnpm verify:listing`.
 
 ---
 

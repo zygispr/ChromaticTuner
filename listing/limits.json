@@ -1,19 +1,21 @@
 {
-  "$schema-note": "Per-store listing field limits (FR-109, contract L1). These are facts about two products owned by other companies, not about this project: they change without notice and silently truncate rather than erroring. Recorded here once so the gate reads them as data and a store's layout change is a data edit. Counted in Unicode code points.",
+  "$schema-note": "Per-store listing field limits (FR-109, contract L1). These are facts about two products owned by other companies, not about this project: they change without notice and silently truncate rather than erroring. Recorded here once so the gate reads them as data and a store's layout change is a data edit.",
+  "$units-note": "A field limit is a plain number counted in Unicode code points, or an object {max, unit} where the store counts differently. Only one field does today — Apple measures the keyword field in BYTES, which T066 found by re-reading the specification: 'You can provide up to 100 bytes of content.' For ASCII the two agree, so the current 78-character value is 78 bytes either way. They stop agreeing the moment anyone puts an accented word or a dash in there, and the gate would have permitted a field the store truncates.",
   "ios": {
     "fields": {
       "name": 30,
       "subtitle": 30,
       "promotionalText": 170,
       "description": 4000,
-      "keywords": 100
+      "keywords": { "max": 100, "unit": "bytes" }
     },
     "descriptionOpening": 170,
     "documentation": {
-      "title": "App Store Connect Help — Reference: App information",
-      "url": "https://developer.apple.com/help/app-store-connect/reference/app-information",
-      "lastChecked": null,
-      "note": "Recorded from prior knowledge rather than re-read from the live page. T066 confirms every limit against the published specification and sets lastChecked before first submission. A limit that silently tightened is a truncated store name nobody sees until it is live."
+      "title": "App Store Connect Help — App information, and Platform version information",
+      "url": "https://developer.apple.com/help/app-store-connect/reference/app-information/app-information/",
+      "url2": "https://developer.apple.com/help/app-store-connect/reference/platform-version-information/",
+      "lastChecked": "2026-08-05",
+      "note": "Two pages, because the limits are split across them: name and subtitle are app-level ('no more than 30 characters', 'can't be longer than 30 characters'), while promotional text, description and keywords are version-level ('can't be longer than 170 characters', 'Limited to 4000 characters', 'up to 100 bytes of content'). The single URL recorded before T066 held only the first two. Re-read on the date above; every limit matched what was recorded except the keyword field's unit."
     }
   },
   "android": {
@@ -24,10 +26,11 @@
     },
     "descriptionOpening": 80,
     "documentation": {
-      "title": "Play Console Help — Set up your app's store listing",
-      "url": "https://support.google.com/googleplay/android-developer/topic/9866151",
-      "lastChecked": null,
-      "note": "Recorded from prior knowledge rather than re-read from the live page. T066 confirms every limit against the published specification and sets lastChecked before first submission."
+      "title": "Play Console Help — Create and set up your app; Add preview assets",
+      "url": "https://support.google.com/googleplay/android-developer/answer/9859152",
+      "url2": "https://support.google.com/googleplay/android-developer/answer/9866151",
+      "lastChecked": "2026-08-05",
+      "note": "The URL recorded before T066 was a topic id (…/topic/9866151) and returns 404. These two answer pages are what actually state the limits: title 30 characters or less, short description 80 or less, full description 4,000. Re-read on the date above; every limit matched what was recorded."
     }
   },
   "assets": {
@@ -75,13 +78,16 @@
           [1320, 2868]
         ],
         "countPerAppearance": { "min": 1, "max": 10 },
-        "requiredBy": "App Store — a 6.9\" iPhone set; the store derives the smaller sizes from it"
+        "maxTotalAcrossAppearances": 10,
+        "requiredBy": "App Store — a 6.9\" iPhone set; the store derives the smaller sizes from it",
+        "note": "The two counts are not the same rule, and T066 added the second. Apple's limit is 10 screenshots per DISPLAY SIZE, and light and dark are one display size to Apple — so `countPerAppearance.max` alone permitted 20 files for a slot that accepts 10. Two are committed today, so nothing was ever wrong in practice; it was a limit encoded against the wrong axis, which is the kind of thing that is only wrong on the day someone needs it."
       },
       "android": {
         "root": "listing/assets/screenshots/android",
         "sideRange": [320, 3840],
         "maxAspectRatio": 2,
         "countPerAppearance": { "min": 1, "max": 4 },
+        "maxTotalAcrossAppearances": 8,
         "requiredBy": "Google Play — 2 to 8 phone screenshots in total",
         "note": "REJECTION CONDITION. Play requires the longest side to be no more than twice the shortest. A modern phone emulator boots at 1080×2400, which is 2.22:1 and is rejected — so the capture profile is pinned to 1080×1920 (1.78:1) and the gate checks the committed pixels rather than trusting the device profile."
       }

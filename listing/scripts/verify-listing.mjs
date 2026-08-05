@@ -196,7 +196,7 @@ group('fields', ({ listing: doc, limits }) => {
     }
 
     for (const [path, , value] of copyFields(doc, limits, store)) {
-      const limit = limits[store].fields[path.split('.').pop()];
+      const spec = limits[store].fields[path.split('.').pop()];
 
       if (typeof value !== 'string') {
         failures.push(`${path} is missing`);
@@ -210,9 +210,25 @@ group('fields', ({ listing: doc, limits }) => {
         continue;
       }
 
-      const length = [...value].length;
+      // A limit is a plain number counted in code points, or `{ max, unit }`
+      // where the store counts differently. Only one field does today: T066
+      // re-read Apple's specification and found the keyword field measured in
+      // **bytes** — "you can provide up to 100 bytes of content" — while every
+      // other field is characters.
+      //
+      // ASCII hides this completely: the current keywords are 78 either way.
+      // The two diverge the moment anyone writes an accented word or an em
+      // dash, and the divergence runs the dangerous direction — more bytes than
+      // code points — so the gate would have waved through a field the store
+      // silently truncates. This is the same failure mode L1 already guards
+      // against by counting code points rather than UTF-16 units, one level
+      // further out.
+      const limit = typeof spec === 'object' ? spec.max : spec;
+      const unit = typeof spec === 'object' ? spec.unit : 'characters';
+      const length = unit === 'bytes' ? Buffer.byteLength(value, 'utf8') : [...value].length;
+
       if (length > limit) {
-        failures.push(`${path} is ${length} characters, limit ${limit}`);
+        failures.push(`${path} is ${length} ${unit}, limit ${limit}`);
       }
     }
   }
@@ -627,10 +643,19 @@ group('assets', ({ limits, ROOT: root }) => {
   // the fixed-size table above.
   const appearances = limits.assets?.appearances ?? [];
 
-  for (const spec of Object.values(limits.assets?.screenshots ?? {})) {
+  for (const [platform, spec] of Object.entries(limits.assets?.screenshots ?? {})) {
+    // The store's cap is on the whole slot, not on one appearance of it (T066).
+    // Apple accepts 10 screenshots per **display size**, and light and dark are
+    // one display size to Apple — so a per-appearance maximum of 10 permitted
+    // 20 files for a slot that takes 10. Two are committed, so this was never
+    // wrong in practice: it was a limit encoded against the wrong axis, which is
+    // the kind that is only wrong on the day someone needs it.
+    let total = 0;
+
     for (const appearance of appearances) {
       const dir = fileURLToPath(new URL(`${spec.root}/${appearance}`, root));
       const files = pngFiles(dir);
+      total += files?.length ?? 0;
 
       if (files === null) {
         failures.push(
@@ -693,6 +718,14 @@ group('assets', ({ limits, ROOT: root }) => {
           }
         }
       }
+    }
+
+    if (spec.maxTotalAcrossAppearances && total > spec.maxTotalAcrossAppearances) {
+      failures.push(
+        `${platform} has ${total} screenshots across all appearances, and ${spec.requiredBy} ` +
+          `accepts ${spec.maxTotalAcrossAppearances} for the slot — the store's cap is on the ` +
+          'whole set, not on each appearance of it'
+      );
     }
   }
 
