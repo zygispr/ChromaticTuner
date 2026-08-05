@@ -15,38 +15,58 @@
     "corroboration": [
       {
         "concept": "it tunes a guitar",
-        "phrasings": ["guitar"]
+        "phrasings": [
+          "guitar"
+        ]
       },
       {
         "concept": "it is chromatic — it names whatever note it hears",
-        "phrasings": ["chromatic"]
+        "phrasings": [
+          "chromatic"
+        ]
       },
       {
         "concept": "it costs nothing",
-        "phrasings": ["free"]
+        "phrasings": [
+          "free"
+        ]
       },
       {
         "concept": "it listens through the microphone",
-        "phrasings": ["microphone"]
+        "phrasings": [
+          "microphone"
+        ]
       },
       {
         "concept": "the audio is analysed on the device",
-        "phrasings": ["on your device", "on your own device", "on this device", "in the browser"]
+        "phrasings": [
+          "on your device",
+          "on your own device",
+          "on this device",
+          "in the browser"
+        ]
       },
       {
         "concept": "nothing is recorded, stored, or sent anywhere",
-        "phrasings": ["never recorded", "not recorded"]
+        "phrasings": [
+          "never recorded",
+          "not recorded"
+        ]
       },
       {
         "concept": "it keeps working with no network connection",
-        "phrasings": ["no network connection", "no network", "offline"]
+        "phrasings": [
+          "no network connection",
+          "no network",
+          "offline"
+        ]
       }
     ]
   },
   "stores": {
     "ios": {
       "name": "Guitar Tuner: Chromatic",
-      "subtitle": "Free, accurate, offline",
+      "subtitle": "Free, accurate, offline12345678",
       "promotionalText": "Pluck one string and see the note you are playing and how far off it is, to within a single cent. It keeps working with no network at all, so it is there in any room.",
       "description": "Chromatic Tuner is a free guitar tuner. Allow it to use your microphone, pluck one string, and it names the note you are playing and shows how far that string is from it.\n\nHOW IT WORKS\n\nPlay one string at a time and let it ring. The tuner names the note it hears and shows the distance from that note in cents — a cent is one hundredth of a semitone. The line moves left when the string is flat and needs tightening, and right when it is sharp and needs loosening. It reads one note at a time, so let each string sound cleanly rather than strumming.\n\nCHROMATIC, NOT GUESSWORK\n\nA chromatic tuner recognises every note in the twelve-tone scale rather than only the six a guitar is most often tuned to. It reads what your strings are actually sounding rather than assuming where they ought to be, which is what makes it useful on a badly slack string that a six-note tuner would name wrongly.\n\nDetection is accurate to within one cent across E1 to E6 — every note a guitar produces, from a slack low string to the highest fret on the top string. If you are matching an ensemble tuned away from A440, the reference pitch adjusts from 415 to 466 Hz.\n\nYOUR PLAYING STAYS ON YOUR DEVICE\n\nEverything is analysed on your device. Audio is never recorded, never stored, and never sent anywhere, and the app asks for the microphone and nothing else. There is nothing to create and nothing to join.\n\nOnce installed it keeps working with no network connection at all, so it is still there in a rehearsal room or a basement with no signal.\n\nWHAT IT COSTS\n\nNothing. No purchases inside the app, no advertising, and no paid tier holding anything back.",
       "keywords": "pitch,note,strings,cents,acoustic,electric,intonation,semitone,microphone,a440",
