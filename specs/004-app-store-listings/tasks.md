@@ -821,16 +821,156 @@ green on innocent prose, and the rest of the project is proven unchanged.
 **Independent Test**: Overrun a length limit, delete a required asset, and introduce a forbidden claim;
 confirm the gates fail and each failure names the specific field or file at fault.
 
-- [ ] T050 [US4] Confirm `pnpm verify:listing` runs in CI on a pull request and fails the `gates` job when the listing is broken — push a deliberate break and confirm the job goes red, then revert. T010 wired the step; this proves the wiring, and `003`'s T052 found `pnpm build` had been listed as a gate since `001` without ever being in the workflow.
-- [ ] T051 [US4] **Break 1 (SC-043)**: append 8 characters to `stores.ios.subtitle`, run the gate, and record the failure message **verbatim** here. It must name `stores.ios.subtitle`, its actual count, and the limit 30. Revert.
-- [ ] T052 [US4] **Break 2**: set `stores.android.shortDescription` to `""`, run, record verbatim. It must name the field as empty, not merely report the listing invalid. Revert.
-- [ ] T053 [US4] **Break 3**: delete `listing/assets/feature-graphic-1024x500.png`, run, record verbatim. It must name the missing file and which store requires it. Restore.
-- [ ] T054 [US4] **Break 4**: add "supports Drop D" to `stores.ios.description`, run, record verbatim. It must name the matched term **and** the field it appeared in. Revert.
-- [ ] T055 [US4] **The inverse, which matters as much as the four**: add a sentence containing `asynchronous` and `accounting` to a description, run, and confirm the gate stays **green** — L5's word boundaries are the half most likely to be written as substrings, and a gate that fires on innocent prose gets muted. Revert.
-- [ ] T056 [US4] **V32, both directions**: (a) edit a claim in `store-listing.json` to something the web page does not say → gate fails; (b) revert, remove a corroborating sentence from `apps/web/src/content.ts`, **rebuild**, re-run → gate fails; (c) revert and rebuild. Direction (b) is the one that matters: if it passes, T019 is reading `content.ts` on both sides and proving a constant equals itself. Record both messages here.
-- [ ] T057 [US4] Delete one platform's `dark/` screenshot directory and re-run; confirm L9 fails naming the platform and the missing appearance. Then copy a `light/` capture over a `dark/` one and confirm L9's byte-inequality check fails — that is the silently-failed-appearance-switch case, and presence alone would pass it. Restore both.
+- [X] T050 [US4] Confirm `pnpm verify:listing` runs in CI on a pull request and fails the `gates` job when the listing is broken — push a deliberate break and confirm the job goes red, then revert. T010 wired the step; this proves the wiring, and `003`'s T052 found `pnpm build` had been listed as a gate since `001` without ever being in the workflow.
+- [X] T051 [US4] **Break 1 (SC-043)**: append 8 characters to `stores.ios.subtitle`, run the gate, and record the failure message **verbatim** here. It must name `stores.ios.subtitle`, its actual count, and the limit 30. Revert.
+- [X] T052 [US4] **Break 2**: set `stores.android.shortDescription` to `""`, run, record verbatim. It must name the field as empty, not merely report the listing invalid. Revert.
+- [X] T053 [US4] **Break 3**: delete `listing/assets/feature-graphic-1024x500.png`, run, record verbatim. It must name the missing file and which store requires it. Restore.
+- [X] T054 [US4] **Break 4**: add "supports Drop D" to `stores.ios.description`, run, record verbatim. It must name the matched term **and** the field it appeared in. Revert.
+- [X] T055 [US4] **The inverse, which matters as much as the four**: add a sentence containing `asynchronous` and `accounting` to a description, run, and confirm the gate stays **green** — L5's word boundaries are the half most likely to be written as substrings, and a gate that fires on innocent prose gets muted. Revert.
+- [X] T056 [US4] **V32, both directions**: (a) edit a claim in `store-listing.json` to something the web page does not say → gate fails; (b) revert, remove a corroborating sentence from `apps/web/src/content.ts`, **rebuild**, re-run → gate fails; (c) revert and rebuild. Direction (b) is the one that matters: if it passes, T019 is reading `content.ts` on both sides and proving a constant equals itself. Record both messages here.
+- [X] T057 [US4] Delete one platform's `dark/` screenshot directory and re-run; confirm L9 fails naming the platform and the missing appearance. Then copy a `light/` capture over a `dark/` one and confirm L9's byte-inequality check fails — that is the silently-failed-appearance-switch case, and presence alone would pass it. Restore both.
 
-**Checkpoint**: every automated guarantee in this feature has been seen red for the right reason and green for the right reason.
+**Checkpoint**: every automated guarantee in this feature has been seen red for the right reason and green for the right reason. ✅ **Reached 2026-08-05.**
+
+### Phase 6 results — 2026-08-05
+
+Seven deliberate breaks, each run against `pnpm build && pnpm verify:listing` and each reverted
+immediately afterwards. `git status --porcelain` was confirmed empty after every one. The baseline
+these are read against is the standing Phase 4 gap — Android screenshots, T038 — which is present in
+every run below and is not one of the breaks.
+
+**The four failures, verbatim** (SC-043):
+
+| Break | Group | Message |
+| --- | --- | --- |
+| T051 — 8 characters appended to `stores.ios.subtitle` | `fields` | `stores.ios.subtitle is 31 characters, limit 30` |
+| T052 — `stores.android.shortDescription` set to `""` | `fields` | `stores.android.shortDescription is empty` |
+| T053 — `feature-graphic-1024x500.png` deleted | `assets` | `listing/assets/feature-graphic-1024x500.png is missing — required by Google Play` |
+| T054 — "It also supports Drop D." added to the iOS description | `vocabulary` | `stores.ios.description claims a capability 001 put out of scope — matches \bdrop\s*d\b` |
+
+Each names the specific field or file. T052 says *empty* rather than *invalid*, which is the distinction
+the task asks for: a listing reported as merely invalid sends a person looking through eight fields.
+
+**T055 — the inverse, which matters as much as the four.** Appended to the iOS description:
+
+> The analysis is asynchronous and there is no accounting of what you play.
+
+`vocabulary: 41 strings clean` — unchanged, and the whole run was unchanged. `\baccounts?\b` does not
+fire on *accounting* and `\bsync(?:ing|ed|hronis|hroniz)?\b` does not fire on *asynchronous*. A gate that
+reported a violation here would be muted within a month, and a muted gate protects nothing.
+
+**T056 — V32, and the step that decides whether L7 is real.**
+
+*(a) A claim the web page does not make.* `claims.corroboration`'s "it costs nothing" was re-pointed at
+the phrase `no paid tier`, which **both stores say and the web page does not**:
+
+```
+agreement: 7 claims × 2 stores
+corroboration: 1 problem
+  the built web page never says "it costs nothing", but the listing claims it — a shopper who finds
+  one surface and then the other would be told two different things
+```
+
+`agreement` staying green is the useful half: the two groups are measuring different surfaces, and this
+break isolates L7 from L6 rather than tripping both.
+
+*(b) A corroborating sentence removed from `apps/web/src/content.ts`.* Run in two steps deliberately,
+because the second step is the whole point:
+
+| Step | `corroboration` |
+| --- | --- |
+| Sentence removed from `content.ts`, **not rebuilt** | `7 corroborated` — green |
+| Same edit, after `pnpm build` | `the built web page never says "nothing is recorded, stored, or sent anywhere", but the listing claims it` |
+
+**If the check were reading `content.ts` on both sides, the first row would have been red.** It is
+green, and the failure appears only once the edit reaches `dist/index.html`, which is the proof that L7
+compares the listing against what shipped rather than against the constant that produces it. `001`'s
+seven-phase defect was exactly this shape of assertion, and this is the run that says it is not repeated
+here. Reverted and rebuilt; `corroboration: 7 corroborated`.
+
+**T057 — the two screenshot failure modes, which are not the same failure.**
+
+*(a) `listing/assets/screenshots/ios/dark/` deleted:*
+
+```
+assets: 3 problems
+  listing/assets/screenshots/ios/dark/ does not exist — App Store — a 6.9" iPhone set; the store
+  derives the smaller sizes from it needs this set
+appearances: 2 problems
+  ios is missing a dark screenshot — Principle IV requires both appearances be represented
+```
+
+*(b) The silently-failed appearance switch — the light capture copied over the dark one*, so both files
+exist, both are the right size, and both are the same image (`md5` identical):
+
+```
+assets: 2 problems     ← back to the Android gap alone: the presence and dimension checks PASSED
+appearances: 2 problems
+  ios's light and dark screenshots are byte-identical — the appearance switch did not take effect
+  during capture, and a presence check alone would pass this
+```
+
+The `assets` line dropping back to two problems is the demonstration. Every presence check, every
+dimension check, and every format check waved this through — a listing showing one appearance twice, in
+a repository whose Principle IV requires both. Only the byte-inequality caught it, which is the reason
+L9 states it as an inequality rather than as a count.
+
+#### T050 — and the defect it found: **CI had never run**
+
+Run on a throwaway branch and PR (`ci-gate-probe-004`, PR #1, closed and deleted afterwards) so no
+deliberately broken commit lands in this feature's history. Three runs:
+
+| # | Commit | Result |
+| --- | --- | --- |
+| 1 | the unbroken 004 branch | **every job failed inside `actions/setup-node@v4`**, before any gate ran |
+| 2 | Node pin 20 → 22 | `gates` reaches and fails at exactly one step — `Listing (…)` — on the T038 Android gap. `mobile-tests` and `e2e` both **green** |
+| 3 | a 31-character `stores.ios.subtitle` | the same step additionally reports the field and fails the job |
+
+**Run 1 is the finding, and it is a bigger one than T050 went looking for.** `package.json` pins
+`pnpm@11.18.0`, which requires **Node ≥ 22.13**, while all three jobs pinned `node-version: 20`. So
+`actions/setup-node`'s own `cache: pnpm` step ran `pnpm store path` under Node 20 and died:
+
+```
+warn: This version of pnpm requires at least Node.js v22.13
+Error [ERR_UNKNOWN_BUILTIN_MODULE]: No such built-in module: node:sqlite
+```
+
+Before checkout's install. Before lint. **No gate in this repository has been running in CI** — not
+this feature's, not `003`'s, not `001`'s. This is precisely the class of defect T050 exists to catch:
+`003`'s T052 found `pnpm build` listed as a gate since `001` and never wired into the workflow, and
+this is the same failure one level further down — the workflow was wired and could not start.
+
+Fixed on this branch: `node-version: 22` in all three jobs, and `engines.node` corrected from `>=20`
+to `>=22.13`, which was a false claim about what this repository can be installed with. **22 rather
+than 24 deliberately**, because research D1 justifies the listing gate being `.mjs` with JSON data by
+CI predating TypeScript type stripping — Node 22 still does (it is behind
+`--experimental-strip-types` until 23.6), so the recorded decision stays true. `CLAUDE.md` still says
+"Node 20+" and T058 must correct it.
+
+**Run 2, the baseline, is worth its own line.** With CI able to start, `mobile-tests` and `e2e` both
+passed on Ubuntu on their first ever execution, and `gates` failed at one step only. The `identity`
+group shells out to `expo config --type prebuild`, which had never been exercised anywhere but this
+machine; it resolves the config on a Linux runner with no Xcode and no Android SDK exactly as it does
+locally.
+
+**Run 3 — the step's output, verbatim:**
+
+```
+fields: 1 problem
+  stores.ios.subtitle is 31 characters, limit 30
+…
+[ELIFECYCLE] Command failed with exit code 1.
+##[error]Process completed with exit code 1.
+```
+
+Runs 2 and 3 together are the point. The gates job is red either way while T038 stands, so a single
+red run would only have shown that *something* is wrong; the difference between the two outputs is
+what shows the gate measuring the listing rather than noticing the standing gap.
+
+**One incidental finding.** The first attempt at run 3 failed at **Format check**, not at the Listing
+step: the scripted JSON edit reformatted the file in a way Prettier rejects. The gate order means a
+malformed break never reaches the check it was aimed at — worth knowing before writing off a future
+"the gate did not catch it".
 
 ---
 
@@ -838,7 +978,7 @@ confirm the gates fail and each failure names the specific field or file at faul
 
 **Purpose**: Prove nothing about the tuner changed, then the four outcomes no repository can assert.
 
-- [ ] T058 [P] Update `CLAUDE.md`'s Commands section with `pnpm verify:listing`, `pnpm listing:assets`, and `pnpm listing:screenshots`, noting which of them cannot run in CI and why (macOS/Xcode/emulator, D7). Note also that `app.json` is gone and `app.config.ts` derives identity from `listing/store-listing.json`.
+- [ ] T058 [P] Update `CLAUDE.md`'s Commands section with `pnpm verify:listing`, `pnpm listing:assets`, and `pnpm listing:screenshots`, noting which of them cannot run in CI and why (macOS/Xcode/emulator, D7). Note also that `app.json` is gone and `app.config.ts` derives identity from `listing/store-listing.json`. **Also correct "Node 20+" to Node 22.13+** — T050 found that pnpm 11.18 cannot run on Node 20 at all, and add `pnpm --filter @chromatic-tuner/mobile verify:release-bundle` as a release gate rather than a merge gate.
 - [ ] T059 [P] Add a header comment to `listing/store-listing.json`'s companion — since JSON carries no comments, put the orientation in `listing/submission.md`: what is authored here, what derives from it, and that `claims.identifier` is permanent from first publication.
 - [ ] T060 Run the full suite: `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm --filter @chromatic-tuner/mobile test && pnpm build && pnpm test:e2e && pnpm verify:listing`. Record every count against T001's baseline (V37, FR-113).
 - [ ] T061 **The half of V37 that is the real assertion** — run `git diff --stat main...HEAD` and confirm the diff modifies no file under `packages/`, no file under `apps/mobile/src/components/`, and no test anywhere except `apps/web/e2e/metadata.spec.ts` (whose only change is where it reads its forbidden list from) plus the new test files this feature adds. A green suite after a behaviour change proves the suite missed it; the file list is what proves there was no behaviour change to miss (SC-044).

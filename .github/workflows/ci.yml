@@ -19,9 +19,22 @@ jobs:
 
       - uses: pnpm/action-setup@v4
 
+      # 22, not 20, and this is not a routine bump: on Node 20 **no job in this
+      # workflow ran at all**. `packageManager` pins pnpm 11.18.0, which requires
+      # Node >= 22.13, so `actions/setup-node`'s own `cache: pnpm` step invoked
+      # `pnpm store path` under Node 20 and died with
+      # `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite` — before checkout's install,
+      # before a single gate. Found by 004's T050, which exists because 003's
+      # T052 found `pnpm build` listed as a gate since 001 and never wired into
+      # this file. The same class of defect, one level further down.
+      #
+      # 22 rather than 24 deliberately: research D1 justifies the listing gate
+      # being `.mjs` with JSON data by CI predating TypeScript type stripping,
+      # and Node 22 still does — it is behind `--experimental-strip-types` until
+      # 23.6. Moving to 24 would quietly invalidate a recorded decision.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install
@@ -78,7 +91,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -92,7 +105,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
       - name: Install
         run: pnpm install --frozen-lockfile
