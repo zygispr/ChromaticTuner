@@ -5,8 +5,10 @@ import {
   ScriptedAudioSource,
 } from '@chromatic-tuner/core/testing';
 import { TunerProvider } from '@chromatic-tuner/react';
+import { color } from '@chromatic-tuner/tokens';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react-native';
 import { useRef, type ReactNode } from 'react';
+import { StyleSheet } from 'react-native';
 import { AudioManager } from 'react-native-audio-api';
 
 import { ReferenceBadge } from '../src/components/atoms/ReferenceBadge';
@@ -176,6 +178,59 @@ describe('SettingsScreen (T088)', () => {
 
     expect(screen.getByTestId('accidental-flat').props.accessibilityState.selected).toBe(true);
     expect((await store.load())?.accidentalStyle).toBe('flat');
+  });
+
+  /**
+   * The chosen accidental is marked by a fill, not by a heavier border (FR-015).
+   *
+   * The original treatment gave both options a 2px border and changed only its
+   * colour. That is a thin greyscale channel — one stroke colour over a 2px
+   * band — and on the web half it collided outright with the focus ring, which
+   * is also a `text` outline.
+   *
+   * The fill is the `selected` tint rather than `text`. Built with `text`
+   * first, which overcorrected: that is the primary-action fill
+   * (`allow-microphone`, `retry-button`), and spending it on a preference made
+   * the accidental buttons the loudest thing in the sheet. The tint is what a
+   * chosen segment gets on both platforms, and the label stays `text` instead
+   * of inverting.
+   *
+   * Asserted across a toggle rather than on the default alone: a static check
+   * passes just as well against two buttons that are permanently styled that
+   * way, which is not the property that matters.
+   */
+  it('marks the chosen accidental with a fill that follows the choice (FR-015)', async () => {
+    await renderSettings();
+
+    const boxOf = (testID: string) =>
+      StyleSheet.flatten(screen.getByTestId(testID).props.style) as {
+        backgroundColor?: string;
+        borderWidth?: number;
+        borderColor?: string;
+      };
+    const labelColorOf = (text: string) =>
+      (StyleSheet.flatten(screen.getByText(text).props.style) as { color?: string }).color;
+
+    expect(boxOf('accidental-sharp').backgroundColor).toBe(color.selected.light);
+    // A tint, not an inversion: the label stays `text` in both states.
+    expect(labelColorOf('Sharps')).toBe(color.text.light);
+
+    // The unchosen option stays a ghost. FR-052 still holds: it carries a
+    // border at rest, so it reads as a control before anything touches it.
+    expect(boxOf('accidental-flat').backgroundColor).toBeUndefined();
+    expect(boxOf('accidental-flat').borderColor).toBe(color.line.light);
+    expect(labelColorOf('Flats')).toBe(color.text.light);
+
+    // Neither option may be the heavier box, or the row resizes on toggle.
+    expect(boxOf('accidental-sharp').borderWidth).toBe(boxOf('accidental-flat').borderWidth);
+
+    await press('accidental-flat');
+
+    expect(boxOf('accidental-flat').backgroundColor).toBe(color.selected.light);
+    expect(boxOf('accidental-sharp').backgroundColor).toBeUndefined();
+    // The label never moves, so the fill is carrying the choice on its own.
+    expect(labelColorOf('Flats')).toBe(color.text.light);
+    expect(labelColorOf('Sharps')).toBe(color.text.light);
   });
 
   it('resets to defaults and clears storage (FR-024)', async () => {

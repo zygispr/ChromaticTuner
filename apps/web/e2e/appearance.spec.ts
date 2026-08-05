@@ -209,6 +209,117 @@ test('a non-standard reference stays louder than the standard one (FR-053, FR-02
 });
 
 /**
+ * The chosen accidental is marked by a fill, not by a heavier border (FR-015).
+ *
+ * The original treatment gave both options a 2px border and changed only its
+ * colour — `text` when selected, `line` when not. Two problems.
+ *
+ * The first is that a 2px `text` outline is the app's focus idiom, not its
+ * selection idiom: `main.tsx` draws `:focus-visible` as a 3px `text` outline at
+ * a 2px offset, so the resting selected state and the keyboard focus ring were
+ * the same colour a pixel apart. Tabbing to the *unselected* option grew a ring
+ * that looked like the thing meaning "chosen".
+ *
+ * The second is that greyscale separation by stroke colour alone is thin —
+ * `text` against `line` is the only channel, over a 1-2px band. Filling the box
+ * moves a whole surface instead.
+ *
+ * The fill is the `selected` tint, NOT `text`. This was built with `text`
+ * first — the app's existing solid-button fill — and that overcorrected: it is
+ * the primary-action treatment, so a passive preference became the loudest
+ * thing in the sheet, louder than Done and Reset. The tint is what iOS and
+ * Material use for a chosen segment, and it keeps the label as `text` rather
+ * than inverting it.
+ *
+ * The tint is a smaller colour-free step than an inversion, which is why the
+ * bold weight and the border are still here rather than being dropped as
+ * redundant. `packages/tokens` bounds the step on both sides.
+ *
+ * Both borders stay the same width so the row cannot resize on toggle; the
+ * geometry half of that is `layout-stability.spec.ts`.
+ */
+for (const scheme of ['light', 'dark'] as const) {
+  test(`the chosen accidental is filled, not outlined, in ${scheme} (FR-015)`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto('/');
+    await waitForNote(page, 'E');
+    await page.getByTestId('reference-badge').click();
+    await expect(page.getByTestId('settings-sheet')).toBeVisible();
+
+    const read = (testId: string) =>
+      page.getByTestId(testId).evaluate((el) => {
+        const own = getComputedStyle(el);
+        return {
+          background: own.backgroundColor,
+          color: own.color,
+          borderWidth: parseFloat(own.borderTopWidth),
+          borderColor: own.borderTopColor,
+        };
+      });
+
+    // Sharps is the default, so it is the selected one on a fresh profile.
+    const selected = await read('accidental-sharp');
+    const unselected = await read('accidental-flat');
+
+    expect(selected.background, 'the chosen option is not filled with the `selected` tint').toBe(
+      toRgb(color.selected[scheme])
+    );
+    // Not inverted. A tinted container keeps its label in `text`, which is what
+    // stops the control from reading as a primary action.
+    expect(selected.color, "the chosen option's label left `text`").toBe(toRgb(color.text[scheme]));
+    expect(
+      selected.background,
+      'the chosen option is filled with the primary-action colour'
+    ).not.toBe(toRgb(color.text[scheme]));
+
+    // The unselected option stays a ghost control: transparent, 1px `line`.
+    // FR-052 still holds — it carries a border at rest, so it reads as a
+    // control before anything hovers it.
+    expect(unselected.background, 'the unchosen option is filled').toMatch(
+      /rgba\([^)]*,\s*0\)|transparent/
+    );
+    expect(unselected.borderColor, 'the unchosen option is not bordered in `line`').toBe(
+      toRgb(color.line[scheme])
+    );
+
+    // What each box actually renders, not what it declares. A transparent
+    // element computes to rgba(0,0,0,0), so comparing declared backgrounds
+    // would report a difference between the two options even when both are
+    // ghosts — which is exactly the state this replaced. Resolving through to
+    // the first painted ancestor is what makes the assertion mean "these two
+    // boxes look different", and it is the check that fails on a pair
+    // distinguished by stroke colour alone.
+    const rendered = (testId: string) =>
+      page.getByTestId(testId).evaluate((el) => {
+        for (let node: Element | null = el; node; node = node.parentElement) {
+          const own = getComputedStyle(node).backgroundColor;
+          if (!/rgba\([^)]*,\s*0\)/.test(own)) return own;
+        }
+        return 'transparent';
+      });
+
+    expect(
+      await rendered('accidental-flat'),
+      'the unchosen option paints something other than the sheet beneath it'
+    ).toBe(toRgb(color.background[scheme]));
+    expect(
+      await rendered('accidental-sharp'),
+      'the two options render the same surface, so only the stroke tells them apart'
+    ).not.toBe(await rendered('accidental-flat'));
+
+    // The selection cue must not be the focus idiom. The ring is 3px; anything
+    // at rest has to sit clearly below it or the two read as the same signal.
+    expect(selected.borderWidth, 'the resting border is as heavy as the focus ring').toBeLessThan(
+      3
+    );
+    expect(
+      selected.borderWidth,
+      'the two options have different border widths, so the row resizes on toggle'
+    ).toBe(unselected.borderWidth);
+  });
+}
+
+/**
  * FR-070: the supporting content is themed and legible in both appearances.
  *
  * The content section is markup in the served document, styled by a stylesheet

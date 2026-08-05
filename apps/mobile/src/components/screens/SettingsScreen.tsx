@@ -223,24 +223,51 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
                       onPress={() => setAccidentalStyle(option.value)}
                       style={({ pressed }) => [
                         styles.option,
-                        // Selection carried by border weight as well as colour,
-                        // so it survives greyscale (FR-015).
+                        // Selection carried by fill and weight as well as
+                        // colour, so it survives greyscale (FR-015). This used
+                        // to be a heavier border, which is a thin channel —
+                        // one stroke colour over a 2 pt band — and on the web
+                        // half it was the same treatment as the focus ring.
+                        //
+                        // The `selected` tint, not `text`: filling with `text`
+                        // was the first attempt and overcorrected, spending the
+                        // primary-action treatment on a preference. A tinted
+                        // container is what a chosen segment gets on both
+                        // platforms, and the label stays `text`.
                         { borderColor: selected ? colors.text : colors.line },
-                        selected ? styles.optionSelected : null,
-                        pressed && { backgroundColor: colors.pressed },
+                        selected && { backgroundColor: colors.selected },
+                        // The wash replaces the background outright, so it may
+                        // only be applied to the option that has none. The
+                        // filled one layers it as an overlay below.
+                        pressed && !selected && { backgroundColor: colors.pressed },
                       ]}
                     >
-                      <Text
-                        style={[
-                          styles.optionLabel,
-                          { color: colors.text, fontWeight: selected ? '700' : '400' },
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                      <Text style={[styles.optionExample, { color: colors.text }]}>
-                        {option.example}
-                      </Text>
+                      {({ pressed }) => (
+                        <>
+                          {/* Layered, not swapped (FR-059) — the same overlay
+                              `PermissionPrompt` uses, for the same reason:
+                              replacing this control's background would erase
+                              the fill and take its `background`-coloured label
+                              with it. */}
+                          {pressed && selected && (
+                            <View
+                              testID={`accidental-${option.value}-wash`}
+                              style={[styles.wash, { backgroundColor: colors.pressed }]}
+                            />
+                          )}
+                          <Text
+                            style={[
+                              styles.optionLabel,
+                              { color: colors.text, fontWeight: selected ? '700' : '400' },
+                            ]}
+                          >
+                            {option.label}
+                          </Text>
+                          <Text style={[styles.optionExample, { color: colors.text }]}>
+                            {option.example}
+                          </Text>
+                        </>
+                      )}
                     </Pressable>
                   );
                 })}
@@ -364,18 +391,28 @@ const styles = StyleSheet.create({
     padding: space.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    // One width for both states, so choosing an option cannot resize the row
+    // under the finger that chose it.
+    borderWidth: 1,
     borderRadius: space.sm,
   },
-  optionSelected: {
-    borderWidth: 2,
+  /** Matches the option's radius so the wash cannot square off its corners. */
+  wash: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: space.sm,
   },
   optionLabel: {
     fontSize: typeTokens.labelSize,
   },
   optionExample: {
     fontSize: 12,
-    opacity: 0.6,
+    // The `selected` tint sits close enough to this text that a heavier fade
+    // drops it under AA; the token carries the measurement.
+    opacity: a11y.mutedOpacity,
   },
   warning: {
     fontSize: typeTokens.labelSize,
