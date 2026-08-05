@@ -15,51 +15,31 @@
     "corroboration": [
       {
         "concept": "it tunes a guitar",
-        "phrasings": [
-          "guitar"
-        ]
+        "phrasings": ["guitar"]
       },
       {
         "concept": "it is chromatic — it names whatever note it hears",
-        "phrasings": [
-          "chromatic"
-        ]
+        "phrasings": ["chromatic"]
       },
       {
         "concept": "it costs nothing",
-        "phrasings": [
-          "free"
-        ]
+        "phrasings": ["free"]
       },
       {
         "concept": "it listens through the microphone",
-        "phrasings": [
-          "microphone"
-        ]
+        "phrasings": ["microphone"]
       },
       {
         "concept": "the audio is analysed on the device",
-        "phrasings": [
-          "on your device",
-          "on your own device",
-          "on this device",
-          "in the browser"
-        ]
+        "phrasings": ["on your device", "on your own device", "on this device", "in the browser"]
       },
       {
         "concept": "nothing is recorded, stored, or sent anywhere",
-        "phrasings": [
-          "never recorded",
-          "not recorded"
-        ]
+        "phrasings": ["never recorded", "not recorded"]
       },
       {
         "concept": "it keeps working with no network connection",
-        "phrasings": [
-          "no network connection",
-          "no network",
-          "offline"
-        ]
+        "phrasings": ["no network connection", "no network", "offline"]
       }
     ]
   },
