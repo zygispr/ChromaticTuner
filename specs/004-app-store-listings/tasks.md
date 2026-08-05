@@ -993,6 +993,32 @@ malformed break never reaches the check it was aimed at — worth knowing before
 
 ### Phase 7 results — 2026-08-05
 
+#### Merged to `main` with a red gate — a recorded, deliberate exception
+
+**2026-08-05.** This feature was merged into `main` while `pnpm verify:listing` was **red**, and the
+constitution's Development Workflow says plainly: *"Merge — Blocked while any gate is red. 'Fix it in a
+follow-up' is not an accepted resolution for a constitution violation."*
+
+Recorded here rather than left to be discovered, because a red gate on `main` that nobody wrote down is
+indistinguishable from a broken build.
+
+- **What is red**: three lines, one cause — `listing/assets/screenshots/android/{light,dark}/` do not
+  exist (T038). Google Play will not publish a listing without them.
+- **Why it was not fixed first**: this machine has no Android SDK — no `adb`, no `~/Library/Android`,
+  `ANDROID_HOME` unset. It is a missing toolchain, not a missing decision.
+- **What is green**: everything else. Lint, format, typecheck 5/5, 430 unit tests, coverage at T001's
+  baseline, 78 mobile, `pnpm build`, `verify:build-output`, 112 e2e, `verify:release-bundle`.
+- **The consequence**: CI's `gates` job is red on `main` and stays red until the Android screenshots are
+  captured and committed. Every other step in that job passes.
+- **The rejected alternative**: making the Android screenshot set optional in `limits.json` would turn
+  the gate green over a listing that cannot be published. Phase 4 rejected exactly that, and the reason
+  stands — it is the softening US4 exists to prevent.
+- **To clear it**: install the Android SDK platform-tools, create a **1080×1920** AVD (the common
+  1080×2400 default is 2.22:1 and Play rejects it), install a capture build, and run
+  `pnpm listing:screenshots`. `listing/submission.md` carries the same instruction as open action 3.
+
+The decision to merge anyway was the repository owner's, taken with the above in front of them.
+
 #### The release gates: two done, five need a person or an account
 
 | Task | Status | What it needs |
