@@ -25,8 +25,10 @@ installs; if e2e has never been run in this checkout:
 pnpm --filter @chromatic-tuner/web exec playwright install chromium
 ```
 
-`apps/web/.env` ships a committed development default for `VITE_SITE_URL`, so everything below runs on a
-clean checkout with no configuration.
+**Correction (Phase 2).** There is no `apps/web/.env`: `.gitignore` ignores `.env` and `.env.*` repo-wide
+and permits only `.env.example`, which Vite does not read. The development default for `VITE_SITE_URL`
+lives as a constant in `apps/web/vite.config.ts` instead, which a reviewer can see. Everything below still
+runs on a clean checkout with no configuration.
 
 ## Running the suites
 
@@ -186,8 +188,14 @@ rather than omitted as untestable.
    1200 × 630 says nothing about whether the text inside it survives being shown at 300px wide).
 3. Set `VITE_SITE_URL` for the deployment and confirm the built `robots.txt` **allows** crawling and the
    canonical tag names the real origin.
-4. Deploy a preview build with a different origin and confirm its `robots.txt` **disallows** everything
-   (FR-076, P12).
+4. Deploy a preview build and confirm its `robots.txt` **disallows** everything (FR-076, P12) —
+   **which requires leaving `VITE_SITE_URL` unset on that build.** ⚠️ This step said "with a different
+   origin" and that was wrong: the implementation checks `siteOrigin !== DEVELOPMENT_ORIGIN`, so any
+   origin other than localhost counts as canonical and gets an allow-all robots. The fail-safe protects
+   the *forgotten* variable, not a *deliberately different* one. If the hosting platform injects a
+   per-deployment URL automatically, turn that off for previews or they will compete with the live site.
+   `verify:build-output` covers the unset case. Corrected 2026-08-05 at T057; the full reasoning is in the
+   [deployment checklist](./tasks.md#deployment-checklist-t057).
 5. Within 30 days, confirm the canonical address is indexed and no preview address is indexed alongside
    it (SC-033).
 

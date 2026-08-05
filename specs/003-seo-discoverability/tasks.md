@@ -766,13 +766,228 @@ const PRECACHE = ["/","/index.html","/manifest.webmanifest","/icon.svg","/assets
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T054 Record the **after** cold-start number from T002's measurement and the after document/bundle sizes from T003, and state the net against the 2 s budget in this file (Principle V, SC-028) — D2 removes a runtime step and the content adds bytes, in opposite directions
-- [ ] T055 [P] Capture light and dark screenshots of the fold and of the content section and attach them to the PR (Development Workflow — mandatory for any UI change)
-- [ ] T056 Run the V27 human legs from [quickstart.md](./quickstart.md) — scroll cue visible and non-overlapping at the smallest width, largest platform text size still fits the fold, keyboard traversal, installed-app identity (FR-080, SC-030) — and record findings here
-- [ ] T057 [P] Add a deployment checklist section to this file from research D10 and quickstart V29: set `VITE_SITE_URL`, confirm robots allows on canonical and disallows on previews, **configure the host so unknown paths return 404 rather than the SPA shell with a 200**
-- [ ] T058 Run the full gate set — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e && pnpm build` plus `verify:offline` — and record the counts (SC-034)
-- [ ] T059 [P] Record in this file that V28 (public schema validators, Lighthouse SEO) and V29 (real link previews, indexation) remain **open** and why — both need a deployment that does not exist; they are release gates, not skipped work
-- [ ] T060 Create `specs/003-seo-discoverability/validation-results.md` recording V22–V27 outcomes, following the `001` and `002` convention
+- [X] T054 Record the **after** cold-start number from T002's measurement and the after document/bundle sizes from T003, and state the net against the 2 s budget in this file (Principle V, SC-028) — D2 removes a runtime step and the content adds bytes, in opposite directions. **The dev-server instrument T002 built turned out to be the weaker of the two available; `verify:offline` measures the production build and is five times more stable.** Both reported below
+- [X] T055 [P] Capture light and dark screenshots of the fold and of the content section and attach them to the PR (Development Workflow — mandatory for any UI change) — eight captures in [screenshots/](./screenshots/), reviewed by eye
+- [X] T056 Run the V27 human legs from [quickstart.md](./quickstart.md) — scroll cue visible and non-overlapping at the smallest width, largest platform text size still fits the fold, keyboard traversal, installed-app identity (FR-080, SC-030) — and record findings here. **Three legs closed by measurement, one (SC-030's unfamiliar reader) genuinely still open**; the text-size leg found the fold has 3 px of slack, not 5
+- [X] T057 [P] Add a deployment checklist section to this file from research D10 and quickstart V29: set `VITE_SITE_URL`, confirm robots allows on canonical and disallows on previews, **configure the host so unknown paths return 404 rather than the SPA shell with a 200**. **Reading the code to write the checklist found that quickstart V29 step 4 is wrong as written** — see the checklist below
+- [X] T058 Run the full gate set — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e && pnpm build` plus `verify:offline` — and record the counts (SC-034)
+- [X] T059 [P] Record in this file that V28 (public schema validators, Lighthouse SEO) and V29 (real link previews, indexation) remain **open** and why — both need a deployment that does not exist; they are release gates, not skipped work
+- [X] T060 Create [validation-results.md](./validation-results.md) recording V22–V27 outcomes, following the `001` and `002` convention
+
+**Checkpoint**: ✅ **PHASE 7 COMPLETE**, and with it the feature. Everything that can be verified without
+a public address has been. What cannot is named in [Still open](./validation-results.md#still-open) rather than quietly
+dropped.
+
+### Phase 7 results — 2026-08-05, on `51dea83` plus this file and the screenshots
+
+Development Mac (Apple silicon, macOS 26.5.2), Node 24.14.0, pnpm 11.18.0, headless Chromium via
+Playwright. Full scenario-by-scenario results in [validation-results.md](./validation-results.md).
+
+**All ten gates green (T058).**
+
+| Gate | Result |
+| --- | --- |
+| `pnpm lint` | clean, `--max-warnings 0` |
+| `pnpm format:check` | clean |
+| `pnpm typecheck` | 5/5 projects |
+| `pnpm test` | **430 passed**, 18 files, 7.99 s |
+| `pnpm test:coverage` | **100% lines**, 98.5% statements, 94.81% branches, 97.29% functions |
+| `pnpm test:e2e` | **107 passed**, 42.4 s |
+| `pnpm --filter @chromatic-tuner/mobile test` | **64 passed**, 9 suites |
+| `pnpm build` | 269,623 B excluding maps, `sw.js` emitted |
+| `verify:build-output` | pass — crawl directives correct, no unresolved tokens, precache excludes them |
+| `verify:offline` | pass — cold 836 ms, warm 303 ms, offline 305 ms |
+
+Growth over the feature: **+32 end-to-end** (75 → 107), unit and mobile counts unchanged at 430 and 64.
+That split is the honest shape of this feature: it adds no runtime behaviour to `packages/*`, so there was
+nothing there to unit-test, and every guarantee it makes is about a served document.
+
+#### T054 — the measurements, and a correction to the instrument
+
+| | Baseline (T002/T003) | After Phase 6 | Net |
+| --- | --- | --- | --- |
+| Cold start, dev server, median of 5 isolated runs | 141.5 ms | **109.7 ms** | −31.8 ms, **within noise** |
+| Cold start, **production build**, median of 5 runs | — | **840 ms** | vs 2000 ms budget |
+| `dist/index.html` | 669 B | **7,454 B** | +6,785 B |
+| `dist/assets/*.js` | 236,213 B | **235,516 B** | **−697 B** |
+| `dist/` total, maps excluded | 241,489 B | **269,623 B** | +28,134 B |
+
+**The dev-server number must not be read as an improvement.** T002 measured ±23% scatter on unmodified
+code and set a ±65 ms noise band; −31.8 ms sits inside it, and this run again produced one outlier
+(167.7 ms) among five samples otherwise spanning 102.4–116.5 ms. The correct statement is that adding
+254 words, a token block, a JSON-LD graph and the full preview identity had **no measurable effect on cold
+start** — not that it made anything faster.
+
+**The better instrument was already in the repo, and T002 did not use it.** `verify:offline` drives a
+production build behind the service worker and reports cold, warm and offline starts. Five runs:
+
+| Run | 1 | 2 | 3 | 4 | 5 | Median |
+| --- | --- | --- | --- | --- | --- | --- |
+| Cold, ms | 836 | 840 | 841 | 840 | 839 | **840** |
+
+A 5 ms spread against the dev server's 63.5 ms. `002` recorded **875 ms** on the same script, so the whole
+of `003` costs **nothing measurable** against a 2000 ms budget — 42% of it used, with the same headroom
+`002` left. **SC-028 passes**, and it passes on a production artefact rather than on a dev server.
+
+This is worth saying plainly because T002 built a new measurement when a better one existed. The
+dev-server timing is not useless — it is the only instrument that can run per-commit inside the e2e suite,
+and that is a real property — but it should have been introduced as the cheap sentinel alongside
+`verify:offline`, not as the number SC-028 turns on. It is recorded that way now.
+
+**The bytes went the way D1 and D2 predicted.** The document grew 6,785 B and the JavaScript bundle
+*shrank* 697 B, because D2 moved the token block out of the app's module graph — the same bytes, relocated
+from script that must execute into markup that does not. The bundle has now been byte-identical for four
+consecutive phases. Of the 28,134 B added to `dist/`, **21,685 B is `og-image.png`**, which no user of the
+app ever downloads: it lives in `public/`, never enters Rollup's bundle object, and is therefore never
+precached. Netted against that, the whole feature costs the app **+6,449 B of document and −697 B of
+script**.
+
+#### T055 — screenshots, and what they showed
+
+Eight captures in [screenshots/](./screenshots/) at `deviceScaleFactor: 2`, both appearances:
+`web-fold-{light,dark}`, `web-content-{light,dark}`, and the same pair again at the smallest supported
+viewport (`-smallest-`). Captured against the fake-audio fixture so the fold shows a real E2 reading
+rather than the permission explainer — a screenshot of the explainer would have evidenced nothing about
+the state this feature changes.
+
+Reviewed by eye. **No defect found this time**, which is worth stating explicitly given that this is the
+step that caught `001`'s marker and `002`'s frozen readout while every gate was green. What the captures
+confirm: the content section is themed in both appearances and inherits the page background rather than
+the default canvas (the hazard T024 named), the `<h1>` is visually the dominant thing in the content
+section without competing with the note label, and at 360×640 the cue sits below the microphone control
+with visible clearance.
+
+#### T056 — V27's legs: three closed by measurement, one still open
+
+Driven through Playwright rather than eyeballed, because every one of these is a geometry or identity
+question with a number behind it.
+
+**Leg 2 — the cue at the smallest supported width (FR-068). Pass.** At 360×640 the cue occupies
+616–640 px and the microphone control ends at 611 px: **5 px of clearance**, non-overlapping, `opacity: 1`,
+`visibility: visible`, colour `rgb(86, 91, 102)` on the light background.
+
+**Leg 3 — largest platform text size. Pass, with the margin now measured rather than assumed.**
+
+The finding underneath it matters more than the pass. **Everything in this app is sized in `px`**, so a
+platform text-size preference does not scale it at all — the analogue that *does* bite is Blink's
+`minimumFontSize`, which forces a floor on text below it. Run at Chrome's maximum
+(`--blink-settings=defaultFontSize=24,minimumFontSize=24`) at 360×640:
+
+| Element | Normal | At the 24 px floor |
+| --- | --- | --- |
+| note label | 128 px | 128 px (above the floor) |
+| cents readout | 32 px | 32 px (above the floor) |
+| direction cue | 16 px | **24 px** |
+| content body | 16 px | **24 px** |
+
+The fold still **FITS** — but the cue's clearance over the microphone control drops from 5 px to **3 px**.
+Phase 3 recorded ten pixels of slack in the tuner column; at the largest text setting it is three. Anything
+added inside the fold from here should be measured at this setting, not only at the default.
+
+**Page zoom is the axis that actually breaks, and it is pre-existing.** Modelling zoom as a shrinking CSS
+viewport (a 360×640 phone at 125% presents 288×512), the tuner column stays 582 px tall — it is a stack of
+`px`-sized children and cannot shrink — so at any viewport shorter than ~630 px the microphone control
+falls below the fold:
+
+| Zoom | CSS viewport | Fold |
+| --- | --- | --- |
+| 100% | 360×640 | **fits** |
+| 125% | 288×512 | microphone control below the fold |
+| 150% | 240×427 | + direction cue |
+| 175% | 206×366 | + tuning line |
+
+**Probed rather than assumed: nothing is clipped and nothing is unreachable.** At 288×512 `#root` is
+512 px, `<main>` is 630 px, and the document scrolls — scrolling 200 px brings the control fully into view.
+`overflow: hidden` sits on `<main>`, whose own `scrollHeight` equals its height, so it clips nothing here.
+And this is **not something `003` introduced**: the feature adds nothing inside `#root` (document order is
+`root → script → scroll-cue → site-content`), T011's height changes were deliberately not made, and T012
+was deliberately not done. FR-066 and SC-029 are stated at the smallest *supported* viewport, where it
+fits. Recorded as a pre-existing limit worth knowing, not as a regression and not as a task.
+
+**Leg 4 — keyboard traversal (FR-071). Pass.** Forward Tab order is
+`reference-badge → microphone-toggle → browser UI → (wraps)`, and `#site-content` contains **zero**
+focusable elements. That is what makes FR-071's two halves true at once without a skip link: the content
+is reachable in document order — which is what a screen reader traverses — and a keyboard user is never
+made to tab through it to get back out. `a11y.spec.ts` asserts the zero, so adding a link to the copy
+fails the gate; that is the moment to design skip navigation, and not before.
+
+**Leg 5 — installed-app identity (FR-080). Pass on everything that can be checked without installing.**
+
+```text
+name       Chromatic Tuner          short_name  Tuner
+lang       en                       dir         ltr
+categories music, utilities         icons       /icon.svg 200 image/svg+xml
+                                                /icon-maskable.svg 200 image/svg+xml
+```
+
+The manifest's `description` is **byte-identical to the page's meta description**, asserted in the browser
+rather than by reading both files — which is the whole point of T037 generating the manifest from
+`content.ts` instead of leaving it a hand-written file saying something else.
+
+**Leg 1 — SC-030's human confirmation. STILL OPEN, and not closable here.** SC-030 asks that a person
+arriving at the page can tell content continues below the fold, "confirmed by the same human-validation
+method used for the earlier features' UX gates" — which in `002` meant handing the app to someone who had
+not seen it (V20). That is a person, not a measurement. What has been established is everything that
+*enables* it: the cue is present, visible, correctly coloured, and overlaps nothing at the smallest
+supported width. Whether it reads as "there is more below" to someone seeing it for the first time is
+untested. Recorded in [Still open](./validation-results.md#still-open).
+
+#### T059 — V28 and V29 remain open, deliberately
+
+Neither is skipped work; both are release gates blocked on an address that does not exist.
+
+**V28 — public validators (SC-025, SC-026).** The Google Rich Results Test and the Schema.org validator
+take a **URL**, not a file, and Lighthouse's SEO audit wants a production origin. Research D8 already
+rejected wiring these into CI: they are rate-limited third-party network calls, and a flaky gate is worse
+than a scheduled check. What has been done instead is to assert locally everything the validators would
+check — exactly one `application/ld+json` block, that it parses, `@type: SoftwareApplication`,
+`offers.price: "0"` with a currency, and `url`/`image` absolute — so the validators should confirm rather
+than discover.
+
+**V29 — real link previews and indexation (SC-024, SC-033).** Every leg needs a public URL: pasting the
+link into three platforms, confirming the image is legible at the size each renders it (V-IMG-2 — a human
+judgement that 1200 × 630 says nothing about), and confirming within 30 days that the canonical address is
+indexed and no preview address is indexed beside it. `metadata.spec.ts` proves the tags are present,
+absolute, mutually consistent and that the image is a real 1200 × 630 PNG that resolves — which is the most
+a laptop can prove.
+
+---
+
+## Deployment checklist (T057)
+
+From research D10 and quickstart V29. This runs at deploy time, not at merge time, and every item is
+something no gate in this repo can check.
+
+- [ ] **Set `VITE_SITE_URL` to the canonical origin, with no trailing slash**, for the production build
+      only. It is read in `apps/web/vite.config.ts` and feeds the canonical tag, `og:url`, the JSON-LD
+      `url` and `image`, `sitemap.xml`, and the `Sitemap:` line in `robots.txt`. Unset, the build falls
+      back to `http://localhost:5173` and emits a disallow-all `robots.txt` — designed to fail safe, so a
+      forgotten variable costs indexing rather than shipping a confidently wrong canonical.
+- [ ] **Confirm the production `robots.txt` allows crawling** and names the sitemap at an absolute URL,
+      and that `sitemap.xml` lists the canonical address and nothing else.
+- [ ] **Leave `VITE_SITE_URL` unset on preview and branch deployments.** ⚠️ **Quickstart V29 step 4 is
+      wrong as written.** It says to "deploy a preview build with a different origin and confirm its
+      `robots.txt` disallows everything". It will not: the check is
+      `isCanonicalOrigin = siteOrigin !== DEVELOPMENT_ORIGIN`, so *any* origin other than localhost counts
+      as canonical and gets an allow-all robots. The fail-safe protects the **forgotten** variable, not a
+      **deliberately different** one. So preview deployments must not set the variable — and if the
+      hosting platform injects a per-deployment URL automatically, that injection has to be turned off for
+      previews or they will compete with the live site for the same queries. `verify:build-output` tests
+      exactly the unset case, which is the one that matters.
+- [ ] **Configure the host so unknown paths return `404`, not the SPA shell with a `200`** (research D10).
+      This is the soft-404 liability, and it is not fixable in the app: the service worker serves the
+      cached `index.html` for any in-scope navigation and the app has exactly one real URL and no router.
+      Measured on the dev server during T048, `/does-not-exist.svg` answers `200 text/html` — the same
+      shape a default static host will have. A crawler that follows a bad link then gets an indexable page
+      instead of a 404. Note the service worker's navigation fallback is correct and should stay: it is
+      what makes the app work offline. The 404 belongs in the origin's configuration, for non-navigation
+      requests and for paths outside the precache.
+- [ ] **Regenerate `og-image.png` if the copy or the palette changed** — `pnpm build` first, then
+      `pnpm --filter @chromatic-tuner/web og:image`, then commit. The generator lifts both the palette and
+      the headline out of `dist/index.html`, so a stale `dist/` produces a stale card.
+- [ ] **Run V28** — Rich Results Test, Schema.org validator, Lighthouse SEO — against the deployed URL.
+- [ ] **Run V29** — paste the URL into at least three platforms, check the card and the image's legibility
+      at the size each shows it, then confirm indexation within 30 days.
 
 ---
 
