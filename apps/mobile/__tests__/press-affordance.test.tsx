@@ -101,15 +101,25 @@ const GHOST = [
 ];
 
 /**
- * Filled with `text`, so the wash has to layer over that fill.
+ * Controls with a fill of their own, and what each is filled with.
+ *
+ * Keyed rather than listed because there are now two fills: the primary actions
+ * take `text`, and a chosen accidental takes the quieter `selected` tint. What
+ * they share is the constraint this file exists for — the wash has to layer
+ * over the fill instead of replacing it, whatever the fill is.
  *
  * `accidental-sharp` is here and `accidental-flat` is a ghost because sharps is
  * the default preference: the chosen accidental is the filled shape and the
- * unchosen one is not, so which list each lands in is a fact about the default,
+ * unchosen one is not, so which side each lands on is a fact about the default,
  * not about the control. `settings.test.tsx` covers the fill following the
  * selection when it moves.
  */
-const SOLID = ['allow-microphone', 'retry-button', 'accidental-sharp'];
+const FILLED: Record<string, string> = {
+  'allow-microphone': color.text.light,
+  'retry-button': color.text.light,
+  'accidental-sharp': color.selected.light,
+};
+const SOLID = Object.keys(FILLED);
 
 /**
  * Pressables that are not controls.
@@ -266,8 +276,8 @@ it('no control carries the wash at rest (FR-058, FR-059)', async () => {
     expect({ testID, background }).not.toEqual({ testID, background: WASH });
   }
 
-  // The solid controls' fill is exactly what the wash must not replace.
-  expect(backgroundsOf(SOLID)).toEqual(allSetTo(SOLID, color.text.light));
+  // The filled controls' fill is exactly what the wash must not replace.
+  expect(backgroundsOf(SOLID)).toEqual(FILLED);
   for (const testID of SOLID) {
     expect(screen.queryByTestId(`${testID}-wash`, DEEP)).toBeNull();
   }
@@ -279,7 +289,7 @@ it('every control washes while the finger is still down (FR-059)', async () => {
   expect(backgroundsOf(GHOST)).toEqual(allSetTo(GHOST, WASH));
 
   // The fill survives the press, or the label goes invisible against it.
-  expect(backgroundsOf(SOLID)).toEqual(allSetTo(SOLID, color.text.light));
+  expect(backgroundsOf(SOLID)).toEqual(FILLED);
   expect(
     Object.fromEntries(
       SOLID.map((testID) => [

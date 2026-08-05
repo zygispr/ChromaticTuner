@@ -47,6 +47,30 @@ export const color = {
   scrim: { light: '#00000073', dark: '#00000099' },
 
   /**
+   * The resting fill under a chosen option — the accidental buttons (FR-023).
+   *
+   * A tinted container rather than a reuse of `text`, which is what this was
+   * first built as. `text` is the app's PRIMARY-ACTION fill (`allow-microphone`,
+   * `retry-button`), and spending it on a passive preference made a choice
+   * between two note-naming conventions the loudest thing in the settings
+   * sheet — louder than Done and Reset, which are the actual actions. It is
+   * also not what the platforms do: iOS gives a selected segment a
+   * low-contrast thumb, Material a `secondaryContainer` tint. Neither inverts.
+   *
+   * Deliberately a small step from `background` — 1.2:1 light, 1.3:1 dark. That
+   * is a weaker colour-free channel than an inversion, so the accidental
+   * buttons carry the bold weight and the border alongside it rather than
+   * leaning on the surface alone (FR-015).
+   *
+   * A surface, never a foreground, so the AA text rule does not apply to the
+   * token itself — but `text` has to stay legible ON it, which the contrast
+   * test asserts in both appearances. That constraint is tighter than it looks:
+   * the tint darkens the surface enough that the buttons' example line, set at
+   * a fraction of `text`, lands close to the 4.5:1 floor.
+   */
+  selected: { light: '#E6E8ED', dark: '#23262E' },
+
+  /**
    * The hover / pressed wash on any control (FR-058, FR-059).
    *
    * Carries alpha for the same reason the scrim does, and works the same way on

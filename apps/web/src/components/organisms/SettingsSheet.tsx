@@ -264,12 +264,20 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
                     // idiom — `main.tsx` rings :focus-visible in 3px of the same
                     // colour — so the resting selected state and the keyboard
                     // ring were one pixel apart, and tabbing to the *unchosen*
-                    // option made it look like the chosen one. Inverting the box
-                    // is also the wider greyscale channel, and it is the shape
-                    // the app already uses wherever something is on.
+                    // option made it look like the chosen one.
+                    //
+                    // The `selected` tint, not `text`. Filling with `text` was
+                    // the first attempt and overcorrected: that is the
+                    // primary-action fill, so a preference between two
+                    // note-naming conventions became the loudest element in the
+                    // sheet. A tinted container is what a chosen segment gets on
+                    // both platforms, and it keeps the label in `text` — the
+                    // example line beneath it sits near the AA floor on the
+                    // tint, which is why it is set at `mutedOpacity` rather than
+                    // by eye.
                     fontWeight: selected ? type.weightBold : type.weightRegular,
-                    color: selected ? themedVar('background') : themedVar('text'),
-                    background: selected ? themedVar('text') : 'transparent',
+                    color: themedVar('text'),
+                    background: selected ? themedVar('selected') : 'transparent',
                     // Equal on both, so choosing one cannot resize the row under
                     // the finger that chose it (asserted in layout-stability).
                     border: `1px solid ${selected ? themedVar('text') : themedVar('line')}`,
@@ -278,7 +286,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
                   }}
                 >
                   <span style={{ display: 'block' }}>{option.label}</span>
-                  <span style={{ display: 'block', opacity: 0.6, fontSize: 12 }}>
+                  <span style={{ display: 'block', opacity: a11y.mutedOpacity, fontSize: 12 }}>
                     {option.example}
                   </span>
                 </button>

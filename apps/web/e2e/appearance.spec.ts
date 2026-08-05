@@ -221,10 +221,19 @@ test('a non-standard reference stays louder than the standard one (FR-053, FR-02
  * that looked like the thing meaning "chosen".
  *
  * The second is that greyscale separation by stroke colour alone is thin —
- * `text` against `line` is the only channel, over a 1-2px band. A fill inverts
- * the whole box, which is the separation FR-015 actually wants and what every
- * other "this one is on" control in the app already does (`allow-microphone`,
- * `retry-button`).
+ * `text` against `line` is the only channel, over a 1-2px band. Filling the box
+ * moves a whole surface instead.
+ *
+ * The fill is the `selected` tint, NOT `text`. This was built with `text`
+ * first — the app's existing solid-button fill — and that overcorrected: it is
+ * the primary-action treatment, so a passive preference became the loudest
+ * thing in the sheet, louder than Done and Reset. The tint is what iOS and
+ * Material use for a chosen segment, and it keeps the label as `text` rather
+ * than inverting it.
+ *
+ * The tint is a smaller colour-free step than an inversion, which is why the
+ * bold weight and the border are still here rather than being dropped as
+ * redundant. `packages/tokens` bounds the step on both sides.
  *
  * Both borders stay the same width so the row cannot resize on toggle; the
  * geometry half of that is `layout-stability.spec.ts`.
@@ -252,12 +261,16 @@ for (const scheme of ['light', 'dark'] as const) {
     const selected = await read('accidental-sharp');
     const unselected = await read('accidental-flat');
 
-    expect(selected.background, 'the chosen option is not filled with `text`').toBe(
-      toRgb(color.text[scheme])
+    expect(selected.background, 'the chosen option is not filled with the `selected` tint').toBe(
+      toRgb(color.selected[scheme])
     );
-    expect(selected.color, "the chosen option's label is not inverted to `background`").toBe(
-      toRgb(color.background[scheme])
-    );
+    // Not inverted. A tinted container keeps its label in `text`, which is what
+    // stops the control from reading as a primary action.
+    expect(selected.color, "the chosen option's label left `text`").toBe(toRgb(color.text[scheme]));
+    expect(
+      selected.background,
+      'the chosen option is filled with the primary-action colour'
+    ).not.toBe(toRgb(color.text[scheme]));
 
     // The unselected option stays a ghost control: transparent, 1px `line`.
     // FR-052 still holds — it carries a border at rest, so it reads as a

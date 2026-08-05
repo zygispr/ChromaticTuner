@@ -228,10 +228,14 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
                         // to be a heavier border, which is a thin channel —
                         // one stroke colour over a 2 pt band — and on the web
                         // half it was the same treatment as the focus ring.
-                        // Inverting the box is the shape the app already uses
-                        // wherever something is on.
+                        //
+                        // The `selected` tint, not `text`: filling with `text`
+                        // was the first attempt and overcorrected, spending the
+                        // primary-action treatment on a preference. A tinted
+                        // container is what a chosen segment gets on both
+                        // platforms, and the label stays `text`.
                         { borderColor: selected ? colors.text : colors.line },
-                        selected && { backgroundColor: colors.text },
+                        selected && { backgroundColor: colors.selected },
                         // The wash replaces the background outright, so it may
                         // only be applied to the option that has none. The
                         // filled one layers it as an overlay below.
@@ -254,20 +258,12 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
                           <Text
                             style={[
                               styles.optionLabel,
-                              {
-                                color: selected ? colors.background : colors.text,
-                                fontWeight: selected ? '700' : '400',
-                              },
+                              { color: colors.text, fontWeight: selected ? '700' : '400' },
                             ]}
                           >
                             {option.label}
                           </Text>
-                          <Text
-                            style={[
-                              styles.optionExample,
-                              { color: selected ? colors.background : colors.text },
-                            ]}
-                          >
+                          <Text style={[styles.optionExample, { color: colors.text }]}>
                             {option.example}
                           </Text>
                         </>
@@ -414,7 +410,9 @@ const styles = StyleSheet.create({
   },
   optionExample: {
     fontSize: 12,
-    opacity: 0.6,
+    // The `selected` tint sits close enough to this text that a heavier fade
+    // drops it under AA; the token carries the measurement.
+    opacity: a11y.mutedOpacity,
   },
   warning: {
     fontSize: typeTokens.labelSize,

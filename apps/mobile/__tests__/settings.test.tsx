@@ -186,8 +186,14 @@ describe('SettingsScreen (T088)', () => {
    * The original treatment gave both options a 2px border and changed only its
    * colour. That is a thin greyscale channel — one stroke colour over a 2px
    * band — and on the web half it collided outright with the focus ring, which
-   * is also a `text` outline. Both platforms moved to the fill the app already
-   * uses for "this one is on" (`allow-microphone`, `retry-button`).
+   * is also a `text` outline.
+   *
+   * The fill is the `selected` tint rather than `text`. Built with `text`
+   * first, which overcorrected: that is the primary-action fill
+   * (`allow-microphone`, `retry-button`), and spending it on a preference made
+   * the accidental buttons the loudest thing in the sheet. The tint is what a
+   * chosen segment gets on both platforms, and the label stays `text` instead
+   * of inverting.
    *
    * Asserted across a toggle rather than on the default alone: a static check
    * passes just as well against two buttons that are permanently styled that
@@ -205,8 +211,9 @@ describe('SettingsScreen (T088)', () => {
     const labelColorOf = (text: string) =>
       (StyleSheet.flatten(screen.getByText(text).props.style) as { color?: string }).color;
 
-    expect(boxOf('accidental-sharp').backgroundColor).toBe(color.text.light);
-    expect(labelColorOf('Sharps')).toBe(color.background.light);
+    expect(boxOf('accidental-sharp').backgroundColor).toBe(color.selected.light);
+    // A tint, not an inversion: the label stays `text` in both states.
+    expect(labelColorOf('Sharps')).toBe(color.text.light);
 
     // The unchosen option stays a ghost. FR-052 still holds: it carries a
     // border at rest, so it reads as a control before anything touches it.
@@ -219,9 +226,10 @@ describe('SettingsScreen (T088)', () => {
 
     await press('accidental-flat');
 
-    expect(boxOf('accidental-flat').backgroundColor).toBe(color.text.light);
-    expect(labelColorOf('Flats')).toBe(color.background.light);
+    expect(boxOf('accidental-flat').backgroundColor).toBe(color.selected.light);
     expect(boxOf('accidental-sharp').backgroundColor).toBeUndefined();
+    // The label never moves, so the fill is carrying the choice on its own.
+    expect(labelColorOf('Flats')).toBe(color.text.light);
     expect(labelColorOf('Sharps')).toBe(color.text.light);
   });
 

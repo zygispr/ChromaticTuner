@@ -64,6 +64,15 @@ describe('WCAG 2.1 AA contrast (token guarantee T2)', () => {
         const ratio = contrastRatio(color.line[theme], color.background[theme]);
         expect(ratio).toBeGreaterThanOrEqual(3);
       });
+
+      // `selected` is a surface, so the 4.5:1 rule applies to what sits ON it
+      // rather than to the token itself. The label of a chosen option stays
+      // `text` — the whole point of a tinted container over an inverted one —
+      // so this is the ratio that keeps the choice readable.
+      it('text meets 4.5:1 against the selected fill', () => {
+        const ratio = contrastRatio(color.text[theme], color.selected[theme]);
+        expect(ratio).toBeGreaterThanOrEqual(4.5);
+      });
     });
   }
 });
@@ -144,6 +153,34 @@ describe('token shape', () => {
 
       expect(wash).toBeGreaterThan(lower);
       expect(wash).toBeLessThan(upper);
+    }
+  });
+
+  /**
+   * The selected fill is a visible step from the surface, and only a step.
+   *
+   * Both bounds matter. Too small and the chosen option is indistinguishable
+   * without colour, which is the FR-015 failure the fill exists to fix. Too
+   * large and it becomes the primary-action treatment again — an inverted box
+   * shouting from a settings sheet, which is what the tinted container
+   * replaced. The band is what "tinted container" means, expressed as a number
+   * rather than left to whoever next opens the palette.
+   */
+  it('keeps the selected fill a tint, not an inversion', () => {
+    for (const theme of THEMES) {
+      const step = contrastRatio(color.selected[theme], color.background[theme]);
+      expect(step).toBeGreaterThan(1.1);
+      expect(step).toBeLessThan(2);
+
+      // On the same side of the surface as the background, not across it: a
+      // fill that crossed `text` would be an inversion whatever its ratio.
+      const distanceToBackground = Math.abs(
+        relativeLuminance(color.selected[theme]) - relativeLuminance(color.background[theme])
+      );
+      const distanceToText = Math.abs(
+        relativeLuminance(color.selected[theme]) - relativeLuminance(color.text[theme])
+      );
+      expect(distanceToBackground).toBeLessThan(distanceToText);
     }
   });
 
