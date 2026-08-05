@@ -100,8 +100,16 @@ const GHOST = [
   'settings-reset',
 ];
 
-/** Filled with `text`, so the wash has to layer over that fill. */
-const SOLID = ['allow-microphone', 'retry-button'];
+/**
+ * Filled with `text`, so the wash has to layer over that fill.
+ *
+ * `accidental-sharp` is here and `accidental-flat` is a ghost because sharps is
+ * the default preference: the chosen accidental is the filled shape and the
+ * unchosen one is not, so which list each lands in is a fact about the default,
+ * not about the control. `settings.test.tsx` covers the fill following the
+ * selection when it moves.
+ */
+const SOLID = ['allow-microphone', 'retry-button', 'accidental-sharp'];
 
 /**
  * Pressables that are not controls.

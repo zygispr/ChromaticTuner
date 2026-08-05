@@ -256,12 +256,23 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
                     minHeight: a11y.minTouchTarget,
                     padding: `${space.sm}px`,
                     fontSize: `${type.labelSize}px`,
-                    // Selection is carried by weight and border as well as
+                    // Selection is carried by fill and weight as well as
                     // colour, so it survives greyscale (FR-015).
+                    //
+                    // A fill rather than the heavier border this used to have.
+                    // That border was 2px of `text`, which is the app's FOCUS
+                    // idiom — `main.tsx` rings :focus-visible in 3px of the same
+                    // colour — so the resting selected state and the keyboard
+                    // ring were one pixel apart, and tabbing to the *unchosen*
+                    // option made it look like the chosen one. Inverting the box
+                    // is also the wider greyscale channel, and it is the shape
+                    // the app already uses wherever something is on.
                     fontWeight: selected ? type.weightBold : type.weightRegular,
-                    color: themedVar('text'),
-                    background: 'transparent',
-                    border: `2px solid ${selected ? themedVar('text') : themedVar('line')}`,
+                    color: selected ? themedVar('background') : themedVar('text'),
+                    background: selected ? themedVar('text') : 'transparent',
+                    // Equal on both, so choosing one cannot resize the row under
+                    // the finger that chose it (asserted in layout-stability).
+                    border: `1px solid ${selected ? themedVar('text') : themedVar('line')}`,
                     borderRadius: space.sm,
                     cursor: 'pointer',
                   }}
