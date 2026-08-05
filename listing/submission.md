@@ -49,10 +49,19 @@ byte-identical copies of the purpose sentence.
 
 ### The one value that is permanent
 
-`claims.identifier` — `com.chromatictuner.app` — is **permanent from first publication**. Neither store
+`claims.identifier` — `pro.chromatictuner.app` — is **permanent from first publication**. Neither store
 permits changing it afterwards, and it is the half of the identity a user sees, in the Play Store URL
 that gets pasted into a chat. Everything else on this page can be edited after release; that one cannot.
 Open action 1 below is the check to run before it becomes irreversible.
+
+It was `com.chromatictuner.app` until 2026-08-05. That value is **not available**: Apple refuses to
+register it — "the app identifier cannot be registered to your development team because it is not
+available" — which means another Apple account holds it. Do not go back to it.
+
+`pro.chromatictuner.app` is confirmed free on **Apple only**, by registering it: Xcode issued
+`iOS Team Provisioning Profile: pro.chromatictuner.app` and a Release build signed against it. Google
+Play availability is **unverified** and cannot be checked without a Play Console attempt — see open
+action 1.
 
 ---
 
@@ -150,10 +159,17 @@ pnpm listing:screenshots                     # macOS + Xcode + an Android emulat
 
 ## Open actions before the first submission
 
-**1. Confirm the identifier against the site's origin — permanent afterwards (D3, T067).**
-`claims.identifier` is `com.chromatictuner.app`. If `VITE_SITE_URL` ends up being an origin that does
-not correspond to it, that mismatch is fine but must be **accepted in writing here before submission**,
-because it cannot be changed after the first publication.
+**1. Confirm the identifier against the site's origin, and confirm it is free on Play — permanent
+afterwards (D3, T067).** `claims.identifier` is `pro.chromatictuner.app`. Two checks, both before the
+first submission:
+
+- **Play availability.** Only Apple has been verified. Play package names are globally unique and
+  permanent _even after an app is deleted_, so a collision discovered after publishing cannot be
+  undone by unpublishing. Check it in the Play Console before the first Android upload.
+- **Origin.** Reverse-DNS reads this as the domain `chromatictuner.pro`. If `VITE_SITE_URL` ends up
+  being an origin that does not correspond, that mismatch is fine for the stores — neither verifies
+  domain ownership — but must be **accepted in writing here before submission**. Note it does close
+  off Universal Links and App Links, which both verify ownership by fetching a file from the domain.
 
 **2. Decide what a release Android build declares (T045).** `expo prebuild -p android` generates a main
 manifest declaring `INTERNET`, `SYSTEM_ALERT_WINDOW`, `VIBRATE`, `READ_EXTERNAL_STORAGE` and
