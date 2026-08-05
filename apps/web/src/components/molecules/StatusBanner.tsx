@@ -116,9 +116,7 @@ export function StatusBanner({ status, onRetry, captureStopped = false }: Status
         style={{
           margin: 0,
           fontSize: `${type.labelSize}px`,
-          // One weight for every title: opacity already separates a status the
-          // user must act on from one that is merely reporting.
-          fontWeight: type.weightMedium,
+          fontWeight: recovery.steps ? type.weightMedium : type.weightRegular,
           opacity: recovery.steps ? 1 : 0.7,
         }}
       >

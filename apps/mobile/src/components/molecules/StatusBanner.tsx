@@ -103,7 +103,11 @@ export function StatusBanner({ status, onRetry, captureStopped = false }: Status
     <View testID="status-banner" accessibilityLiveRegion="polite" style={styles.container}>
       <Text
         testID="tuner-status"
-        style={[styles.title, { color: colors.text, opacity: recovery.steps ? 1 : 0.7 }]}
+        style={[
+          styles.title,
+          { color: colors.text, opacity: recovery.steps ? 1 : 0.7 },
+          recovery.steps ? styles.titleStrong : null,
+        ]}
       >
         {recovery.title}
       </Text>
@@ -149,10 +153,10 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: typeTokens.labelSize,
-    // One weight for every title: opacity already separates a status the user
-    // must act on from one that is merely reporting.
-    fontWeight: '500',
     textAlign: 'center',
+  },
+  titleStrong: {
+    fontWeight: '500',
   },
   steps: {
     fontSize: typeTokens.labelSize,
