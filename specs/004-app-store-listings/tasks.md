@@ -34,7 +34,7 @@ shape a second time. The listing versions of it:
 | "the capture flag is only set locally" | A statement about a shell, not an artefact. `EXPO_PUBLIC_*` is inlined at build time. **L12.3 asserts the artefact.** |
 | "no hex literal in `apps/**`" | The ESLint rule reaches TypeScript, not SVG in `public/` — which is how five literals have been sitting in `icon.svg` since `001` (D5). |
 
-**Six tasks are deliberately "break it and watch the gate fail"** — T057–T061. A gate never observed
+**Seven tasks are deliberately "break it and watch the gate fail"** — T051–T057. A gate never observed
 failing is not known to work, and SC-043 makes that an explicit deliverable rather than a nicety.
 
 **Four things cannot be automated honestly** (research D8) and are release gates, not merge gates:
@@ -48,12 +48,90 @@ Phase 7, marked **manual**, with their results to be recorded here.
 **Purpose**: Record the "before" this feature argues against, and make the tooling aware of the new
 directory before anything is written into it.
 
-- [ ] T001 Confirm every gate passes on a clean checkout and record the counts in this file — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm build && pnpm test:e2e`, plus `pnpm --filter @chromatic-tuner/mobile test`. This is the SC-044 baseline: the same numbers must hold at T063.
-- [ ] T002 [P] Record the D5 "before" in this file — run `grep -nE '#[0-9a-fA-F]{6}|rgb\(|hsl\(' apps/web/public/*.svg` and paste the five hex literals in `apps/web/public/icon.svg` with the `packages/tokens` value each one duplicates. V34 demonstrates against this evidence; without it captured now, the fix has nothing to point at.
-- [ ] T003 [P] Record the duplication census in this file — the microphone purpose sentence twice in `apps/mobile/app.json` (`ios.infoPlist.NSMicrophoneUsageDescription` and the `react-native-audio-api` plugin's `iosMicrophonePermission`), `version` `0.1.0` in `apps/mobile/app.json` against `0.0.0` in `apps/mobile/package.json`, and `com.prielaidas.chromatictuner` against `com.chromatictuner.app`. The plan's central claim is that this feature is net de-duplication; this is the count it is measured against.
-- [ ] T004 Teach the tooling about `listing/` — add `listing/scripts/*.mjs` to the Node-script scope in `eslint.config.js` (the block at `eslint.config.js:149` that already covers `apps/web/scripts/*.mjs`), then confirm `pnpm lint` and `pnpm format:check` are still clean. Doing this before the first script exists keeps a lint failure from being mistaken for a bug in the script.
+- [X] T001 Confirm every gate passes on a clean checkout and record the counts in this file — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm build && pnpm test:e2e`, plus `pnpm --filter @chromatic-tuner/mobile test`. This is the SC-044 baseline: the same numbers must hold at T063.
+- [X] T002 [P] Record the D5 "before" in this file — run `grep -nE '#[0-9a-fA-F]{6}|rgb\(|hsl\(' apps/web/public/*.svg` and paste the five hex literals in `apps/web/public/icon.svg` with the `packages/tokens` value each one duplicates. V34 demonstrates against this evidence; without it captured now, the fix has nothing to point at.
+- [X] T003 [P] Record the duplication census in this file — the microphone purpose sentence twice in `apps/mobile/app.json` (`ios.infoPlist.NSMicrophoneUsageDescription` and the `react-native-audio-api` plugin's `iosMicrophonePermission`), `version` `0.1.0` in `apps/mobile/app.json` against `0.0.0` in `apps/mobile/package.json`, and `com.prielaidas.chromatictuner` against `com.chromatictuner.app`. The plan's central claim is that this feature is net de-duplication; this is the count it is measured against.
+- [X] T004 Teach the tooling about `listing/` — add `listing/scripts/*.mjs` to the Node-script scope in `eslint.config.js` (the block at `eslint.config.js:149` that already covers `apps/web/scripts/*.mjs`), then confirm `pnpm lint` and `pnpm format:check` are still clean. Doing this before the first script exists keeps a lint failure from being mistaken for a bug in the script.
 
-**Checkpoint**: the before-state is written down, and a new `.mjs` in `listing/scripts/` will lint as a Node program rather than as browser source.
+**Checkpoint**: the before-state is written down, and a new `.mjs` in `listing/scripts/` will lint as a Node program rather than as browser source. ✅ **Reached 2026-08-05.**
+
+### Phase 1 results — 2026-08-05, commit `d1792cf`, no source changes beyond T004's ESLint scope
+
+**T001 — all eight gates green.** This is the SC-044 baseline; T060 must reproduce it.
+
+| Gate | Result |
+| --- | --- |
+| `pnpm lint` | clean, `--max-warnings 0` |
+| `pnpm format:check` | clean |
+| `pnpm typecheck` | 5/5 projects |
+| `pnpm test` | **430 passed**, 18 files, 7.95 s |
+| `pnpm test:coverage` | **100% lines**, 98.5% statements, 94.81% branches, 97.29% functions |
+| `pnpm --filter @chromatic-tuner/mobile test` | **64 passed**, 9 suites, 1.83 s |
+| `pnpm build` | `dist/index.html` **7,454 B**, `assets/index-Dz1jTnFE.js` 235.52 kB, `sw.js` 3,069 B; `sw.js` emitted |
+| `pnpm test:e2e` | **107 passed**, 39.8 s |
+| `verify:build-output` | OK — crawl directives correct, no unresolved tokens, precache excludes them |
+
+`dist/` holds nine files: `index.html`, `assets/`, `icon.svg`, `icon-maskable.svg`,
+`manifest.webmanifest`, `og-image.png`, `robots.txt`, `sitemap.xml`, `sw.js`. T042's `privacy.html`
+makes it ten, and T043 must add it to two of those (`sitemap.xml`, `sw.js`) by hand.
+
+**T002 — the D5 "before", and a correction to D5's count.**
+
+Research D5 names **five** literals in `apps/web/public/icon.svg`. There are **ten**: the same five
+values again in `icon-maskable.svg`, which D5's table does not mention.
+
+| Literal | Token it duplicates | `icon.svg` | `icon-maskable.svg` |
+| --- | --- | --- | --- |
+| `#0B0B0F` | `color.background.dark` (`packages/tokens/src/colors.ts:33`) | line 2 | line 3 |
+| `#6B7280` | `color.line.dark` (`colors.ts:36`) | line 3 | line 4 |
+| `#34C46A` | `color.inTune.dark` (`colors.ts:29`) | line 4 | line 5 |
+| `#4C93F0` | `color.flat.dark` (`colors.ts:25`) | line 5 | line 6 |
+| `#FFC978` | `color.sharp.dark` (`colors.ts:27`) | line 6 | line 7 |
+
+**Five distinct token values, ten occurrences, two files.** This does not change D5's decision — it
+strengthens it, because the maskable variant is a second hand-transcription of the same palette with its
+own geometry. T028's L11 check must scan `apps/web/public/*.svg` as a glob, not `icon.svg` alone, or it
+passes over half the defect; T033 must regenerate both files. Both tasks already say so; this is the
+evidence they were right to.
+
+**T003 — the duplication census.**
+
+| Fact | Occurrences today | Where |
+| --- | --- | --- |
+| Microphone purpose sentence | **2**, byte-identical, 168 code points | `app.json:14` (`ios.infoPlist.NSMicrophoneUsageDescription`), `app.json:26` (`react-native-audio-api` plugin's `iosMicrophonePermission`) |
+| Dark palette | **2** sources, 10 literal occurrences | `packages/tokens/src/colors.ts` + `apps/web/public/{icon,icon-maskable}.svg` |
+| Marketing version | **2**, disagreeing | `app.json:5` = `0.1.0`, `apps/mobile/package.json:3` = `0.0.0` |
+| Application identifier | **2**, disagreeing | `app.json:11` = `com.prielaidas.chromatictuner`, `app.json:18` = `com.chromatictuner.app` |
+| Forbidden vocabulary | **1**, heading for 3 | `apps/web/e2e/metadata.spec.ts:410` |
+
+D3's premise is confirmed: `git grep` finds the identifier in exactly **one** tracked source file
+(`apps/mobile/app.json`); every other hit is this feature's own spec prose. `apps/mobile/ios/` is
+gitignored, so there is no inertia on the iOS side to respect.
+
+**A fifth divergence, not in the census the plan anticipated.** `app.json`'s `expo.name` is
+`"ChromaticTuner"` (no space) while `apps/web/src/content.ts:48`'s `appName` is `"Chromatic Tuner"`
+(with space) — and the purpose sentence leads with the no-space form. T008 requires `claims.appName` to
+match `content.ts`, so **T008 and T012 must decide which form the purpose sentence uses** rather than
+copying the current string through unexamined. Copying it forward verbatim would carry the divergence
+into the store listing, where FR-105 requires the permission prompt, the listing copy, and the privacy
+policy to explain the same purpose *in the same terms*. Recommendation: `"Chromatic Tuner"` everywhere,
+because that is the form a shopper reads and the form `003` already ships on the web.
+
+**T004 — the ESLint scope, verified rather than assumed.**
+
+`listing/scripts/*.mjs` added alongside `apps/web/scripts/*.mjs` at `eslint.config.js:149`. Proved with
+a throwaway probe using `process`, `URL`, and `document`:
+
+| Probe location | `pnpm lint` |
+| --- | --- |
+| `listing/scripts/__probe.mjs` | clean, exit 0 |
+| `listing/__probe.mjs` (outside the new scope) | 3 errors — `'URL' is not defined`, `'process' is not defined`, `'document' is not defined` |
+
+The second row is what makes the first meaningful: without the change, ESLint does lint `.mjs` under
+`listing/` and does reject it, so the scope is carrying real weight rather than matching nothing. Probe
+deleted; `pnpm lint` and `pnpm format:check` both clean afterwards. `.prettierignore` needs no change —
+it excludes `specs/` and `.specify/`, not `listing/`, so Phase 2's JSON is formatted like any other
+source.
 
 ---
 
