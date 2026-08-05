@@ -1019,6 +1019,36 @@ indistinguishable from a broken build.
 
 The decision to merge anyway was the repository owner's, taken with the above in front of them.
 
+#### Defect — T047's detection matched a word, and a later feature used it (2026-08-05)
+
+Found while preparing the first device build, after `004` had merged. `verify:release-bundle` was red,
+and its message named `packages/react/src/capture-control.ts`.
+
+That module is production code: it decides whether the **microphone** control belongs on screen
+(FR-036, FR-039). "Capture" there is audio capture. It must ship. The screenshot-capture adapter the
+gate is actually about, `apps/mobile/src/adapters/captureAudioSource.ts`, was correctly absent — the
+`require` inside `App.tsx`'s inlined flag check works exactly as T047 designed it.
+
+The cause is one line: `CAPTURE_MODULE = /capture/i` matched any module path containing the word. The
+gate was green when `004` merged (recorded above). `9100379` then added `capture-control.ts`, and the
+name collided. Nothing caught it because this is a release gate, deliberately outside CI.
+
+**The half that was silent, and worse.** The same pattern feeds the positive control — the leg whose
+entire job is to prove that presence is detectable. It began passing on `capture-control.ts`, so it
+would have reported healthy detection with `captureAudioSource` detection completely broken. A red
+result nobody can act on is loud; a green control that proves nothing is not. This file's own header
+warns against exactly that shape.
+
+**Fixed** by naming the module rather than matching a word —
+`/adapters[/\\]captureAudioSource/` — and by asserting the pattern against known paths before any
+export runs: it must match the guarded adapter, and must not match `capture-control.ts`. That
+assertion is the regression check; it fails in milliseconds on the old pattern rather than after four
+Metro exports.
+
+`capture-control.ts` was deliberately **not** renamed. Renaming production code to accommodate a
+verifier is the wrong direction, and it would have removed the only module that proves the pattern
+discriminates — leaving the defect class untested.
+
 #### The release gates: two done, five need a person or an account
 
 | Task | Status | What it needs |
