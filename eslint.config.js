@@ -152,7 +152,7 @@ export default tseslint.config(
   // gate is plain Node. They live outside apps/ because three of their inputs
   // and outputs are not mobile-only — see 004's plan, "Structure Decision".
   {
-    files: ['apps/web/scripts/*.mjs', 'listing/scripts/*.mjs'],
+    files: ['apps/web/scripts/*.mjs', 'listing/scripts/*.mjs', 'apps/mobile/scripts/*.mjs'],
     languageOptions: {
       globals: { ...globals.node, ...globals.browser },
     },

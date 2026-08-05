@@ -65,5 +65,20 @@
       "$discovery-note": "Play has no keyword field, so the discovery terms live in this prose (FR-092). The terms iOS puts in `keywords` — pitch, note, strings, cents, acoustic, electric, intonation, semitone, microphone, A440 — appear here naturally rather than as a list, because Play indexes the description and penalises keyword stuffing.",
       "$contentRating-note": "Recorded, not computed. The IARC questionnaire is answered in the Play Console and its outcome is what lives here; T048 lists it as a console step no repository artefact can fill."
     }
+  },
+  "privacy": {
+    "$what-this-is": "What both stores' privacy forms are answered with (data-model §5, FR-103, FR-104). Apple's App Privacy questionnaire and Play's Data safety form ask the same three things in different words: where is your policy, what do you collect, and why do you hold each permission. This is the one answer both are filled in from.",
+    "policyPath": "/privacy.html",
+    "$policyUrl-note": "A path, not a URL, on purpose. The origin belongs to the deployment and reaches the built document as its canonical link (003 FR-075); writing an absolute address here would be a second copy of an origin that changes. pnpm verify:listing composes origin + policyPath and checks it against the canonical link the built privacy page actually carries, so the derivation is verified rather than asserted. The person filling in a console reads the address off the deployed page — listing/submission.md says so.",
+    "dataCollected": [],
+    "$dataCollected-note": "Empty, and the emptiness is structural rather than a promise. The app makes no network request during use (FR-030), which apps/web/e2e/no-network.spec.ts asserts on every run. FR-103 binds this declaration to that gate: if analytics, crash reporting, or an update ping is ever added, that spec goes red and this array becomes false in the same commit rather than a release later. A privacy declaration is a promise about the future, and this is the only mechanism in the repository that makes it one.",
+    "permissions": [
+      {
+        "id": "microphone",
+        "reasonFrom": "claims.purposeSentence"
+      }
+    ],
+    "$permissions-note": "The reason is a pointer, not a copy. The sentence itself is claims.purposeSentence, which also becomes both iOS purpose strings via apps/mobile/app.config.ts and the opening of apps/web/privacy.html; FR-105 requires all of them to explain the microphone in the same terms, and the only way to guarantee that is for there to be one sentence. verify:listing resolves this pointer and fails if it names nothing.",
+    "$android-manifest-note": "A release Android build declares MORE permissions than this file names, and that is a fact to walk into a review knowing rather than discovering. `expo prebuild -p android` generates a main manifest declaring INTERNET, SYSTEM_ALERT_WINDOW, VIBRATE, READ_EXTERNAL_STORAGE and WRITE_EXTERNAL_STORAGE alongside RECORD_AUDIO — none of them requested by app.config.ts, all of them contributed by the React Native template and by autolinked modules, expo-dev-client among them. It does not falsify dataCollected: a permission is a capability, not a transmission, and no-network.spec.ts asserts nothing is transmitted. But INTERNET in a manifest is the first thing a reviewer reading a no-data-collected declaration asks about. listing/submission.md carries this as a pre-submission action with the remedy; it is recorded here because this is the file a person answering the Data safety form is looking at."
   }
 }

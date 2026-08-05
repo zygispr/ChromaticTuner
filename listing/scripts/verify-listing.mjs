@@ -26,6 +26,7 @@
  * because it stopped existing. A gate that says only "listing invalid" gets
  * muted, so every failure names the specific field or file at fault.
  */
+import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -349,8 +350,17 @@ group('openings', ({ listing: doc, limits }) => {
  * Names the field path as well as the term. The term alone turns a
  * 4000-character description into a search problem, and a gate that is annoying
  * to act on is a gate that gets muted.
+ *
+ * **The privacy page is scanned too, and that is not an afterthought** (T041).
+ * The contract states L5 over `store-listing.json` *and* the rendered text of
+ * `apps/web/privacy.html`, because a policy is the surface most likely to name
+ * an absent capability while denying it — "no accounts, no sync" is how such a
+ * document is normally written, and FR-093 forbids the vocabulary including
+ * inside a negation. Scanned as **rendered text of the built page**, for the
+ * same reason L7 reads the built document: the source file is not what a store
+ * reviewer opens.
  */
-group('vocabulary', ({ listing: doc, forbidden: patterns }) => {
+group('vocabulary', ({ listing: doc, forbidden: patterns, ROOT: root }) => {
   const failures = [];
   const values = [...strings(doc, '')];
 
@@ -362,7 +372,35 @@ group('vocabulary', ({ listing: doc, forbidden: patterns }) => {
     }
   }
 
-  return { label: `${values.length} strings clean`, failures };
+  // A check that passes over an absent file is the quietest way to lose a gate,
+  // so the missing case is a failure with a name rather than a silent skip of
+  // an empty string.
+  let privacy = null;
+  try {
+    privacy = renderedText(new URL('apps/web/dist/privacy.html', root));
+  } catch {
+    failures.push(
+      'apps/web/dist/privacy.html was not built, so the privacy policy was not scanned for ' +
+        'out-of-scope claims — run `pnpm build` first. FR-104 requires the page to exist and L5 ' +
+        'requires its rendered text to be checked; passing over an absent file would report ' +
+        'green over a question never asked'
+    );
+  }
+
+  if (privacy !== null) {
+    for (const { pattern, source } of patterns) {
+      if (pattern.test(privacy)) {
+        failures.push(
+          `apps/web/dist/privacy.html claims a capability 001 put out of scope — matches ${source}`
+        );
+      }
+    }
+  }
+
+  return {
+    label: `${values.length} strings clean, plus the built privacy page`,
+    failures,
+  };
 });
 
 /**
@@ -431,14 +469,21 @@ group('agreement', ({ listing: doc, limits }) => {
  */
 function renderedText(url) {
   const html = readFileSync(url, 'utf8');
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&[a-z]+;/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+  return (
+    html
+      // Comments before tags: `<[^>]+>` below would otherwise chew a comment up to
+      // its first `>` and leave the rest of the author's note in the "rendered"
+      // text. Both documents carry a long explanatory comment, and neither is
+      // something a reader sees.
+      .replace(/<!--[\s\S]*?-->/g, ' ')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&[a-z]+;/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+  );
 }
 
 group('corroboration', ({ listing: doc, ROOT: root }) => {
@@ -811,6 +856,266 @@ group('artwork', ({ ROOT: root }) => {
   }
 
   return { label: `${scanned} scanned`, failures };
+});
+
+/**
+ * The Expo configuration as **resolved**, not as written (L12.1, L12.2).
+ *
+ * Reading the resolved output rather than `app.config.ts` is the point of this
+ * check. `.mjs` cannot import a `.ts` module under the Node 20 CI pins (D1), but
+ * that is the smaller reason — the larger one is that the resolved config is
+ * what actually reaches `Info.plist` and `AndroidManifest.xml`. Plugins rewrite
+ * it, and a check against the source would agree with the source whatever the
+ * plugins did.
+ *
+ * Sliced from the first `{`: invoked from the repository root this command
+ * prints JSON and nothing else, but a differently-scoped pnpm invocation
+ * prefixes `Scope: all 6 workspace projects` on **stdout**, which is not JSON.
+ * Found while writing T013 and recorded there.
+ */
+function resolvedMobileConfig(root) {
+  const stdout = execFileSync(
+    'pnpm',
+    [
+      '--filter',
+      '@chromatic-tuner/mobile',
+      'exec',
+      'expo',
+      'config',
+      '--json',
+      '--type',
+      'prebuild',
+    ],
+    {
+      cwd: fileURLToPath(root),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 32 * 1024 * 1024,
+    }
+  );
+
+  const start = stdout.indexOf('{');
+  if (start === -1) throw new Error(`expo config printed no JSON:\n${stdout.slice(0, 400)}`);
+  return JSON.parse(stdout.slice(start));
+}
+
+/**
+ * L12.1, L12.2 (FR-105, FR-106, FR-107): derived identity matches its source.
+ *
+ * `app.config.ts` derives all of this from `store-listing.json` already, so
+ * every assertion here is true by construction today. That is not a reason to
+ * skip it — it is the reason to write it: the value of this group is that the
+ * derivation cannot be quietly replaced by a literal later. It was observed red
+ * by altering one purpose string in `app.config.ts` (T040); a check never seen
+ * red is not known to work.
+ *
+ * **What is deliberately not asserted here.** L12.1 names "the Android
+ * permission rationale" alongside the two iOS purpose strings. Android has no
+ * equivalent field in the configuration — a permission there is declared without
+ * a reason string, and the rationale a user actually reads is the in-app
+ * explainer in `apps/mobile/src/components/molecules/PermissionPrompt.tsx`.
+ * That component is outside this feature's boundary (FR-113, SC-044), so
+ * asserting it here would mean either changing it or writing a check that
+ * pretends the config carries something it does not. What is checked instead is
+ * that the resolved Android permission set still requests RECORD_AUDIO, which is
+ * the fact the plugin config is actually responsible for.
+ */
+group('identity', ({ listing: doc, ROOT: root }) => {
+  const failures = [];
+  let config;
+
+  try {
+    config = resolvedMobileConfig(root);
+  } catch (error) {
+    return {
+      label: '0',
+      failures: [
+        'the resolved Expo configuration could not be read — ' +
+          '`pnpm --filter @chromatic-tuner/mobile exec expo config --json --type prebuild` ' +
+          `failed: ${error.message.split('\n')[0]}`,
+      ],
+    };
+  }
+
+  const mobileVersion = readJson(
+    new URL('apps/mobile/package.json', root),
+    'apps/mobile/package.json'
+  ).version;
+
+  const audioPlugin = (config.plugins ?? []).find(
+    (entry) => Array.isArray(entry) && entry[0] === 'react-native-audio-api'
+  );
+
+  const derived = [
+    [
+      'ios.infoPlist.NSMicrophoneUsageDescription',
+      config.ios?.infoPlist?.NSMicrophoneUsageDescription,
+      doc.claims?.purposeSentence,
+      'claims.purposeSentence',
+    ],
+    [
+      'plugins["react-native-audio-api"].iosMicrophonePermission',
+      audioPlugin?.[1]?.iosMicrophonePermission,
+      doc.claims?.purposeSentence,
+      'claims.purposeSentence',
+    ],
+    [
+      'ios.bundleIdentifier',
+      config.ios?.bundleIdentifier,
+      doc.claims?.identifier,
+      'claims.identifier',
+    ],
+    ['android.package', config.android?.package, doc.claims?.identifier, 'claims.identifier'],
+    ['version', config.version, mobileVersion, "apps/mobile/package.json's version"],
+  ];
+
+  for (const [path, actual, expected, source] of derived) {
+    if (actual === undefined) {
+      failures.push(`the resolved config has no ${path} — it should derive from ${source}`);
+      continue;
+    }
+    if (actual !== expected) {
+      failures.push(
+        `the resolved config's ${path} is ${JSON.stringify(actual)}, but ${source} is ` +
+          `${JSON.stringify(expected)} — the two must be the same string, not two copies of it ` +
+          '(FR-105, FR-106)'
+      );
+    }
+  }
+
+  // One integer feeding both stores (D10, FR-107). Two independently maintained
+  // numbers is the case where one store accepts a build and the other rejects it.
+  if (config.ios?.buildNumber !== String(config.android?.versionCode)) {
+    failures.push(
+      `ios.buildNumber is ${JSON.stringify(config.ios?.buildNumber)} and android.versionCode is ` +
+        `${JSON.stringify(config.android?.versionCode)} — both must come from the one BUILD_NUMBER ` +
+        'constant, or the two stores drift'
+    );
+  }
+
+  if (!(config.android?.permissions ?? []).includes('android.permission.RECORD_AUDIO')) {
+    failures.push(
+      'the resolved Android permission set does not request android.permission.RECORD_AUDIO — ' +
+        'the app cannot hear anything, and the purpose sentence describes a permission it never asks for'
+    );
+  }
+
+  return { label: `${derived.length + 2} derived values ok`, failures };
+});
+
+/**
+ * The store privacy declaration (data-model §5; FR-103, FR-104).
+ *
+ * Registered beyond T040's and T041's task text, and recorded rather than
+ * smuggled. The `privacy` object is what gets typed into two console forms, and
+ * nothing else in this gate looks at it: without this group its `policyUrl`
+ * could point at a page that was never built and both stores would be told so
+ * in writing.
+ *
+ * **`policyUrl` is derived, not stored.** The origin lives in `VITE_SITE_URL`
+ * and reaches the built document as its canonical link (`003` FR-075), so a
+ * literal URL here would be a second copy of an origin that changes with the
+ * deployment. `store-listing.json` holds the path; this composes the address the
+ * same way the build does, and checks that the privacy page's own canonical link
+ * agrees. That last comparison is what makes the derivation real rather than
+ * arithmetic on two constants.
+ */
+group('privacy', ({ listing: doc, ROOT: root }) => {
+  const failures = [];
+  const privacy = doc.privacy;
+
+  if (!privacy || typeof privacy !== 'object') {
+    return {
+      label: '0',
+      failures: [
+        'store-listing.json has no `privacy` object — both stores require a policy address, a ' +
+          'data-collection answer, and a reason for every permission (data-model §5)',
+      ],
+    };
+  }
+
+  if (typeof privacy.policyPath !== 'string' || !privacy.policyPath.startsWith('/')) {
+    failures.push(
+      `privacy.policyPath is ${JSON.stringify(privacy.policyPath)} — it must be a root-relative ` +
+        "path, because the origin is the build's and only the path is this listing's to own"
+    );
+  }
+
+  if (!Array.isArray(privacy.dataCollected) || privacy.dataCollected.length > 0) {
+    failures.push(
+      'privacy.dataCollected is not an empty array — FR-103 declares no data collected to both ' +
+        'stores, and anything listed here contradicts claims.collectsNoData and the in-app copy ' +
+        'in the same file'
+    );
+  }
+
+  const permissions = Array.isArray(privacy.permissions) ? privacy.permissions : [];
+  if (permissions.length !== 1 || permissions[0]?.id !== 'microphone') {
+    failures.push(
+      'privacy.permissions must be exactly the microphone — the resolved Android permission set ' +
+        'is checked by the identity group, and a second entry here would be a claim about the app ' +
+        'that no configuration backs'
+    );
+  }
+
+  // The reason is a pointer, not a copy. Storing the sentence again would put a
+  // fifth hand-maintained copy of it in the one file whose whole purpose is that
+  // there is exactly one (FR-088, FR-105).
+  for (const permission of permissions) {
+    const resolved = permission?.reasonFrom
+      ?.split('.')
+      .reduce(
+        (value, key) => (typeof value === 'object' && value !== null ? value[key] : undefined),
+        doc
+      );
+
+    if (typeof resolved !== 'string' || resolved.trim() === '') {
+      failures.push(
+        `privacy.permissions[${permission?.id}].reasonFrom points at ` +
+          `${JSON.stringify(permission?.reasonFrom)}, which is not a non-empty string in this file`
+      );
+    }
+  }
+
+  // The derivation, checked against what was actually built.
+  const canonicalOf = (name) => {
+    const html = readFileSync(fileURLToPath(new URL(`apps/web/dist/${name}`, root)), 'utf8');
+    return /<link[^>]+rel="canonical"[^>]+href="([^"]+)"/.exec(html)?.[1] ?? null;
+  };
+
+  let siteCanonical;
+  let policyCanonical;
+  try {
+    siteCanonical = canonicalOf('index.html');
+    policyCanonical = canonicalOf('privacy.html');
+  } catch {
+    return {
+      label: '0',
+      failures: [
+        ...failures,
+        'apps/web/dist/privacy.html was not built — FR-104 requires a reachable policy page, and ' +
+          'the address given to both stores is derived from it. Run `pnpm build` first',
+      ],
+    };
+  }
+
+  if (!siteCanonical || !policyCanonical) {
+    failures.push(
+      'the built index.html or privacy.html carries no canonical link, so the policy address ' +
+        'cannot be derived from the origin the build decided on (003 FR-075)'
+    );
+  } else {
+    const expected = new URL(privacy.policyPath ?? '', siteCanonical).href;
+    if (policyCanonical !== expected) {
+      failures.push(
+        `the built privacy page's canonical is ${policyCanonical}, but the origin plus ` +
+          `privacy.policyPath derives ${expected} — the address handed to both stores would not ` +
+          'be the address the page claims for itself'
+      );
+    }
+  }
+
+  return { label: `policy at ${privacy.policyPath}, 0 data collected`, failures };
 });
 
 const context = { listing, limits, forbidden, ROOT };

@@ -627,21 +627,189 @@ and confirm every required artefact exists in the repository, is reachable, and 
 
 ### Checks for User Story 3 ⚠️ Write these first and observe them failing
 
-- [ ] T040 [US3] Implement L12.1 and L12.2 in `verify-listing.mjs` — shell out to `pnpm --filter @chromatic-tuner/mobile exec expo config --json --type prebuild`, parse the resolved config, and assert both iOS purpose strings and the Android permission rationale equal `claims.purposeSentence` verbatim, and that `ios.bundleIdentifier` and `android.package` both equal `claims.identifier`. Reading the **resolved config** rather than the source is the point: `.mjs` cannot import `app.config.ts` (D1), and the resolved output is what actually reaches `Info.plist` and `AndroidManifest.xml`. Because T012 already made this true, **observe it failing by temporarily altering one purpose string in `app.config.ts`**, then revert — a check never seen red is not known to work.
-- [ ] T041 [P] [US3] Extend L5 to the privacy page — scan the rendered text of `apps/web/dist/privacy.html` with the same compiled patterns. Expected first-run failure: the file does not exist, and the message must say so rather than silently scanning nothing. A check that passes over an absent file is the quietest way to lose this gate.
+- [X] T040 [US3] Implement L12.1 and L12.2 in `verify-listing.mjs` — shell out to `pnpm --filter @chromatic-tuner/mobile exec expo config --json --type prebuild`, parse the resolved config, and assert both iOS purpose strings and the Android permission rationale equal `claims.purposeSentence` verbatim, and that `ios.bundleIdentifier` and `android.package` both equal `claims.identifier`. Reading the **resolved config** rather than the source is the point: `.mjs` cannot import `app.config.ts` (D1), and the resolved output is what actually reaches `Info.plist` and `AndroidManifest.xml`. Because T012 already made this true, **observe it failing by temporarily altering one purpose string in `app.config.ts`**, then revert — a check never seen red is not known to work.
+- [X] T041 [P] [US3] Extend L5 to the privacy page — scan the rendered text of `apps/web/dist/privacy.html` with the same compiled patterns. Expected first-run failure: the file does not exist, and the message must say so rather than silently scanning nothing. A check that passes over an absent file is the quietest way to lose this gate.
 
 ### Implementation for User Story 3
 
-- [ ] T042 [US3] Create `apps/web/privacy.html` (D9) — the policy prose **in the served document**, no React, no runtime injection: a store reviewer must not have to run a script to read a privacy policy. It states in plain language what the app does with audio, reproduces `claims.purposeSentence`'s terms, and agrees with the in-app privacy statement (FR-031, FR-104, FR-105).
-- [ ] T043 [US3] Register the page in `apps/web/vite.config.ts` in **all three** places, each of which ships quietly when missed: `build.rollupOptions.input` (or the page is not built), `sitemapXml()` (or the policy is unlisted — `003`'s FR-073 named this as the registration point), and the precache array at `vite.config.ts:528` (or the policy is the one page that breaks offline and FR-030's guarantee gets a hole in it). `siteIdentity()`'s `transformIndexHtml()` has no filter, so the token `<style>` block and canonical handling come free.
-- [ ] T044 [US3] Add `apps/web/e2e/privacy.spec.ts` — the policy text is present in the response **with scripting disabled** (following `no-script.spec.ts`'s method), the page has exactly one `<h1>`, its canonical tag resolves, and it passes the same axe check `a11y.spec.ts` applies to the tuner. Write it before T042 is finished if possible; if T042 landed first, observe it failing by emptying the page body, then revert.
-- [ ] T045 [US3] Add the `privacy` object to `listing/store-listing.json` per data-model.md §5 — `policyUrl` **derived from the canonical origin** (`003` FR-075) rather than written literally, `dataCollected` empty, `permissions` microphone-only with `claims.purposeSentence` as the stated reason. Record here that FR-103's correctness rests on `apps/web/e2e/no-network.spec.ts` staying green: if analytics, crash reporting, or an update ping is ever added, that gate goes red and this declaration becomes false in the same commit (SC-042).
-- [ ] T046 [US3] Run `pnpm build && pnpm verify:listing && grep -c privacy apps/web/dist/sitemap.xml && grep -c privacy apps/web/dist/sw.js`, then `pnpm --filter @chromatic-tuner/web preview --port 4173 &` and `pnpm --filter @chromatic-tuner/web verify:offline` (V36). Record both grep counts and the offline result here; the two greps exist because the sitemap function and the precache array are separate hand-edits.
-- [ ] T047 [US3] Implement L12.3 — a build-output assertion, following `apps/web/scripts/verify-build-output.mjs`'s precedent, that a release-configuration bundle contains no capture-mode flag and no reference to `captureAudioSource`. `EXPO_PUBLIC_*` values are inlined at build time, so "it is only set locally" describes a shell, not an artefact. Observe it failing by building with the flag set, then rebuild without (V35, FR-113).
-- [ ] T048 [US3] Write `listing/submission.md` (FR-108) — one row per store console field naming the repository artefact that fills it, plus a section for every field **no artefact can fill**: the age-rating and IARC questionnaires, account-level settings, and the re-check of `limits.json` against current store documentation. Include D10's rule that `BUILD_NUMBER` increments on every submission including a resubmission of an unchanged version (FR-107), and D3's caveat that `com.chromatictuner.app` must be confirmed against whatever origin `VITE_SITE_URL` eventually takes, **before first submission**, because it is permanent afterwards.
-- [ ] T049 [US3] Capture light and dark screenshots of the privacy page for the pull request (the plan's obligation 4 — Development Workflow requires both appearances for any UI change) and attach them. The privacy page is subject to the same contrast, text-size, and appearance obligations as everything else (Principle IV).
+- [X] T042 [US3] Create `apps/web/privacy.html` (D9) — the policy prose **in the served document**, no React, no runtime injection: a store reviewer must not have to run a script to read a privacy policy. It states in plain language what the app does with audio, reproduces `claims.purposeSentence`'s terms, and agrees with the in-app privacy statement (FR-031, FR-104, FR-105).
+- [X] T043 [US3] Register the page in `apps/web/vite.config.ts` in **all three** places, each of which ships quietly when missed: `build.rollupOptions.input` (or the page is not built), `sitemapXml()` (or the policy is unlisted — `003`'s FR-073 named this as the registration point), and the precache array at `vite.config.ts:528` (or the policy is the one page that breaks offline and FR-030's guarantee gets a hole in it). `siteIdentity()`'s `transformIndexHtml()` has no filter, so the token `<style>` block and canonical handling come free.
+- [X] T044 [US3] Add `apps/web/e2e/privacy.spec.ts` — the policy text is present in the response **with scripting disabled** (following `no-script.spec.ts`'s method), the page has exactly one `<h1>`, its canonical tag resolves, and it passes the same axe check `a11y.spec.ts` applies to the tuner. Write it before T042 is finished if possible; if T042 landed first, observe it failing by emptying the page body, then revert.
+- [X] T045 [US3] Add the `privacy` object to `listing/store-listing.json` per data-model.md §5 — `policyUrl` **derived from the canonical origin** (`003` FR-075) rather than written literally, `dataCollected` empty, `permissions` microphone-only with `claims.purposeSentence` as the stated reason. Record here that FR-103's correctness rests on `apps/web/e2e/no-network.spec.ts` staying green: if analytics, crash reporting, or an update ping is ever added, that gate goes red and this declaration becomes false in the same commit (SC-042).
+- [X] T046 [US3] Run `pnpm build && pnpm verify:listing && grep -c privacy apps/web/dist/sitemap.xml && grep -c privacy apps/web/dist/sw.js`, then `pnpm --filter @chromatic-tuner/web preview --port 4173 &` and `pnpm --filter @chromatic-tuner/web verify:offline` (V36). Record both grep counts and the offline result here; the two greps exist because the sitemap function and the precache array are separate hand-edits.
+- [X] T047 [US3] Implement L12.3 — a build-output assertion, following `apps/web/scripts/verify-build-output.mjs`'s precedent, that a release-configuration bundle contains no capture-mode flag and no reference to `captureAudioSource`. `EXPO_PUBLIC_*` values are inlined at build time, so "it is only set locally" describes a shell, not an artefact. Observe it failing by building with the flag set, then rebuild without (V35, FR-113).
+- [X] T048 [US3] Write `listing/submission.md` (FR-108) — one row per store console field naming the repository artefact that fills it, plus a section for every field **no artefact can fill**: the age-rating and IARC questionnaires, account-level settings, and the re-check of `limits.json` against current store documentation. Include D10's rule that `BUILD_NUMBER` increments on every submission including a resubmission of an unchanged version (FR-107), and D3's caveat that `com.chromatictuner.app` must be confirmed against whatever origin `VITE_SITE_URL` eventually takes, **before first submission**, because it is permanent afterwards.
+- [X] T049 [US3] Capture light and dark screenshots of the privacy page for the pull request (the plan's obligation 4 — Development Workflow requires both appearances for any UI change) and attach them. The privacy page is subject to the same contrast, text-size, and appearance obligations as everything else (Principle IV).
 
-**Checkpoint**: a submission could be prepared end to end from the repository, with the manual steps named rather than discovered at the console.
+**Checkpoint**: a submission could be prepared end to end from the repository, with the manual steps named rather than discovered at the console. ✅ **Reached 2026-08-05.**
+
+### Phase 5 results — 2026-08-05
+
+**`pnpm verify:listing` after the phase** — everything green except the one gap Phase 4 already tracked:
+
+```
+claims: 25 fields ok · fields: 8 ok · names: 2 ok · openings: 2 ok
+vocabulary: 41 strings clean, plus the built privacy page
+agreement: 7 claims × 2 stores · corroboration: 7 corroborated
+assets: 2 problems   (android screenshots — T038, unchanged)
+appearances: 1 problem (android — T038, unchanged)
+artwork: 5 scanned
+identity: 7 derived values ok
+privacy: policy at /privacy.html, 0 data collected
+```
+
+**Every other gate green**: lint, format, typecheck 5/5, `pnpm test` **430 passed**, coverage **100%
+lines / 98.5 stmts / 94.81 branches / 97.29 funcs** (T001's baseline exactly), mobile **78 passed / 11
+suites**, `pnpm build`, `verify:build-output`, `pnpm test:e2e` **112 passed** (up from 107 — this
+phase's five), `verify:offline` green, `verify:release-bundle` green.
+
+`dist/` now holds **ten** files, as Phase 1 predicted: `privacy.html` joins the nine.
+`dist/index.html` is **unchanged at 7,454 B**, which is the cheapest evidence that adding a second page
+did not alter the first one's document.
+
+#### Three defects found in this phase, two of which would have shipped silently
+
+**1. The service worker served the tuner for `/privacy.html`.** `sw-source.js` answered *every*
+navigation from the cached `/index.html` — correct while the site had one document, wrong the moment it
+had two. Measured, both before and after, through the real service worker with the network off:
+
+| Request | Old handler | Fixed handler |
+| --- | --- | --- |
+| `/privacy.html`, offline | `h1 = "Free Online Guitar Tuner"` | `h1 = "Privacy Policy"` |
+| an unknown deep link, offline | app shell | app shell (unchanged) |
+
+The failure is invisible in development, because `vite dev` never emits a service worker, and invisible
+on a first visit, because the worker is not yet controlling the page. A store reviewer following the
+policy link on a second visit would have been shown a guitar tuner.
+
+**2. The precache manifest listed a file that was never written, which broke the service worker
+entirely.** An HTML input with no `<script>` of its own still gets a Rollup entry chunk —
+`assets/privacy-BvRk9kiK.js`, **zero bytes of code** — and Vite's own HTML plugin deletes it *after*
+`precache()`'s `generateBundle` has already read the bundle. So `sw.js` precached a URL that does not
+exist, `cache.addAll` rejected on install, and **the app was not offline-capable at all**. One missing
+entry fails the whole `addAll`; nothing about it is visible online. Fixed by excluding empty chunks, and
+confirmed by `verify:offline`: cold 896 ms, warm 314 ms, offline 310 ms, all inside FR-026's 2000 ms.
+
+**3. `captureAudioSource.ts` was in the release bundle.** This is T047's finding and the important one.
+The Complexity Tracking entry assumed that reading the flag at a single call site kept the capture source
+out of a store build. It does not: **Metro puts a statically imported module in the graph whether or not
+the value it binds is ever used.** Choosing at runtime decides which object is constructed, not what is
+bundled. Measured from the export's source map:
+
+| App.tsx | `captureAudioSource.ts` in the release graph |
+| --- | --- |
+| `import { CaptureAudioSource } …` at the top, chosen by ternary | **present**, on both platforms |
+| `require(…)` inside the inlined `process.env.EXPO_PUBLIC_SCREENSHOT_CAPTURE === 'true'` check | absent |
+| the same `require` form, built **with** the flag set | present (the control) |
+
+`babel-preset-expo` inlines `EXPO_PUBLIC_*` as literals before Metro collects dependencies, so the
+false branch and its `require` are folded away together. `apps/mobile/src/App.tsx` now uses that form.
+
+#### T047 — two things the check had to avoid, both measured
+
+**Grepping the shipped bundle proves nothing.** A release bundle is Hermes bytecode with every
+identifier minified. `grep -c captureAudioSource` over the `.hbc` returns **0** — and so does
+`grep -c RNAudioSource`, for the source that is definitely in it. Quickstart V35 describes exactly that
+grep, and taken literally it is this feature's headline hazard in its purest form: an assertion that
+passes whatever the artefact contains. `verify-release-bundle.mjs` reads the export's **source map**
+instead, whose `sources` array names every module Metro pulled in, before any renaming.
+
+**Metro's transform cache is not keyed on `EXPO_PUBLIC_*` values.** The first attempt at the control
+build set the flag and found nothing — because the export reused the previous export's transform of
+`App.tsx`. Adding `--clear` produced the expected result immediately. A check that reads a stale
+transform verifies the build before last. This also matters outside the gate: a **capture build made
+right after an ordinary one can ship the microphone source**, and the symptom is a screenshot of an
+empty tuner that looks like a timing problem. `capture-screenshots.mjs` now says so, with the command.
+
+The script runs four exports (two platforms × release and control) in **26 s**. It is not in the CI
+`gates` job — it is a release gate, listed in `listing/submission.md`.
+
+#### T040 — L12.1, and the half of it that does not exist
+
+Observed red by altering the plugin's purpose string in `app.config.ts`:
+
+```
+identity: 1 problem
+  the resolved config's plugins["react-native-audio-api"].iosMicrophonePermission is "Chromatic Tuner
+  needs the microphone.", but claims.purposeSentence is "Chromatic Tuner listens to your instrument…"
+  — the two must be the same string, not two copies of it (FR-105, FR-106)
+```
+
+**L12.1 names "the Android permission rationale" and there is no such field.** Android declares a
+permission without a reason string; the rationale a user reads is the in-app explainer in
+`apps/mobile/src/components/molecules/PermissionPrompt.tsx`, which is outside this feature's boundary
+(FR-113, SC-044). Asserting it here would have meant either changing that component or writing a check
+that pretends the configuration carries something it does not. What is checked instead is that the
+resolved Android permission set still requests `RECORD_AUDIO` — the fact the plugin config is actually
+responsible for. Stated here rather than quietly satisfied.
+
+#### T045 — what a release Android build really declares
+
+Phase 2 asked for this to be checked against a *release* configuration rather than the dev-client one.
+`expo prebuild -p android` generates a main manifest (all build types, not just debug) declaring:
+
+`INTERNET`, `SYSTEM_ALERT_WINDOW`, `VIBRATE`, `READ_EXTERNAL_STORAGE`, `WRITE_EXTERNAL_STORAGE`,
+and the `RECORD_AUDIO` the config asks for.
+
+None of the first five is requested by `app.config.ts`. They come from the React Native template and
+from autolinked modules, with `expo-dev-client` contributing `SYSTEM_ALERT_WINDOW`. This does **not**
+falsify `privacy.dataCollected` — a permission is a capability, not a transmission, and
+`no-network.spec.ts` asserts nothing is transmitted — but `INTERNET` beside a "no data collected"
+declaration is the first thing a reviewer asks about, and a store build still carrying the development
+client is a separate problem. Recorded as a **pre-submission open action** in `listing/submission.md`
+with the remedy, rather than fixed here: this machine has no Android SDK to build and run the result
+against, and an unverified change to how the app is assembled is not an improvement.
+
+**FR-103's correctness rests on `apps/web/e2e/no-network.spec.ts` staying green.** If analytics, crash
+reporting, or an update ping is ever added, that gate goes red and `privacy.dataCollected` becomes false
+in the same commit rather than a release later (SC-042). That is the only mechanism in this repository
+that makes a privacy declaration a promise about the future, and it is recorded in the file itself.
+
+#### T046 — V36, recorded
+
+| Check | Result |
+| --- | --- |
+| `grep -c privacy dist/sitemap.xml` | **1** |
+| `grep -c privacy dist/sw.js` | **3** |
+| `verify:offline` | green — cold 896 ms, warm 314 ms, offline 310 ms |
+| policy text present with scripting off | yes (`privacy.spec.ts`, asserted on the response bytes) |
+
+#### Deviations, stated rather than hidden
+
+**1. `metadata.spec.ts` was modified a second time**, and V37 said its only change would be where it
+reads the forbidden list from. The sitemap test asserted `locations` equals *exactly the canonical
+address*, which was correct while the site had one page. T043 requires the policy to be listed
+(`003`'s FR-073 named `sitemapXml()` as the registration point), so that assertion had to become the
+**set** of real pages. The property it protects is unchanged — the sitemap offers exactly the pages that
+exist and nothing else — and the test now additionally requests every listed URL and requires a 200.
+T061 should expect two changes to this file, not one.
+
+**2. `verify-build-output.mjs` was modified**, for the same reason and in the same direction. It
+asserted `locations.length === 1`. A magic number would have to be hand-edited every time a page is
+added, so it now derives the expected set from the `.html` files `dist/` actually holds. That covers
+both halves of D9's registration problem: a page built and not listed, and a page listed and not built.
+Neither file is a test of tuner behaviour; both are page-identity gates that had one page hard-coded
+into them.
+
+**3. `apps/web/src/content.ts` gained two exports** — `privacyTitle` and `privacyDescription`. The
+policy prose itself is markup in `privacy.html` (D9 requires it in the served document), but a second
+page needs a second title and description or the two compete for the same queries and a reviewer
+following the policy link lands on a tab labelled "Online Guitar Tuner".
+
+**4. `siteIdentity()`'s `transformIndexHtml()` needed a filter after all.** T043 says the token
+`<style>` block and canonical handling "come free" because the hook has no filter. The free part is
+real — the token block is shared — but the *unfiltered* part was wrong: without a branch, `privacy.html`
+would have received the tuner's `<title>`, the tuner's canonical address, and a second `<h1>` from the
+injected supporting content. It is now page-aware, and the privacy branch is where `%CT_APP_NAME%` and
+`%CT_PURPOSE_SENTENCE%` are replaced from `store-listing.json` so the purpose sentence has one author
+rather than four. An unreplaced placeholder throws at build time rather than shipping a value-shaped
+literal — the same failure `003` removed from the canonical link.
+
+#### T049 — the privacy page, both appearances
+
+`specs/004-app-store-listings/screenshots/web-privacy-{light,dark}.png` and the same pair at the
+smallest supported viewport (360×640). Axe is clean in both appearances, the page has one `<h1>`, and
+nothing scrolls sideways at 360 px.
 
 ---
 

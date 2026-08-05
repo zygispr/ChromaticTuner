@@ -24,6 +24,16 @@
  * 1080×2400 — 2.22:1 — and is rejected. The accepted ranges live in
  * `listing/limits.json` rather than in this script, and `verify-listing.mjs`
  * checks the committed pixels rather than the profile this script asked for.
+ *
+ * **Clear Metro's cache when you flip that flag.** Its transform cache is keyed
+ * on file contents and not on `EXPO_PUBLIC_*` values, so a capture build made
+ * right after an ordinary one can reuse the ordinary one's transform and ship
+ * the *microphone* source while the shell says otherwise. The symptom is a
+ * screenshot of an empty tuner, which looks like a timing problem. Found while
+ * writing `apps/mobile/scripts/verify-release-bundle.mjs` (T047), where the same
+ * cache made a build with the flag set look identical to one without:
+ *
+ *     rm -rf "${TMPDIR:-/tmp}"/metro-* "${TMPDIR:-/tmp}"/haste-map-*
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';

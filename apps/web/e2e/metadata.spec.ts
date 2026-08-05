@@ -137,10 +137,17 @@ test('serves robots.txt, and a non-canonical origin disallows crawling (P12, FR-
   );
 });
 
-test('serves a sitemap listing exactly the canonical address (P12, FR-073)', async ({
-  page,
-  request,
-}) => {
+/**
+ * 004 gave this site a second real page, so the assertion is now the set rather
+ * than the single address.
+ *
+ * The property being protected is unchanged — the sitemap offers crawlers
+ * exactly the pages that exist and nothing else. `/privacy.html` is a real page
+ * a store reviewer follows a link to (FR-104), and leaving it out is the
+ * quietest of D9's three easily-missed registrations. Every URL is still
+ * checked to be absolute and to resolve.
+ */
+test('serves a sitemap listing exactly the real pages (P12, FR-073)', async ({ page, request }) => {
   await page.goto('/');
   const canonical = await page.locator('link[rel="canonical"]').getAttribute('href');
 
@@ -148,9 +155,17 @@ test('serves a sitemap listing exactly the canonical address (P12, FR-073)', asy
   expect(response.status(), 'sitemap.xml is not served').toBe(200);
 
   const body = await response.text();
-  const locations = [...body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
+  const locations = [...body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]!);
 
-  expect(locations, 'the sitemap lists more than the one real page').toEqual([canonical]);
+  expect(locations, 'the sitemap does not list exactly the real pages').toEqual([
+    canonical,
+    new URL('/privacy.html', canonical!).href,
+  ]);
+
+  for (const location of locations) {
+    const page_ = await request.get(location);
+    expect(page_.status(), `the sitemap lists ${location}, which does not resolve`).toBe(200);
+  }
 });
 
 /**

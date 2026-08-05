@@ -15,7 +15,7 @@
  * environment proves nothing about the other.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const APP = fileURLToPath(new URL('..', import.meta.url));
@@ -101,9 +101,27 @@ if (robots) {
 
 if (sitemap) {
   const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
+
+  /*
+   * The sitemap lists exactly the pages the build emitted — no more, no fewer.
+   *
+   * This asserted `locations.length === 1` until 004 added `privacy.html`, and
+   * a magic number is what would have had to be edited by hand every time a page
+   * is added. Derived from `dist/` instead, so the two halves of the D9
+   * registration problem are both covered: a page that is built and not listed
+   * (an unreachable policy, which is what a store reviewer follows) and a page
+   * that is listed and not built (a 404 offered to every crawler).
+   */
+  const emitted = readdirSync(fileURLToPath(DIST))
+    .filter((name) => name.endsWith('.html'))
+    .map((name) => (name === 'index.html' ? `${CANONICAL}/` : `${CANONICAL}/${name}`))
+    .sort();
+
+  const listed = [...locations].sort();
+
   check(
-    locations.length === 1,
-    `sitemap.xml lists ${locations.length} URLs; it should list exactly the canonical one`
+    JSON.stringify(listed) === JSON.stringify(emitted),
+    `sitemap.xml lists ${listed.join(', ') || '(nothing)'}, but dist/ holds ${emitted.join(', ')}`
   );
   check(
     locations.every((location) => /^https?:\/\//.test(location)),
