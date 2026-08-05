@@ -16,8 +16,7 @@ export type { UseTunerOptions, UseTunerResult } from './useTuner';
 
 export { captureControlLabel, readingAnnouncement, spellNoteForSpeech } from './announcement';
 
-export { captureControlState } from './capture-control';
-export type { CaptureControlState } from './capture-control';
+export { showsCaptureControl } from './capture-control';
 
 export { usePreferences } from './usePreferences';
 export type { UsePreferencesResult } from './usePreferences';

@@ -1,6 +1,6 @@
 import {
-  captureControlState,
   readingAnnouncement,
+  showsCaptureControl,
   usePreferences,
   useTuner,
 } from '@chromatic-tuner/react';
@@ -59,10 +59,10 @@ export function TunerDisplay({ capturing, onToggleCapture }: TunerDisplayProps) 
   const { a4Hz, isNonStandardReference } = usePreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // `capturing` is what the user asked for; this is what the microphone did.
-  // The two differ on every failure screen, and the banner keeps the raw intent
-  // below so a deliberate stop still reads as one.
-  const control = captureControlState(status, capturing);
+  // `capturing` is what the user asked for, not what the microphone did — the
+  // two part company on a failure screen, where the banner is already offering
+  // the only action there is.
+  const showsToggle = showsCaptureControl(status, capturing);
 
   return (
     <section
@@ -104,10 +104,7 @@ export function TunerDisplay({ capturing, onToggleCapture }: TunerDisplayProps) 
       {/* Below the readout, not above it: the tuning display is what must be
           legible from a metre away (FR-018), and the control is something the
           player looks down at deliberately. */}
-      <MicrophoneToggle
-        capturing={control.capturing}
-        onToggle={control.retries ? retry : onToggleCapture}
-      />
+      {showsToggle && <MicrophoneToggle capturing={capturing} onToggle={onToggleCapture} />}
 
       {/* The one thing assistive technology reads for a live reading. Every
           visual channel above is aria-hidden; this speaks all of them once,

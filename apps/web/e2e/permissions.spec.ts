@@ -108,15 +108,16 @@ test('a blocked microphone is never presented as one that is listening', async (
   // buttons on screen — "Try again", and a "Stop listening" that asserted the
   // tuner held the very microphone it had just failed to open (FR-039).
   const toggle = page.getByTestId('microphone-toggle');
-  await expect(toggle).toHaveAccessibleName(/start listening/i);
-  await expect(toggle).toHaveAttribute('data-capturing', 'false');
+  await expect(toggle).toHaveCount(0);
+  await expect(page.getByTestId('retry-button')).toBeVisible();
 
-  // And it has to be a real way out, not just honest signage: pressing a
-  // control that says "start" must start, which here means retrying.
+  // And the control has to come back the moment there is a microphone to stop,
+  // or this trades a misleading button for a tuner that cannot be switched off.
   await allowMicrophone(page);
-  await toggle.click();
+  await page.getByTestId('retry-button').click();
 
   await waitForNote(page, 'E');
+  await expect(toggle).toHaveAccessibleName(/stop listening/i);
 });
 
 test('explains why the microphone is needed before the browser asks', async ({ page }) => {

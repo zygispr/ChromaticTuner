@@ -752,11 +752,10 @@ side it falls on rather than defaulting into "the microphone is fine".
 
 Two decisions inside it are worth stating:
 
-- **Pressing retries rather than flipping intent.** The control now says "Start listening" on a failure
-  screen, so it has to start — and flipping intent off would be wrong twice: the user asked for the opposite,
-  and the microphone is shut either way. It routes to `retry()`, the same path as the banner's button, so
-  the two controls on one screen cannot come to mean different things. Duplicating the action was chosen
-  over hiding the control, which FR-036 requires to be persistent.
+- **The first repair kept both buttons.** The control was relabelled "Start listening" and routed to
+  `retry()` — the same path as the banner's button, so the two could not come to mean different things.
+  Duplicating the action was chosen over hiding the control because FR-036 requires it to be persistent.
+  **Reversed on review the same day**; see the follow-up below.
 - **`idle` and `requesting-permission` still count as capturing.** With intent on they mean "starting",
   which the banner already says. Treating them as not-capturing would flip the label to "Start listening"
   for the first frames of every launch.
@@ -770,6 +769,30 @@ the marker at **20.31 px** against its `< 20` threshold under full-suite paralle
 re-run of the suite and in isolation on both the fixed and the unmodified tree. Nothing here touches the
 marker or the DSP path. Recorded rather than adjusted — the threshold is a real budget, and one boundary
 crossing under load is evidence about the harness, not about the number.
+
+### Follow-up: one button, not two (2026-08-05)
+
+Reported on review of the fix above: **"Try again" and "Start listening" are the same functionality.** They
+were — the second one existed only because FR-036 says the control is persistent, and it was answered by
+duplicating an action rather than by asking whether the requirement reached this screen.
+
+It does not. FR-036's concern is a **one-shot control that disappears once used**, leaving a tuner that
+cannot be switched off. On a failure screen there is no capture to switch off, and `StatusBanner` is already
+there explaining the failure, giving the steps out of it, and offering the retry. So the control is
+withheld while — and only while — intent is on and the microphone could not be opened, and it returns the
+moment there is capture to stop.
+
+`captureControlState` collapsed to `showsCaptureControl(status, captureEnabled)` once the label and the
+press had nothing left to reconcile. The narrowing of FR-036 is stated at that function rather than left
+implicit, because it is the kind of thing a future reader would otherwise take for a mistake.
+
+**The stopped state keeps the control unconditionally**, whatever status is showing. That is the state
+FR-036 was actually written for and the only route back to a running tuner; the tests assert it against
+every failure kind, not just the one in the report.
+
+**113 Playwright**, **434 unit** (−2), **80 mobile Jest**, all eight gates green. The web and mobile
+regression tests were rewritten around the new expectation and both observed failing first. Screenshots of
+the blocked screen in [screenshots/](./screenshots/) — `web-denied-light` and `web-denied-dark`.
 
 ---
 

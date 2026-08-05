@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { TunerStatus } from '@chromatic-tuner/core';
 
-import { captureControlState } from '../src/capture-control';
+import { showsCaptureControl } from '../src/capture-control';
 
 /**
  * Regression: a denied microphone offered "Stop listening" (FR-039).
@@ -13,9 +13,11 @@ import { captureControlState } from '../src/capture-control';
  * survives a failed start, so the tuner claimed to hold a microphone that was
  * exactly the thing it had failed to open.
  *
- * Shared rather than decided in each app's organism for the same reason the
- * label copy is shared: the two platforms drifting onto opposite answers here
- * is invisible by eye and obvious to anyone who denies permission on both.
+ * The repair is to leave the failure screen one control rather than two saying
+ * different things about the same microphone. Shared rather than decided in each
+ * app's organism for the same reason the label copy is: the two platforms
+ * drifting onto opposite answers here is invisible by eye and obvious to anyone
+ * who denies permission on both.
  */
 
 const failures: readonly TunerStatus[] = [
@@ -26,23 +28,17 @@ const failures: readonly TunerStatus[] = [
   { kind: 'error', message: 'This device cannot capture audio.' },
 ];
 
-describe('captureControlState (FR-036, FR-039)', () => {
-  it('reports not-capturing whenever the microphone could not be opened', () => {
+describe('showsCaptureControl (FR-036, FR-039)', () => {
+  it('withholds the control whenever the microphone could not be opened', () => {
+    // The banner owns this screen: it explains the failure, gives the steps out
+    // of it, and offers "Try again". A second button doing the same thing is the
+    // one that has to go.
     for (const status of failures) {
-      expect(captureControlState(status, true).capturing).toBe(false);
+      expect(showsCaptureControl(status, true)).toBe(false);
     }
   });
 
-  it('sends the press to retry, not to intent, while a failure is on screen', () => {
-    // Flipping intent off here would be the wrong repair twice over: the user
-    // pressed a control labelled "Start listening", and the microphone they
-    // want is not open either way.
-    for (const status of failures) {
-      expect(captureControlState(status, true).retries).toBe(true);
-    }
-  });
-
-  it('leaves the running states alone — this must not become a second stop button', () => {
+  it('shows the control while the microphone is open', () => {
     const running: readonly TunerStatus[] = [
       { kind: 'listening' },
       {
@@ -59,30 +55,26 @@ describe('captureControlState (FR-036, FR-039)', () => {
     ];
 
     for (const status of running) {
-      expect(captureControlState(status, true)).toEqual({ capturing: true, retries: false });
+      expect(showsCaptureControl(status, true)).toBe(true);
     }
   });
 
-  it('still reads as capturing while the start is in flight', () => {
+  it('shows the control while the start is in flight', () => {
     // `idle` and `requesting-permission` with intent on mean "starting", which
-    // the banner already says. Calling those not-capturing would flip the label
-    // to "Start listening" for the first frames of every launch.
-    expect(captureControlState({ kind: 'idle' }, true).capturing).toBe(true);
-    expect(captureControlState({ kind: 'requesting-permission' }, true).capturing).toBe(true);
+    // the banner already says. Withholding it here would make the control blink
+    // out for the first frames of every launch.
+    expect(showsCaptureControl({ kind: 'idle' }, true)).toBe(true);
+    expect(showsCaptureControl({ kind: 'requesting-permission' }, true)).toBe(true);
   });
 
-  it('reports not-capturing when the user switched capture off', () => {
-    expect(captureControlState({ kind: 'idle' }, false)).toEqual({
-      capturing: false,
-      retries: false,
-    });
-  });
+  it('always shows the control once the user has switched capture off', () => {
+    // The stopped state is the one FR-036 exists for: this is the only way back
+    // to a running tuner, so no status may take it away. Any failure still on
+    // screen is stale — nothing is trying to open the microphone.
+    expect(showsCaptureControl({ kind: 'idle' }, false)).toBe(true);
 
-  it('never asks a stopped control to retry — pressing it must start capture', () => {
-    // Intent is off, so the failure on screen is stale. Retrying would open the
-    // microphone the user has switched off, from a button that says it starts.
     for (const status of failures) {
-      expect(captureControlState(status, false).retries).toBe(false);
+      expect(showsCaptureControl(status, false)).toBe(true);
     }
   });
 });

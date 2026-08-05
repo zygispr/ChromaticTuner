@@ -1,23 +1,5 @@
 import type { TunerStatus } from '@chromatic-tuner/core';
 
-/** What the microphone control should say, and what pressing it should do. */
-export interface CaptureControlState {
-  /**
-   * Whether the microphone is actually open — what the label describes.
-   *
-   * Not the same thing as the user's intent, which is what the caller passes
-   * in: intent survives a start that failed.
-   */
-  readonly capturing: boolean;
-  /**
-   * Pressing should retry the failed start rather than flip intent.
-   *
-   * Same path as the banner's "Try again", so the two controls on a failure
-   * screen cannot come to mean different things.
-   */
-  readonly retries: boolean;
-}
-
 /**
  * Whether the session is parked on a failure to open, or keep, the microphone.
  *
@@ -33,8 +15,8 @@ function failedToOpen(status: TunerStatus): boolean {
       return true;
 
     // `idle` and `requesting-permission` with intent on mean "starting", which
-    // the status banner already says. Calling them not-capturing would flip the
-    // label to "Start listening" for the first frames of every launch.
+    // the status banner already says. Treating them as failures would make the
+    // control blink out for the first frames of every launch.
     case 'idle':
     case 'requesting-permission':
     case 'listening':
@@ -44,24 +26,29 @@ function failedToOpen(status: TunerStatus): boolean {
 }
 
 /**
- * Reconcile what the user asked for with what the microphone actually did
- * (FR-036, FR-039).
+ * Whether the microphone control belongs on screen (FR-036, FR-039).
  *
- * `captureEnabled` is intent, and intent survives a failed start — so deriving
+ * `captureEnabled` is INTENT, and intent survives a failed start — so deriving
  * the control from it alone produced this defect: denying the browser's prompt
  * left "Try again" and "Stop listening" side by side, the second one asserting
- * that the tuner held the very microphone it had just failed to open. The label
- * names the action pressing will take, so on a failure screen it must offer to
- * start, and pressing it must actually try (FR-038).
+ * that the tuner held the very microphone it had just failed to open.
+ *
+ * A failure screen therefore gets one control, not two. `StatusBanner` already
+ * owns that screen — it explains the failure, gives the steps out of it, and its
+ * button runs `retry()`; a capture control there could only offer the same
+ * action under a second name.
+ *
+ * **This narrows FR-036**, which asks for a persistent control rather than a
+ * one-shot one. The requirement's concern is a tuner that cannot be switched
+ * off, and it is met: the control is absent only while the microphone is shut
+ * and something else on screen is offering to open it, and it returns the
+ * moment there is capture to stop. The state FR-036 was written for — a
+ * user-initiated stop — always keeps it, whatever stale failure is showing.
  *
  * Shared rather than decided in each app's organism for the same reason the
  * label copy is: two platforms answering this differently is invisible by eye
  * and obvious to anyone who denies permission on both.
  */
-export function captureControlState(
-  status: TunerStatus,
-  captureEnabled: boolean
-): CaptureControlState {
-  const blocked = captureEnabled && failedToOpen(status);
-  return { capturing: captureEnabled && !blocked, retries: blocked };
+export function showsCaptureControl(status: TunerStatus, captureEnabled: boolean): boolean {
+  return !(captureEnabled && failedToOpen(status));
 }

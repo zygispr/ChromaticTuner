@@ -133,12 +133,13 @@ describe('microphone toggle (US1)', () => {
 
     // Capture intent survives a failed start, and the label was derived from
     // intent alone — so a denied microphone showed "Try again" beside a "Stop
-    // listening" that claimed the tuner held it.
+    // listening" that claimed the tuner held it. The banner owns this screen.
     expect(source.isRunning).toBe(false);
-    expect(screen.getByTestId('microphone-toggle')).toHaveTextContent(/start listening/i);
+    expect(screen.queryByTestId('microphone-toggle')).toBeNull();
+    expect(screen.getByTestId('retry-button')).toBeTruthy();
   });
 
-  it('retries from the capture control rather than switching intent off (FR-038)', async () => {
+  it('brings the control back once there is a microphone to stop (FR-036)', async () => {
     const source = new ScriptedAudioSource({
       failWith: { kind: 'permission-denied', canRetry: true },
     });
@@ -148,11 +149,11 @@ describe('microphone toggle (US1)', () => {
     // The user allows the microphone in Settings and comes back.
     source.setFailure(null);
     await act(async () => {
-      fireEvent.press(screen.getByTestId('microphone-toggle'));
+      fireEvent.press(screen.getByTestId('retry-button'));
     });
 
-    // Treating this as an intent toggle would stop a session that was never
-    // running and leave the tuner switched off — from a button that said start.
+    // Withholding the control on failure trades a misleading button for a tuner
+    // that cannot be switched off, unless it returns the moment capture does.
     expect(source.isRunning).toBe(true);
     expect(screen.getByTestId('microphone-toggle')).toHaveTextContent(/stop listening/i);
   });
