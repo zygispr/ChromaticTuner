@@ -269,22 +269,154 @@ a reader can say what the app is, what it costs, what it needs, and how to use i
 > Each fails at first because `store-listing.json` has no `stores` object (T008). "Cannot read
 > properties of undefined" is not an acceptable failure — each check must name the missing structure.
 
-- [ ] T014 [US1] Implement L1 in `listing/scripts/verify-listing.mjs` — every field in `stores.ios` and `stores.android` is non-empty after trimming and at most its limit from `limits.json`, **counted in Unicode code points** (`[...str].length`), not UTF-16 units and not bytes; the three disagree about an emoji in a 30-character store name. Failure message names the field, its actual count, and the limit: `stores.ios.subtitle is 34 characters, limit 30`. Expected first-run failure: `stores.ios is missing` (FR-109).
-- [ ] T015 [P] [US1] Implement L2 — `stores.ios.name` and `stores.android.title` each contain `tuner` and at least one of `guitar`/`chromatic`, and neither equals `claims.appName` alone. The check is deliberately weak: it cannot judge copy, only catch a regression to a bare codename, which is the failure it exists for (FR-089).
-- [ ] T016 [P] [US1] Implement L4 — the first `limits.ios.descriptionOpening` characters of `stores.ios.description` and the first `limits.android.descriptionOpening` of `stores.android.fullDescription` each mention the instrument, the microphone, and that the app is free (FR-091). Failure names which of the three is missing from which opening.
-- [ ] T017 [P] [US1] Implement L5 over `store-listing.json` — every string value at every depth, compiled from `out-of-scope-claims.json` with `new RegExp(src, 'i')`. Failure names **both** the matched term and the field path it appeared in (`stores.ios.description matches \btuning presets?\b`); a gate that names only the term makes a 4000-character field a search problem (FR-093, FR-110).
-- [ ] T018 [US1] Implement L6 — claim coverage, not string equality: every claim in `claims` appears in some phrasing in both stores' copy, and neither store asserts something absent from `claims`. Byte comparison would either fail always or force copy that wastes one store's fields (spec edge case 1). Record here how "appears in some phrasing" is decided, because that decision is the check (FR-095, FR-112).
-- [ ] T019 [US1] Implement L7 — every claim in `claims` is corroborated by the **rendered text of `apps/web/dist/index.html`**: strip tags and `<script>`/`<style>` contents from the built document, then match. **Not `apps/web/src/content.ts`.** Comparing the listing against the constant that produces the web page proves two constants are equal and proves nothing about what shipped. Fail with a clear message when `dist/index.html` is absent, naming `pnpm build` as the fix (FR-094, FR-112, L7).
+- [X] T014 [US1] Implement L1 in `listing/scripts/verify-listing.mjs` — every field in `stores.ios` and `stores.android` is non-empty after trimming and at most its limit from `limits.json`, **counted in Unicode code points** (`[...str].length`), not UTF-16 units and not bytes; the three disagree about an emoji in a 30-character store name. Failure message names the field, its actual count, and the limit: `stores.ios.subtitle is 34 characters, limit 30`. Expected first-run failure: `stores.ios is missing` (FR-109).
+- [X] T015 [P] [US1] Implement L2 — `stores.ios.name` and `stores.android.title` each contain `tuner` and at least one of `guitar`/`chromatic`, and neither equals `claims.appName` alone. The check is deliberately weak: it cannot judge copy, only catch a regression to a bare codename, which is the failure it exists for (FR-089).
+- [X] T016 [P] [US1] Implement L4 — the first `limits.ios.descriptionOpening` characters of `stores.ios.description` and the first `limits.android.descriptionOpening` of `stores.android.fullDescription` each mention the instrument, the microphone, and that the app is free (FR-091). Failure names which of the three is missing from which opening.
+- [X] T017 [P] [US1] Implement L5 over `store-listing.json` — every string value at every depth, compiled from `out-of-scope-claims.json` with `new RegExp(src, 'i')`. Failure names **both** the matched term and the field path it appeared in (`stores.ios.description matches \btuning presets?\b`); a gate that names only the term makes a 4000-character field a search problem (FR-093, FR-110).
+- [X] T018 [US1] Implement L6 — claim coverage, not string equality: every claim in `claims` appears in some phrasing in both stores' copy, and neither store asserts something absent from `claims`. Byte comparison would either fail always or force copy that wastes one store's fields (spec edge case 1). Record here how "appears in some phrasing" is decided, because that decision is the check (FR-095, FR-112).
+- [X] T019 [US1] Implement L7 — every claim in `claims` is corroborated by the **rendered text of `apps/web/dist/index.html`**: strip tags and `<script>`/`<style>` contents from the built document, then match. **Not `apps/web/src/content.ts`.** Comparing the listing against the constant that produces the web page proves two constants are equal and proves nothing about what shipped. Fail with a clear message when `dist/index.html` is absent, naming `pnpm build` as the fix (FR-094, FR-112, L7).
 
 ### Implementation for User Story 1
 
-- [ ] T020 [US1] Author `stores.ios` in `listing/store-listing.json` — `name` (≤30, leads with the intent terms), `subtitle` (≤30, extends the name rather than repeating its words), `promotionalText` (≤170), `description` (≤4000, opening carries purpose, cost, and microphone before the fold), `keywords` (≤100, comma-separated **with no space after each comma** — the separator costs a character, and words already in `name`/`subtitle` are indexed and must not be repeated here) (FR-089–FR-092).
-- [ ] T021 [US1] Author `stores.android` — `title` (≤30), `shortDescription` (≤80), `fullDescription` (≤4000, carrying the discovery terms in prose because Play has no keyword field). Same substance as iOS, phrased for Play's field structure; a substantive difference is a defect T018 must catch (FR-090–FR-092, FR-095).
-- [ ] T022 [US1] Add `primaryCategory`, `secondaryCategory`, and `ageRating` to `stores.ios`, and `category` and `contentRating` to `stores.android`, each derived from the app's actual content and **recorded, not computed** — the questionnaires are answered in a console and their outcome is what lives here (FR-096).
-- [ ] T023 [US1] Run `pnpm build && pnpm verify:listing` and record the printed counts here. Every check from T014–T019 green (V30).
-- [ ] T024 [US1] Re-read the finished copy against `001`'s out-of-scope list by eye, including inside negations — "no presets needed" names a preset and FR-093 forbids it including inside a negation. Record the pass here; T017 catches the vocabulary, not the intent behind a sentence that dodges it.
+- [X] T020 [US1] Author `stores.ios` in `listing/store-listing.json` — `name` (≤30, leads with the intent terms), `subtitle` (≤30, extends the name rather than repeating its words), `promotionalText` (≤170), `description` (≤4000, opening carries purpose, cost, and microphone before the fold), `keywords` (≤100, comma-separated **with no space after each comma** — the separator costs a character, and words already in `name`/`subtitle` are indexed and must not be repeated here) (FR-089–FR-092).
+- [X] T021 [US1] Author `stores.android` — `title` (≤30), `shortDescription` (≤80), `fullDescription` (≤4000, carrying the discovery terms in prose because Play has no keyword field). Same substance as iOS, phrased for Play's field structure; a substantive difference is a defect T018 must catch (FR-090–FR-092, FR-095).
+- [X] T022 [US1] Add `primaryCategory`, `secondaryCategory`, and `ageRating` to `stores.ios`, and `category` and `contentRating` to `stores.android`, each derived from the app's actual content and **recorded, not computed** — the questionnaires are answered in a console and their outcome is what lives here (FR-096).
+- [X] T023 [US1] Run `pnpm build && pnpm verify:listing` and record the printed counts here. Every check from T014–T019 green (V30).
+- [X] T024 [US1] Re-read the finished copy against `001`'s out-of-scope list by eye, including inside negations — "no presets needed" names a preset and FR-093 forbids it including inside a negation. Record the pass here; T017 catches the vocabulary, not the intent behind a sentence that dodges it.
 
-**Checkpoint**: the listing has words. A store could be filled in from `store-listing.json` today, and the gate proves the fields fit.
+**Checkpoint**: the listing has words. A store could be filled in from `store-listing.json` today, and the gate proves the fields fit. ✅ **Reached 2026-08-05 — MVP.**
+
+### Phase 3 results — 2026-08-05
+
+**T023 — V30, the whole automated surface green** (`pnpm build && pnpm verify:listing`):
+
+```
+claims: 25 fields ok
+fields: 8 ok
+names: 2 ok
+openings: 2 ok
+vocabulary: 38 strings clean
+agreement: 7 claims × 2 stores
+corroboration: 7 corroborated
+```
+
+**Field lengths against their limits** — nothing is close except `promotionalText`, which is the field
+Apple lets you edit without review, so it is the cheapest one to be near:
+
+| Field | Count | Limit |
+| --- | --- | --- |
+| `ios.name` | 23 | 30 |
+| `ios.subtitle` | 23 | 30 |
+| `ios.promotionalText` | 166 | 170 |
+| `ios.description` | 1,634 | 4,000 |
+| `ios.keywords` | 78 | 100 |
+| `android.title` | 22 | 30 |
+| `android.shortDescription` | 69 | 80 |
+| `android.fullDescription` | 1,512 | 4,000 |
+
+**T018/T019 — how "appears in some phrasing" is decided, because that decision is the check.**
+
+A claim is not a string to be matched. The two stores' field structures differ by design, so byte
+comparison would either fail always or force copy that wastes one store's fields. Each claim is
+therefore restated in `claims.corroboration` as a **concept plus the phrasings that count as saying
+it**, and both L6 and L7 ask whether every concept is present:
+
+| Concept | Accepted phrasings |
+| --- | --- |
+| it tunes a guitar | `guitar` |
+| it is chromatic — it names whatever note it hears | `chromatic` |
+| it costs nothing | `free` |
+| it listens through the microphone | `microphone` |
+| the audio is analysed on the device | `on your device`, `on your own device`, `on this device`, `in the browser` |
+| nothing is recorded, stored, or sent anywhere | `never recorded`, `not recorded` |
+| it keeps working with no network connection | `no network connection`, `no network`, `offline` |
+
+Substring matching is deliberate here and word-boundary matching is deliberate in L5. The asymmetry is
+the point: L5 forbids terms, so a false positive on innocent prose gets it muted; L6 and L7 require
+terms, so the risk runs the other way and a looser match is the safe direction.
+
+**Adding a claim to a listing now means adding it here, which means the web page has to say it too.**
+That is the coupling FR-094 asks for, made structural rather than editorial.
+
+**Deviation, stated rather than hidden: L6's reverse direction is not automated.** The contract's L6 has
+two halves — every claim appears in both stores (implemented), and *no store asserts something absent
+from `claims`* (not implemented). The second is not decidable by a program reading prose. Its automated
+half is the `vocabulary` group; its honest other half is T024's read-through. The check says so in its
+own comment. A green report over a question never asked is what `003`'s D8 rejected, and writing one
+here would have been the same mistake.
+
+**T014–T019 were observed failing before the copy existed**, as required:
+
+```
+fields: 1 problem
+  store-listing.json has no `stores` object
+names: 0 ok
+openings: 0 ok
+agreement: 1 problem
+  claims.corroboration is missing or empty
+corroboration: 1 problem
+  claims.corroboration is missing or empty
+```
+
+**A defect caught in the gate's own reporting, worth recording.** The first version of `names` and
+`openings` printed `2 ok` on that run — they skipped absent fields as "L1's problem to report" but still
+counted them as checked. That is precisely the assertion-satisfied-by-the-wrong-thing shape this file
+opens by warning about, in the reporting rather than in the assertion: a reviewer scanning a red run
+would have read `names: 2 ok` and believed two names had been checked when neither existed. Fixed to
+count only what was actually evaluated, hence the `0 ok` above. **Not checked is not the same as ok**,
+and a count line that conflates them is worse than no count line.
+
+**Two smoke probes, because L7's failure mode is silent** (the formal set is T051–T057):
+
+| Probe | Result |
+| --- | --- |
+| Add a concept the web page does not say (`it has a built-in strobe display`) | `agreement` names both stores, `corroboration` names the built page — 3 failures |
+| Append 8 characters to `stores.ios.subtitle` | `stores.ios.subtitle is 31 characters, limit 30` |
+
+**T024 — the read-through found what the vocabulary could not, again.**
+
+The iOS description said *"There is no sign-up and nothing to create."* The pattern list forbids
+`\bsign-?in\b` and says nothing about **sign-up** — so the gate passed it. It is the identical defect
+the `account` pattern caught in Phase 2, one word outside the list's reach: a negation that names the
+capability it denies.
+
+Two changes, not one:
+
+1. The copy now reads *"the app asks for the microphone and nothing else. There is nothing to create and
+   nothing to join."*
+2. **`\bsign-?up\b` added to `out-of-scope-claims.json`** with the reason recorded, because the hole was
+   in the shared list rather than in the copy. Adding it turned the gate red on the draft before the
+   copy was fixed, which is the demonstration:
+
+```
+vocabulary: 1 problem
+  stores.ios.description claims a capability 001 put out of scope — matches \bsign-?up\b
+```
+
+The list is now **fourteen** patterns, not thirteen. `apps/web/e2e/metadata.spec.ts` reads the same file
+and stays green — the web page never says it.
+
+Everything else in the copy was checked by eye against `001`'s out-of-scope list, including inside
+negations: no presets, no per-string targets, no custom tunings, no reference **tone** (the reference
+*pitch* range of 415–466 Hz is a shipped feature and a different thing), no capo, no transposition, no
+metronome, no chord library, no accounts, no sync. Pricing negations — "no purchases inside the app, no
+advertising, no paid tier" — name commercial arrangements rather than capabilities `001` ruled out, and
+stay.
+
+**One check added beyond the task text, recorded rather than smuggled.** FR-092's rule that the iOS
+keyword field must not repeat words already indexed in `name` and `subtitle` was written into T020 as an
+authoring constraint with nothing verifying it. It is now part of the `names` group, along with a check
+that no keyword carries whitespace around it — the separator costs a character out of 100. Its failure
+mode is invisible without a check (the listing still works, it just competes for fewer queries than it
+paid for), which is exactly the rot US4 exists to prevent. Probed:
+
+```
+names: 2 problems
+  stores.ios.keywords repeats "tuner", which stores.ios.name or .subtitle already indexes
+  stores.ios.keywords has whitespace around "note" — the separator costs a character out of 100
+```
+
+**All other gates unchanged**: lint, format, typecheck 5/5, 430 unit, 69 mobile / 10 suites, 107 e2e.
 
 ---
 

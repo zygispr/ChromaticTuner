@@ -49,6 +49,10 @@
       "reason": "There are no accounts. Nothing to sign in to."
     },
     {
+      "source": "\\bsign-?up\\b",
+      "reason": "The same capability as sign-in from the other side, and the word the copy reaches for first when boasting about not having one. Added in 004 after a draft iOS description said 'there is no sign-up' — the same negation defect the account pattern had already caught once, in a word the list did not yet cover."
+    },
+    {
       "source": "\\baccounts?\\b",
       "reason": "Accounts are out of scope in 001, and claiming one would also contradict the store privacy declaration (FR-103)."
     },
