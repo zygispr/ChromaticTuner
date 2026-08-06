@@ -100,15 +100,25 @@ export function TuningLine({ state, subscribeToCents }: TuningLineProps) {
 
       {/* The line itself. */}
       <div
+        data-testid="tuning-rule"
         style={{
           position: 'absolute',
           left: 0,
           right: 0,
           top: '50%',
-          height: 2,
+          // 4, not 2. FR-021 calls this the dominant element of the screen and
+          // FR-017 wants it read from a metre; at 2px it was the faintest thing
+          // on the display.
+          height: 4,
           transform: 'translateY(-50%)',
+          // NO opacity multiplier. It was 0.6, which composited `line` down to
+          // 2.14:1 against the background — under the 3:1 floor WCAG 2.1 1.4.11
+          // sets for a meaningful graphic. Nothing could see it: the tokens
+          // package checks the palette (3.8:1, fine) and Axe's contrast rule
+          // covers text only. The FLAT/SHARP labels below carry a comment about
+          // this exact bug being caught in THEIR opacity; the graphics beside
+          // them kept it. `a11y.spec.ts` now composites and measures.
           background: themedVar('line'),
-          opacity: 0.6,
         }}
       />
 

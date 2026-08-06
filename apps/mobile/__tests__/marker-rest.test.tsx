@@ -1,5 +1,6 @@
 import type { TuningState } from '@chromatic-tuner/core';
 import { render } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 
 /**
  * User Story 2 on mobile (T021): the marker is told to return to rest when the
@@ -119,5 +120,41 @@ describe('marker rest on lapse (FR-043, FR-044)', () => {
     const last = timingTargets[timingTargets.length - 1];
     expect(last).toBeDefined();
     expect(last!).toBeGreaterThan(5);
+  });
+});
+
+/**
+ * The ruler is never dimmed (FR-017, FR-021, WCAG 2.1 1.4.11).
+ *
+ * jest has no compositor, so this cannot measure the rendered contrast the way
+ * `a11y.spec.ts` does on web. What it CAN do is forbid the mechanism: the rule
+ * and its ticks were dimmed to 0.6 and 0.5, which composited `line` to 2.14:1
+ * and 1.85:1 against a 3:1 floor. Nothing caught it — the tokens package checks
+ * the palette, and Axe's contrast rule covers text only.
+ *
+ * So an `opacity` on either is a failure by construction here. The hierarchy
+ * between major and minor ticks is carried by size, which costs no contrast.
+ */
+describe('the tuning ruler carries no opacity multiplier', () => {
+  it('leaves the rule and every tick at full strength', async () => {
+    const { view } = await renderLine('in-tune');
+
+    // Walk the rendered tree rather than querying by type: every node in this
+    // subtree is part of the ruler, and a dimmed one anywhere is the defect.
+    const dimmed: number[] = [];
+    const walk = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      const element = node as { props?: { style?: unknown }; children?: unknown[] };
+      const style = StyleSheet.flatten(element.props?.style) as { opacity?: number } | undefined;
+      if (style?.opacity !== undefined && style.opacity < 1) dimmed.push(style.opacity);
+      for (const child of element.children ?? []) walk(child);
+    };
+    walk(view.toJSON());
+
+    // The in-tune band is a soft zone behind the marker and is deliberately
+    // translucent — its meaning is redundant with the marker, the cents readout
+    // and the direction cue, so 1.4.11 does not bind it. Anything ELSE dimmed
+    // is the defect this guards.
+    expect(dimmed.filter((o) => o !== 0.12 && o !== 0.28)).toEqual([]);
   });
 });

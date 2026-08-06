@@ -20,10 +20,11 @@ export function TickMark({ cents, major = false }: TickMarkProps) {
         styles.tick,
         {
           left: `${percent}%`,
-          width: major ? 2 : 1,
+          // Was 2/1 with a 0.5 dim on minors, which composited to 1.85:1
+          // against the 3:1 graphic floor. Size carries the hierarchy instead.
+          width: major ? 3 : 2,
           height: major ? 28 : 16,
           backgroundColor: colors.line,
-          opacity: major ? 0.9 : 0.5,
         },
       ]}
     />
