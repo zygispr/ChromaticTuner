@@ -7,7 +7,15 @@ import {
 import { usePreferences } from '@chromatic-tuner/react';
 import { a11y, motion, space, type as typeTokens } from '@chromatic-tuner/tokens';
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -41,6 +49,31 @@ const APPEARANCE_OPTIONS: Array<{ value: AppearancePreference; label: string }> 
 
 /** How far one press of the stepper moves the reference pitch. */
 const STEP_HZ = 1;
+
+/**
+ * How far to lift `−` and `+` so they sit on the centre of their buttons.
+ *
+ * Centring a Text centres its LINE BOX, and a mathematical operator is not in
+ * the middle of its own: it is drawn on the font's math axis, which sits below
+ * the box centre because the box reserves room for descenders these marks do
+ * not have. Both marks therefore rendered low inside a correctly centred
+ * button — visible enough that someone reported it from across a room.
+ *
+ * Measured with CoreText on the system font at this stepper's 32pt: the math
+ * axis is 9.141pt above the baseline and the line box centres 12.094pt above
+ * it, so the mark is 2.953pt low — 0.092em, and 0.094em at 16pt, which makes it
+ * a fraction of the font size rather than a fixed distance. Both glyphs share
+ * one math axis, so one correction serves the pair; correcting them separately
+ * would misalign them with each other.
+ *
+ * iOS only, and not out of caution: Roboto centres these glyphs to within
+ * 0.012em and misses in opposite directions for `−` and `+`, so this
+ * correction would there introduce roughly three times the error it removes.
+ * Measure per font before extending it to one.
+ *
+ * Signed as a `translateY`: negative is up.
+ */
+const MARK_OPTICAL_LIFT = Platform.select({ ios: -0.092 * typeTokens.centsSize, default: 0 });
 
 /**
  * How far below its resting place the sheet starts, in points.
@@ -445,6 +478,11 @@ const styles = StyleSheet.create({
   },
   stepLabel: {
     fontSize: typeTokens.centsSize,
+    // A transform rather than a margin: this moves the mark only, leaving the
+    // 44pt touch target where a11y put it (a11y.minTouchTarget). The value is
+    // already signed — negative is up — so a platform with nothing to correct
+    // gets exactly 0 rather than the -0 that negating one here would produce.
+    transform: [{ translateY: MARK_OPTICAL_LIFT }],
   },
   value: {
     fontSize: typeTokens.centsSize,
