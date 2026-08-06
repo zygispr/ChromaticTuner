@@ -55,7 +55,9 @@ for (const scheme of ['light', 'dark'] as const) {
     const sheetBackground = await page
       .getByTestId('settings-sheet')
       .evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(sheetBackground).toBe(toRgb(color.background[scheme]));
+    // The sheet is a RAISED surface, so it has its own token — in dark it is
+    // lighter than the screen behind it, which is the only thing that says so.
+    expect(sheetBackground).toBe(toRgb(color.surface[scheme]));
   });
 }
 
@@ -114,7 +116,7 @@ for (const [device, chosen] of [
       await page
         .getByTestId('settings-sheet')
         .evaluate((el) => getComputedStyle(el).backgroundColor)
-    ).toBe(toRgb(color.background[chosen]));
+    ).toBe(toRgb(color.surface[chosen]));
 
     await page.getByTestId('settings-close').click();
     expect(await backgroundOf(page)).toBe(toRgb(color.background[chosen]));
@@ -633,7 +635,7 @@ for (const scheme of ['light', 'dark'] as const) {
     expect(
       await rendered('accidental-flat'),
       'the unchosen option paints something other than the sheet beneath it'
-    ).toBe(toRgb(color.background[scheme]));
+    ).toBe(toRgb(color.surface[scheme]));
     expect(
       await rendered('accidental-sharp'),
       'the two options render the same surface, so only the stroke tells them apart'

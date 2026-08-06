@@ -133,6 +133,16 @@ synchronous route there:**
 widgets — most visibly the settings sheet's `<input type="range">` — keep following the OS after the
 user has overridden it.
 
+**Elevation in dark is lightness, not shadow.** A raised surface uses the `surface` token, which is
+identical to `background` in light — the scrim already separates the settings sheet there by ΔL\* 41 —
+and lighter than it in dark, where a scrim has nothing to darken towards and a black shadow on a
+near-black screen is invisible. The sheet also draws a `line` edge, so the separation survives greyscale.
+Judge dark surfaces by perceptual lightness, not contrast ratio: the `+0.05` in the WCAG formula
+dominates near black, so a clearly visible step reads as ~1.3:1 and an invisible one as ~1.04:1.
+
+`color.background` is embedded in the generated app icons, so changing it makes `pnpm verify:listing`
+fail on artwork drift. `pnpm listing:assets` regenerates them.
+
 On the web, nothing currently reads the resolved `appearance` in JavaScript: every colour arrives as
 `var(--ct-*)`, and following the device is the stylesheet's job. `useDeviceAppearance` exists to keep the
 published context value truthful, not because a component consumes it.

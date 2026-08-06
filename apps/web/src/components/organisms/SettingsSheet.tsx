@@ -130,10 +130,22 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
           flexDirection: 'column',
           gap: `${space.lg}px`,
           padding: `${space.lg}px ${space.md}px ${space.xl}px`,
-          background: themedVar('background'),
+          // `surface`, not `background`: the sheet is raised, and in dark the
+          // only thing that says so is being lighter. Painted in `background`
+          // it stood ΔL* 2.0 clear of the dimmed tuner — invisible — against
+          // 41.5 in light, where the scrim does the work instead.
+          background: themedVar('surface'),
           color: themedVar('text'),
           borderTopLeftRadius: space.md,
           borderTopRightRadius: space.md,
+          // A second channel, so the sheet's edge does not depend on the
+          // luminance step surviving a future retune of the palette — and so it
+          // survives greyscale. Top only: the sheet is anchored to the bottom
+          // and spans the full width, so the other three edges are off-screen.
+          borderTop: `1px solid ${themedVar('line')}`,
+          // Kept for light, where it reads. In dark it is black on a lighter
+          // surface and contributes nothing, which is why it was never the
+          // thing holding the sheet apart from the screen behind it.
           boxShadow: `0 -8px 32px ${themedVar('scrim')}`,
           transition: `transform ${motion.colorMs}ms ${motion.easing}`,
         }}

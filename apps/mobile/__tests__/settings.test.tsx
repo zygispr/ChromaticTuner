@@ -302,14 +302,14 @@ describe('SettingsScreen (T088)', () => {
         }
       ).backgroundColor;
 
-    expect(sheetBackground()).toBe(color.background.light);
+    expect(sheetBackground()).toBe(color.surface.light);
 
     await press('appearance-dark');
 
     expect(screen.getByTestId('appearance-dark').props.accessibilityState.selected).toBe(true);
     expect(screen.getByTestId('appearance-system').props.accessibilityState.selected).toBe(false);
     // The rendered colours moved, not just the selected flag.
-    expect(sheetBackground()).toBe(color.background.dark);
+    expect(sheetBackground()).toBe(color.surface.dark);
     // US1 does not claim persistence, but the choice must at least reach the
     // provider as the CHOICE — 'dark', not the light it was resolved against.
     expect((await store.load())?.appearance).toBe('dark');
@@ -326,13 +326,13 @@ describe('SettingsScreen (T088)', () => {
           backgroundColor?: string;
         }
       ).backgroundColor;
-    expect(sheetBackground()).toBe(color.background.light);
+    expect(sheetBackground()).toBe(color.surface.light);
 
     await press('appearance-system');
 
     // Back under the device's control, which is dark — so this only passes if
     // 'system' resolves live rather than freezing what it replaced.
-    expect(sheetBackground()).toBe(color.background.dark);
+    expect(sheetBackground()).toBe(color.surface.dark);
   });
 
   it('marks the chosen appearance with the same fill the accidentals use (FR-126)', async () => {
@@ -421,7 +421,7 @@ describe('SettingsScreen (T088)', () => {
           backgroundColor?: string;
         }
       ).backgroundColor
-    ).toBe(color.background.dark);
+    ).toBe(color.surface.dark);
 
     // ...and the user is told it will not survive, through the surface that
     // already existed.

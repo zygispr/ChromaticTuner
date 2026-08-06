@@ -953,6 +953,89 @@ much as the code is.
 
 ---
 
+## Defect — the settings sheet was invisible in dark (2026-08-06, reported after Phase 6)
+
+**Reported**: "the dark mode is way too dark. It's barely visible that settings slideout is a slideout
+in dark mode."
+
+Both halves were true, and the second was measurable.
+
+### What was wrong
+
+The sheet painted itself in `background` — the *same* token as the screen behind it — and relied
+entirely on the scrim for separation. That works in light and cannot work in dark:
+
+| | page | dimmed by scrim | sheet | separation |
+| --- | --- | --- | --- | --- |
+| light | `#FCFCFD` L\* 99.0 | L\* 57.5 | `#FCFCFD` L\* 99.0 | **ΔL\* 41.5** |
+| dark (before) | `#0B0B0F` L\* 3.1 | L\* 1.1 | `#0B0B0F` L\* 3.1 | **ΔL\* 2.0** |
+
+A scrim *darkens*, and there was almost nothing below `#0B0B0F` to darken towards. The `box-shadow`
+contributed nothing either — black on near-black. **Dark mode had no elevation signal at all.**
+
+Contrast *ratio* is the wrong instrument here and hid the problem: the `+0.05` term in the WCAG formula
+dominates when both luminances are near zero, so even a clearly visible dark step reads as ~1.3:1. The
+measurements above are perceptual lightness (CIE L\*), where ~5 is a distinct surface.
+
+### The fix
+
+- **`background.dark` `#0B0B0F` → `#121419`** (L\* 3.1 → 6.3). The old value was darker than either
+  platform's baseline — Material's dark surface is `#121212`, L\* 6.5.
+- **New `surface` token**, `#FCFCFD` light / `#1F232B` dark. The sheet is now ΔL\* 11.5 above the dimmed
+  tuner. Light is deliberately identical to `background`: there the scrim already gives ΔL\* 41.5, and a
+  second value would be a difference with no purpose.
+- **`selected.dark` `#23262E` → `#2E333D`**, because the chosen-option tint would otherwise have been a
+  step *down* from the surface it tints.
+- **A 1px `line` edge along the sheet's top**, on both platforms — a second channel, so the sheet keeps
+  reading as a sheet under greyscale and after any future retune of these values.
+
+Every AA constraint still holds; the lift *reduces* contrast against the background, so it was checked
+before being committed to rather than after. Tightest margins: `flat` 5.91:1 against a 4.5 floor, `line`
+3.81:1 against 3.0 (3.26:1 on the raised surface).
+
+### The contrast test was measuring the wrong pair
+
+`keeps the selected fill a tint, not an inversion` asserted `selected` against **`background`**, while
+its own comment says "the surface". Those were the same colour, so it passed and meant nothing. The
+options only ever appear inside the sheet, so it now measures against `surface` — and would have failed
+if the tint had not been raised alongside it. Also added: `line` and every text colour against
+`surface`.
+
+### `verify:listing` caught what a human review would not have
+
+The generated app icons embed the background colour, and the gate compares artwork against the built
+token block:
+
+```
+artwork: 2 problems
+  apps/web/public/icon-maskable.svg uses #0B0B0F, which is not a --ct-* token value
+  apps/web/public/icon.svg uses #0B0B0F, which is not a --ct-* token value
+```
+
+`pnpm listing:assets` regenerated five artefacts. Back to `artwork: 5 scanned`, and `verify:listing` is
+red on exactly the three pre-existing Android screenshot problems from the T001 baseline — nothing more.
+
+**This is the second time in this feature that `listing/` turned out to be downstream of something the
+plan said it would not touch.** Plan §Technical Context states the feature "does not touch
+`packages/tokens` or `listing/`". It now touches both. That was the right call for a real defect, but
+the claim in the plan is no longer true.
+
+### Verification
+
+`pnpm test` **474** (was 462) · `test:e2e` **139** · mobile jest **92** · coverage 100% lines / 95%
+branches · typecheck, lint, format, build green.
+
+One e2e failure during the change was a correct one: `the chosen accidental is filled, not outlined, in
+dark` resolves an unchosen option's *rendered* backdrop up to the first painted ancestor, which is now
+`surface`. Updated, and the assertion is unweakened.
+
+Light and dark screenshots recaptured on web and compared: light is unchanged, dark now reads as a
+raised sheet. **The mobile sheet is verified by test rather than by eye** — jest asserts
+`color.surface[theme]` on the sheet in both appearances, but the simulator cannot be driven to open the
+sheet (no `simctl` input injection), which is the same limitation T057 records.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
