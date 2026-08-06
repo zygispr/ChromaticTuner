@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
-import { audioArgs, waitForNote } from './helpers';
+import { activeTestId, audioArgs, openSettings, waitForNote } from './helpers';
 
 test.use(audioArgs('e2-in-tune.wav'));
 
@@ -546,3 +546,178 @@ for (const scheme of ['light', 'dark'] as const) {
     }
   });
 }
+
+/**
+ * V52–V53 (006, US2) — the sheet claims `aria-modal` and must earn it (K4–K7).
+ *
+ * Reported defect 1. `aria-modal="true"` contains assistive technology and the
+ * full-viewport scrim contains the pointer, but nothing owned the keyboard: Tab
+ * walked straight out onto the controls behind the scrim.
+ *
+ * The control list is read from the DOM on every use rather than hard-coded at
+ * eight, which is K5 applied to the test itself — the assertion keeps its
+ * meaning if the sheet ever gains or loses a control.
+ */
+const FOCUSABLE_SELECTOR =
+  'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])';
+
+async function sheetControls(page: Page): Promise<string[]> {
+  return page.evaluate((selector) => {
+    const sheet = document.querySelector('[data-testid="settings-sheet"]');
+    if (!sheet) return [];
+    return [...sheet.querySelectorAll<HTMLElement>(selector)]
+      .filter((el) => !el.hasAttribute('disabled'))
+      .map((el) => el.getAttribute('data-testid') ?? el.tagName);
+  }, FOCUSABLE_SELECTOR);
+}
+
+/**
+ * Structural containment, asked of the DOM rather than of a name.
+ *
+ * `activeTestId` says WHICH element holds focus, which is what makes a failure
+ * readable; this says whether it is inside the sheet at all. Both are asserted
+ * because they fail differently — a trap that wraps to the wrong control passes
+ * this one, and focus resting on an unnamed element passes the other.
+ */
+async function activeIsInSheet(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const sheet = document.querySelector('[data-testid="settings-sheet"]');
+    return Boolean(sheet && document.activeElement && sheet.contains(document.activeElement));
+  });
+}
+
+test('V52 — Tab cannot leave the open sheet, and wraps in one press (FR-135, FR-136, K4, K6, SC-058)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+  await openSettings(page);
+
+  const controls = await sheetControls(page);
+  expect(controls.length, 'the sheet reported no focusable controls').toBeGreaterThan(2);
+
+  const first = controls[0]!;
+  const last = controls[controls.length - 1]!;
+
+  // In ONE press. A native modal `<dialog>` lands on BODY first and only then
+  // returns, which is why it does not satisfy K6 (research D2, measured).
+  await page.getByTestId(last).focus();
+  await page.keyboard.press('Tab');
+  expect(await activeTestId(page), 'Tab from the last control did not wrap to the first').toBe(
+    first
+  );
+
+  await page.getByTestId(first).focus();
+  await page.keyboard.press('Shift+Tab');
+  expect(
+    await activeTestId(page),
+    'Shift+Tab from the first control did not wrap to the last'
+  ).toBe(last);
+
+  // The over-eager-`preventDefault` guard: a handler that cancels every Tab
+  // contains focus perfectly and makes the sheet untraversable. Only a press in
+  // the MIDDLE can tell the two apart — at either end both behave alike.
+  const middle = Math.floor(controls.length / 2);
+  expect(middle, 'the sheet needs three controls for a middle').toBeLessThan(controls.length - 1);
+  await page.getByTestId(controls[middle]!).focus();
+  await page.keyboard.press('Tab');
+  expect(
+    await activeTestId(page),
+    `Tab in the middle of the sheet did not advance one control from ${controls[middle]}`
+  ).toBe(controls[middle + 1]!);
+
+  // A lap and a half, asserting EVERY intermediate stop. A count equal to the
+  // control count would pass on an implementation that happens to land back
+  // inside on the last press.
+  await page.getByTestId(first).focus();
+  for (let press = 1; press <= controls.length * 2; press += 1) {
+    await page.keyboard.press('Tab');
+    const landed = await activeTestId(page);
+    expect(controls, `press ${press} landed on ${landed}, which is not a sheet control`).toContain(
+      landed
+    );
+    expect(await activeIsInSheet(page), `press ${press} left the sheet, landing on ${landed}`).toBe(
+      true
+    );
+  }
+});
+
+const CLOSERS = [
+  { name: 'Done', close: (page: Page) => page.getByTestId('settings-close').click() },
+  { name: 'Escape', close: (page: Page) => page.keyboard.press('Escape') },
+  {
+    name: 'a backdrop press',
+    close: async (page: Page) => {
+      await page.mouse.move(20, 20);
+      await page.mouse.down();
+      await page.mouse.up();
+    },
+  },
+] as const;
+
+for (const { name, close } of CLOSERS) {
+  test(`V53 — closing with ${name} returns focus to the opener (FR-138, K7)`, async ({ page }) => {
+    await page.goto('/');
+    await waitForNote(page, 'E');
+
+    // Focus the opener FIRST. Reading `activeTestId` on a freshly loaded page
+    // returns BODY — nothing is focused yet — and a V53 that captured BODY
+    // would assert exactly what the unfixed build already does, and pass.
+    await page.keyboard.press('Tab');
+    await expect(page.getByTestId('reference-badge')).toBeFocused();
+
+    // Read what is focused rather than naming it. There is only one opener
+    // today, so an implementation that hard-codes `reference-badge` cannot be
+    // distinguished by any assertion that also hard-codes it.
+    const opener = await activeTestId(page);
+
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('settings-sheet')).toBeVisible();
+    await expect(page.getByTestId('settings-close')).toBeFocused();
+
+    await close(page);
+    await expect(page.getByTestId('settings-sheet')).toHaveCount(0);
+
+    expect(await activeTestId(page), `closing with ${name} discarded focus`).toBe(opener);
+  });
+}
+
+/**
+ * The automatable half of K8 — a non-regression pin, not a regression test.
+ *
+ * These two channels are the ones this feature does NOT implement: `aria-modal`
+ * contains assistive technology and the scrim contains the pointer, and both
+ * predate `006`. They pass on today's code, which is the point — FR-144 says
+ * the fix must not cost what already worked, and the trap and the scroll lock
+ * both land on the elements these assert.
+ *
+ * Whether a screen reader HONOURS `aria-modal` is not observable here. Axe
+ * checks the attribute is present, not that a cursor obeys it, which is why
+ * V57 stays a manual gate (SC-060).
+ */
+test('the sheet declares itself modal and the scrim covers the viewport (FR-136, FR-144, K8)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+  await openSettings(page);
+
+  const sheet = page.getByTestId('settings-sheet');
+  await expect(sheet).toHaveAttribute('role', 'dialog');
+  await expect(sheet).toHaveAttribute('aria-modal', 'true');
+
+  const backdrop = await page.getByTestId('settings-backdrop').boundingBox();
+  expect(backdrop, 'the backdrop has no box').not.toBeNull();
+
+  const viewport = await page.evaluate(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }));
+
+  // Covering, not merely present: a scrim that stops short of an edge leaves a
+  // strip of live controls behind it.
+  expect(backdrop!.x).toBeLessThanOrEqual(0);
+  expect(backdrop!.y).toBeLessThanOrEqual(0);
+  expect(backdrop!.width).toBeGreaterThanOrEqual(viewport.width);
+  expect(backdrop!.height).toBeGreaterThanOrEqual(viewport.height);
+});

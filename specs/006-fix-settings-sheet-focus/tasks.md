@@ -308,18 +308,98 @@ first rather than reaching anything behind the scrim; close and confirm focus is
 
 > All three land in `apps/web/e2e/a11y.spec.ts`, so they are sequential, not parallel.
 
-- [ ] T012 [US2] Write V52 in `apps/web/e2e/a11y.spec.ts` — derive the focusable list from the DOM inside `settings-sheet` rather than hard-coding a count (K5); assert `Tab` from the last lands on the first, `Shift+Tab` from the first lands on the last, `Tab` from the **middle** advances exactly one control (the over-eager-`preventDefault` guard), and that 2× the control count of `Tab` presses never once leaves the sheet (K4, K6, FR-135, FR-136, SC-058)
-- [ ] T013 [US2] Write V53 in `apps/web/e2e/a11y.spec.ts` — read `activeTestId(page)` **before** opening and assert the restore matches that captured value rather than the literal `reference-badge`; cover all three closes: `settings-close`, `Escape`, and a backdrop press (K7, FR-138)
-- [ ] T014 [US2] Write the automatable half of K8 in `apps/web/e2e/a11y.spec.ts` — `settings-sheet` carries `aria-modal="true"`, and `settings-backdrop`'s bounding box covers the full viewport. Expected to pass immediately; it is a non-regression pin on the two channels this feature is **not** implementing (FR-136, FR-144)
-- [ ] T015 [US2] Run `apps/web/e2e/a11y.spec.ts`, **observe V52 and V53 fail**, and record the output in this file — V52 should reach `reference-badge` or `microphone-toggle`, V53 should report `BODY`
+- [X] T012 [US2] Write V52 in `apps/web/e2e/a11y.spec.ts` — derive the focusable list from the DOM inside `settings-sheet` rather than hard-coding a count (K5); assert `Tab` from the last lands on the first, `Shift+Tab` from the first lands on the last, `Tab` from the **middle** advances exactly one control (the over-eager-`preventDefault` guard), and that 2× the control count of `Tab` presses never once leaves the sheet (K4, K6, FR-135, FR-136, SC-058)
+- [X] T013 [US2] Write V53 in `apps/web/e2e/a11y.spec.ts` — read `activeTestId(page)` **before** opening and assert the restore matches that captured value rather than the literal `reference-badge`; cover all three closes: `settings-close`, `Escape`, and a backdrop press (K7, FR-138)
+- [X] T014 [US2] Write the automatable half of K8 in `apps/web/e2e/a11y.spec.ts` — `settings-sheet` carries `aria-modal="true"`, and `settings-backdrop`'s bounding box covers the full viewport. Expected to pass immediately; it is a non-regression pin on the two channels this feature is **not** implementing (FR-136, FR-144)
+- [X] T015 [US2] Run `apps/web/e2e/a11y.spec.ts`, **observe V52 and V53 fail**, and record the output in this file — V52 should reach `reference-badge` or `microphone-toggle`, V53 should report `BODY`
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Add `Tab` handling to the existing `keydown` listener in `apps/web/src/components/organisms/SettingsSheet.tsx` (**D3**, K4–K6) — a `sheetRef` on the `<section>`; `querySelectorAll` the focusable set **on each keypress** (K5), never cached at open; wrap at both ends with `preventDefault`; pull focus back to the first control if the active element is outside the sheet; fall through untouched everywhere else so the browser's own order still runs inside the sheet. Return early on an empty set as a stated condition, not a silent one (Principle I)
-- [ ] T017 [US2] Capture the opener and restore it in `apps/web/src/components/organisms/SettingsSheet.tsx` (**D6**, K7) — capture `document.activeElement` inside the `[open]` effect, restore in that effect's cleanup, guarded on the node still being `document.contains`. Record in the comment why capturing *inside* the effect is what makes it converge under `<StrictMode>`, since a later move of the capture outside would break it in dev only
-- [ ] T018 [US2] Re-run V52–V54 green, then re-run `a11y.spec.ts` in full — including the two pre-existing tests at `:128` and `:321` that assert the first `Tab` lands on `reference-badge` with the sheet **closed**, which this must not disturb
+- [X] T016 [US2] Add `Tab` handling to the existing `keydown` listener in `apps/web/src/components/organisms/SettingsSheet.tsx` (**D3**, K4–K6) — a `sheetRef` on the `<section>`; `querySelectorAll` the focusable set **on each keypress** (K5), never cached at open; wrap at both ends with `preventDefault`; pull focus back to the first control if the active element is outside the sheet; fall through untouched everywhere else so the browser's own order still runs inside the sheet. Return early on an empty set as a stated condition, not a silent one (Principle I)
+- [X] T017 [US2] Capture the opener and restore it in `apps/web/src/components/organisms/SettingsSheet.tsx` (**D6**, K7) — capture `document.activeElement` inside the `[open]` effect, restore in that effect's cleanup, guarded on the node still being `document.contains`. Record in the comment why capturing *inside* the effect is what makes it converge under `<StrictMode>`, since a later move of the capture outside would break it in dev only
+- [X] T018 [US2] Re-run V52–V54 green, then re-run `a11y.spec.ts` in full — including the two pre-existing tests at `:128` and `:321` that assert the first `Tab` lands on `reference-badge` with the sheet **closed**, which this must not disturb
 
-**Checkpoint**: the sheet is a real modal to the keyboard. US2 is independently shippable here.
+**Checkpoint**: the sheet is a real modal to the keyboard. US2 is independently shippable here. ✅
+
+### T012–T014 — five tests, and V53 written against the T005 warning
+
+V52 is one test; V53 is **three**, one per close route, so a restore that works for Done but not for a
+backdrop press reports which one rather than stopping at the first. The K8 pin is the fifth.
+
+V53 follows the warning recorded at T005: it presses `Tab` to focus `reference-badge` **first**, then
+reads `activeTestId`, then opens with `Enter`. Reading before focusing anything would have captured
+`BODY` — which is exactly what the unfixed build restores to — and the test would have passed green on
+broken code. It still never names `reference-badge` in the assertion, so an implementation that
+hard-codes the opener cannot pass it either. Both halves of that trap are now closed.
+
+V52 asserts containment two ways per press: `activeTestId` for a readable failure, and a
+`sheet.contains(document.activeElement)` check for the structural question. They fail differently — a
+trap that wraps to the wrong control passes the second, focus on an unnamed element passes the first.
+
+### T015 — observed red
+
+```text
+V52 — Tab cannot leave the open sheet, and wraps in one press
+      Error: Tab from the last control did not wrap to the first
+      Expected: "settings-close"   Received: "BODY"
+V53 — closing with Done returns focus to the opener
+      Error: closing with Done discarded focus
+      Expected: "reference-badge"  Received: "BODY"
+V53 — closing with Escape …            Expected "reference-badge"  Received "BODY"
+V53 — closing with a backdrop press …  Expected "reference-badge"  Received "BODY"
+the sheet declares itself modal …      PASSED (by design, see below)
+```
+
+**One deviation from what T015 predicted.** The task expected V52 to reach `reference-badge` or
+`microphone-toggle`. It does not get that far: it fails at the *first* assertion, and focus lands on
+**`BODY`** — the lap-and-a-half assertion that would walk onto the controls behind the scrim is never
+reached. That is worth recording because it is **D2**'s measurement reproduced on our own sheet: an
+unowned `Tab` from the last control goes to the document, exactly as a native modal `<dialog>` does in
+both engines. The two arrangements fail identically, which is the empirical half of why `<dialog>` was
+rejected.
+
+**The K8 pin passed on its first run.** The rule at the top of this file says a test that passes first
+time is wrong — this is the stated exception, and T014 says so: it pins two channels (`aria-modal`, the
+full-viewport scrim) that already work and that FR-144 forbids this feature from breaking. It is a
+non-regression pin, not a regression test. Recorded here so T030 does not have to rediscover whether it
+was an oversight.
+
+### T016–T017 — the trap and the restore
+
+Both land in `SettingsSheet.tsx`, in the two effects Phase 3 separated. The `Tab` branch sits beside the
+untouched `Escape` branch in the same listener, so the sheet still registers exactly one.
+
+Three things the code says and this file should not have to repeat: the set is queried per keypress
+rather than cached at open (K5); an empty set returns early as a stated condition rather than falling
+out of index arithmetic (Principle I); and every `Tab` that is not at either end falls through
+untouched, which is what keeps the sheet traversable.
+
+One line was written and removed before it ran: a `shiftKey && active === last` branch that returned
+early. It is unreachable as behaviour — the final `!event.shiftKey && active === last` already cannot
+match when `shiftKey` is true — so it was dead code, and Principle I does not allow it to stay for
+symmetry's sake.
+
+The opener is captured **inside** the `[open]` effect. The comment records why, since the property is
+invisible: under `<StrictMode>` the effect mounts, cleans up, and mounts again, and the second capture
+reads what the restore just wrote. Hoisting the capture outside would make the second run capture
+**Done** instead, so closing would restore focus to a control that no longer exists — in dev only,
+which is the worst place for it to be wrong (**D6**).
+
+### T018 — green, and the two pre-existing Tab tests survived
+
+| Run | Result |
+| --- | --- |
+| V52, V53 ×3, the K8 pin | **5 passed** |
+| `a11y.spec.ts` in full | **27 passed** — 22 before, plus these 5 |
+| Full `pnpm test:e2e` | **154 passed** — Phase 3's 149 plus 5 |
+
+The two tests this most endangered both pass: `a11y.spec.ts:131` and `:324` assert the first `Tab` lands
+on `reference-badge` with the sheet **closed**, which is precisely what an over-eager trap breaks. Lint,
+`format:check` and `typecheck` clean.
+
+> **T018's task text says "re-run V52–V54 green".** V54 is the scroll-lock test and belongs to Phase 5
+> (T019); it does not exist yet. The three things Phase 4 wrote are V52, V53 and the K8 pin, and those
+> are what was re-run. A numbering slip in the task, not a skipped test.
 
 ---
 

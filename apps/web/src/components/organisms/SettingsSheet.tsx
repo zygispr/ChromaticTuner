@@ -38,6 +38,23 @@ const APPEARANCE_OPTIONS: Array<{ value: AppearancePreference; label: string }> 
 ];
 
 /**
+ * What `Tab` may reach inside the sheet (K5).
+ *
+ * Deliberately narrow: every control in here is a `<button>` or an `<input>`,
+ * none is in a portal or a shadow root, and there is exactly one dialog in the
+ * app. That is the whole reason a focus-trap dependency was declined — the
+ * cases those libraries earn their weight on do not exist here (research D8).
+ */
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  'a[href]',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
+
+/**
  * The three settings the product has, and a way back to defaults (FR-022–FR-024,
  * FR-117).
  *
@@ -60,6 +77,9 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
   } = usePreferences();
 
   const closeRef = useRef<HTMLButtonElement>(null);
+
+  /** The containment surface the Tab handler measures focus against (K4). */
+  const sheetRef = useRef<HTMLElement>(null);
 
   /**
    * Whether the gesture currently in flight has stayed on the backdrop.
@@ -102,16 +122,86 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
    */
   useEffect(() => {
     if (!open) return;
+
+    // Captured INSIDE the effect, which is what makes this converge under
+    // <StrictMode> (main.tsx:202). Dev mounts, cleans up, and mounts again:
+    // the first run captures the badge and focuses Done, the cleanup puts
+    // focus back on the badge, and the second run captures the badge again
+    // because the restore is what it reads. Move this capture outside the
+    // effect and the second run captures Done instead — closing would then
+    // return focus to a control that no longer exists, in dev only (D6).
+    const opener = document.activeElement as HTMLElement | null;
+
     // A real control rather than nowhere, so the dialog is operable by keyboard
     // from the first keystroke (FR-020, FR-133, SC-013).
     closeRef.current?.focus();
+
+    // Cleanup rather than a call in `onClose`, because the sheet has four exits
+    // — Done, Escape, a backdrop press, and unmount — and this is the only
+    // place all four pass through (K7, FR-138). Without it the closing sheet
+    // takes focus down with it and the next Tab restarts from the top of the
+    // page, behind the tuner.
+    return () => {
+      // A restore that targets a removed node moves focus nowhere and loses it
+      // silently, which is worse than not restoring at all.
+      if (opener && document.contains(opener)) opener.focus();
+    };
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+
+      // Only the keyboard needs an owner. The pointer is contained by the
+      // full-viewport backdrop below, and assistive technology by
+      // `aria-modal="true"` — the keyboard had nothing, which is defect 1.
+      //
+      // Document-level rather than `onKeyDown` on the section: a handler on the
+      // sheet only fires while focus is already inside it, so it cannot recover
+      // from the one state worth recovering from. Here containment is an
+      // invariant rather than a hope (D3).
+      const sheet = sheetRef.current;
+      if (!sheet) return;
+
+      // Queried on every keypress, never cached at open (K5). The persistence
+      // warning appears and disappears while the sheet is open and `Reset to
+      // defaults` changes what is selected, so a list captured at open time is
+      // a cache with no invalidation. Eight elements on a user-paced keystroke:
+      // there is no budget to save here.
+      const focusable = [...sheet.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)];
+      // A sheet with nothing focusable has nowhere to send focus, so the
+      // browser's own order is better than anything this could do. Stated
+      // rather than left to fall out of the index arithmetic (Principle I).
+      if (focusable.length === 0) return;
+
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      const active = document.activeElement;
+
+      if (!sheet.contains(active)) {
+        // Focus got out some other way — the browser's UI, a programmatic
+        // focus, a click that landed nowhere. Pull it back.
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+
+      // Every other Tab falls through untouched, so the browser's own order
+      // still runs inside the sheet. Cancelling those would contain focus
+      // perfectly and make the sheet untraversable, which V52 checks for by
+      // pressing Tab in the MIDDLE — at either end the two are indistinguishable.
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
@@ -145,6 +235,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
       }}
     >
       <section
+        ref={sheetRef}
         data-testid="settings-sheet"
         role="dialog"
         aria-modal="true"
