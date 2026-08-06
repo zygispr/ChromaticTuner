@@ -284,6 +284,55 @@ describe('automatic recovery without a restart (T065, FR-029, guarantee S2)', ()
     await session.stop();
 
     expect(scheduler.pendingCount).toBe(0);
+    // The failure OUTLIVES the stop; see the regression test below for why this
+    // asserted `idle` until it was reported from a phone.
+    expect(session.status.kind).toBe('no-microphone');
+  });
+
+  /**
+   * Regression, reported from an iPhone: with the microphone blocked in
+   * Settings, the app-switcher gesture replaced "Microphone access is blocked"
+   * with "Starting…" and put a "Stop listening" button on screen.
+   *
+   * Leaving the foreground stops the session (FR-033), and `stop()` published
+   * `idle` unconditionally. `idle` means "not started yet" — its banner copy is
+   * "Starting…", and `showsCaptureControl` reads it as a session that holds a
+   * microphone — so one line erased both the reason the tuner was not listening
+   * and the reason the capture control was being withheld. iOS snapshots the
+   * frame it gets when the app goes `inactive`, so that wrong state is what the
+   * user swipes past and what the app-switcher card keeps showing.
+   */
+  it('keeps the failure on screen when stopped while parked on one', async () => {
+    const scheduler = manualScheduler();
+    const source = new ScriptedAudioSource({
+      failWith: { kind: 'permission-denied', canRetry: true },
+    });
+    const session = makeSession(source, scheduler);
+
+    await session.start();
+    expect(session.status.kind).toBe('permission-denied');
+
+    await session.stop();
+
+    expect(session.status.kind).toBe('permission-denied');
+    // Still cancelled. A retry firing while the app is out of the foreground is
+    // the microphone reopening behind the user's back, which FR-033 forbids —
+    // preserving the reason must not also preserve the attempt.
+    expect(scheduler.pendingCount).toBe(0);
+  });
+
+  it('still reports idle when a session that was listening is stopped', async () => {
+    const scheduler = manualScheduler();
+    const source = new ScriptedAudioSource({ samples: toneOf(40) });
+    const session = makeSession(source, scheduler);
+
+    await session.start();
+    expect(session.status.kind).toBe('listening');
+
+    await session.stop();
+
+    // The other side of the rule above: nothing failed here, so there is nothing
+    // to preserve, and a stopped tuner must not keep claiming to listen.
     expect(session.status.kind).toBe('idle');
   });
 

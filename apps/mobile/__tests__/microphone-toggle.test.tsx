@@ -158,6 +158,40 @@ describe('microphone toggle (US1)', () => {
     expect(screen.getByTestId('microphone-toggle')).toHaveTextContent(/stop listening/i);
   });
 
+  /**
+   * Regression, reported from an iPhone: with the microphone blocked in
+   * Settings, starting the app-switcher gesture swapped "Microphone access is
+   * blocked" for "Starting…" and put "Stop listening" on screen.
+   *
+   * `inactive` — the state iOS sends for that gesture — releases the microphone
+   * (FR-033), and the release used to publish `idle`, which means "not started
+   * yet" to both the banner copy and `showsCaptureControl`. iOS snapshots the
+   * frame it gets, so the wrong state is also what the app-switcher card keeps
+   * showing until the app is picked again.
+   */
+  it('keeps a blocked microphone reported while out of the foreground', async () => {
+    const handlers = captureAppStateHandler();
+    const source = new ScriptedAudioSource({
+      failWith: { kind: 'permission-denied', canRetry: true },
+    });
+    await renderTuner(source);
+    await settle();
+
+    expect(screen.getByTestId('tuner-status')).toHaveTextContent(/blocked/i);
+
+    await act(async () => {
+      for (const handler of handlers) handler('inactive');
+    });
+
+    const status = screen.getByTestId('tuner-status');
+    expect(status).toHaveTextContent(/blocked/i);
+    expect(status).not.toHaveTextContent(/starting/i);
+    // Same cause, second symptom: the control returned and offered to stop a
+    // microphone that had never opened.
+    expect(screen.queryByTestId('microphone-toggle')).toBeNull();
+    expect(screen.getByTestId('retry-button')).toBeTruthy();
+  });
+
   it('keeps a user-initiated stop across backgrounding and returning (FR-040)', async () => {
     const handlers = captureAppStateHandler();
     const source = new ScriptedAudioSource();

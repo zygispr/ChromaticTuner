@@ -73,6 +73,38 @@ export type TunerStatus =
 export type ActiveStatusKind = 'listening' | 'reading';
 
 /**
+ * Whether the tuner is parked on a failure to open, or keep, the microphone.
+ *
+ * One definition because three separate decisions already turn on this exact
+ * set, and they must agree: the banner explains a failure, `showsCaptureControl`
+ * withholds the capture control while something else is offering the way out,
+ * and `TunerSession.stop()` refuses to overwrite the reason with `idle`. They
+ * did not agree, and the gap was a real defect — stopping on the way out of the
+ * foreground replaced "Microphone access is blocked" with "Starting…" and put
+ * back a control offering to stop a microphone that had never opened.
+ *
+ * Exhaustive on purpose: a new status kind must decide which side it falls on
+ * rather than defaulting into "the microphone is fine".
+ */
+export function isFailureStatus(status: TunerStatus): boolean {
+  switch (status.kind) {
+    case 'permission-denied':
+    case 'no-microphone':
+    case 'microphone-busy':
+    case 'error':
+      return true;
+
+    // `idle` and `requesting-permission` mean "starting", which is a state the
+    // tuner passes THROUGH rather than one it is stuck on.
+    case 'idle':
+    case 'requesting-permission':
+    case 'listening':
+    case 'reading':
+      return false;
+  }
+}
+
+/**
  * Map a typed audio-source failure onto the status the UI should show.
  *
  * Obligation A3 and guarantee S1: every error surfaces as a state the user can

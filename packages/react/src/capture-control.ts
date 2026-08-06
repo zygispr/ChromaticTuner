@@ -1,29 +1,4 @@
-import type { TunerStatus } from '@chromatic-tuner/core';
-
-/**
- * Whether the session is parked on a failure to open, or keep, the microphone.
- *
- * Exhaustive on purpose: a new status kind must decide which side it falls on
- * rather than defaulting into "the microphone is fine".
- */
-function failedToOpen(status: TunerStatus): boolean {
-  switch (status.kind) {
-    case 'permission-denied':
-    case 'no-microphone':
-    case 'microphone-busy':
-    case 'error':
-      return true;
-
-    // `idle` and `requesting-permission` with intent on mean "starting", which
-    // the status banner already says. Treating them as failures would make the
-    // control blink out for the first frames of every launch.
-    case 'idle':
-    case 'requesting-permission':
-    case 'listening':
-    case 'reading':
-      return false;
-  }
-}
+import { isFailureStatus, type TunerStatus } from '@chromatic-tuner/core';
 
 /**
  * Whether the microphone control belongs on screen (FR-036, FR-039).
@@ -48,7 +23,13 @@ function failedToOpen(status: TunerStatus): boolean {
  * Shared rather than decided in each app's organism for the same reason the
  * label copy is: two platforms answering this differently is invisible by eye
  * and obvious to anyone who denies permission on both.
+ *
+ * "Parked on a failure" is `isFailureStatus` in the core rather than a list kept
+ * here, because `TunerSession.stop()` now turns on the same set — a status this
+ * function reads as a failure is exactly one the session must not overwrite with
+ * `idle` — and two copies of the list drifting apart is what produced the defect
+ * that made it shared.
  */
 export function showsCaptureControl(status: TunerStatus, captureEnabled: boolean): boolean {
-  return !(captureEnabled && failedToOpen(status));
+  return !(captureEnabled && isFailureStatus(status));
 }

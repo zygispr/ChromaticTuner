@@ -3,7 +3,7 @@ import type { AudioSource, AudioSourceError } from '../ports/audio-source';
 import { isAudioSourceError } from '../ports/audio-source';
 import type { WakeLock } from '../ports/wake-lock';
 import type { TunerStatus } from '../types';
-import { statusForAudioError } from '../types';
+import { isFailureStatus, statusForAudioError } from '../types';
 
 /**
  * Schedules one deferred retry and returns a function that cancels it.
@@ -311,7 +311,20 @@ export class TunerSession {
       this.analyzer.reset();
     }
 
-    this.setStatus({ kind: 'idle' });
+    // `idle` means "not started yet" — it must not overwrite the reason the
+    // tuner never started. Publishing it unconditionally made leaving the
+    // foreground erase a failure the user was looking at: with the microphone
+    // blocked in Settings, the iPhone app-switcher gesture turned "Microphone
+    // access is blocked" into "Starting…" and brought back a control offering to
+    // stop a microphone that had never opened, because `idle` reads as a healthy
+    // session to `showsCaptureControl` too. Reported from a phone.
+    //
+    // The retry is still cancelled above, so nothing reopens the microphone
+    // while the app is away; the foreground handler starts a fresh attempt on
+    // return, and it either succeeds or republishes the same failure.
+    if (!isFailureStatus(this.currentStatus)) {
+      this.setStatus({ kind: 'idle' });
+    }
   }
 
   /** Change the reference pitch without interrupting capture (guarantee N7). */

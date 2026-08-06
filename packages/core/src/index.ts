@@ -36,7 +36,7 @@ export {
 } from './notes/state';
 
 // --- Domain types (data-model §2-§4) ---
-export { statusForAudioError } from './types';
+export { isFailureStatus, statusForAudioError } from './types';
 export type {
   AccidentalStyle,
   ActiveStatusKind,
