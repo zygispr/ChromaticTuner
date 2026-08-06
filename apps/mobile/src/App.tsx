@@ -1,5 +1,6 @@
 import type { AudioSource } from '@chromatic-tuner/core';
 import { TunerProvider } from '@chromatic-tuner/react';
+import { useColorScheme } from 'react-native';
 
 import { AsyncStoragePreferences } from './adapters/async-storage-preferences';
 import { ExpoWakeLock } from './adapters/expo-wake-lock';
@@ -58,11 +59,23 @@ const preferences = new AsyncStoragePreferences();
  * OS prompt is still to come (FR-028).
  */
 export default function App() {
+  /**
+   * The one place the OS appearance enters the tree (M9).
+   *
+   * `useAppearance()` in `theme.ts` used to call this hook itself, in every
+   * component that needed a colour. Reading it once here and letting the
+   * provider resolve it against the stored choice is what makes an explicit
+   * preference able to win at all — a component asking the OS directly would
+   * ignore the choice no matter what the provider decided (FR-116).
+   */
+  const deviceAppearance = useColorScheme() === 'dark' ? 'dark' : 'light';
+
   return (
     <TunerProvider
       audioSource={audioSource}
       wakeLock={wakeLock}
       preferences={preferences}
+      deviceAppearance={deviceAppearance}
       autoStart={false}
     >
       <TunerScreen />

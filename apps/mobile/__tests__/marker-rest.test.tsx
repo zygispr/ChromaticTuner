@@ -53,6 +53,8 @@ jest.mock('react-native-reanimated', () => {
 // Imported after the mock so the component picks it up.
 import { TuningLine } from '../src/components/molecules/TuningLine';
 
+import { Themed } from './theme-harness';
+
 type CentsHandler = (cents: number | null) => void;
 
 async function renderLine(state: TuningState = 'flat') {
@@ -66,7 +68,11 @@ async function renderLine(state: TuningState = 'flat') {
 
   // RNTL 14 made `render` asynchronous; without the await the effect that
   // establishes the subscription has not run and `handler` is still null.
-  const view = await render(<TuningLine state={state} subscribeToCents={subscribeToCents} />);
+  const view = await render(
+    <Themed>
+      <TuningLine state={state} subscribeToCents={subscribeToCents} />
+    </Themed>
+  );
   return { view, emit: (cents: number | null) => handler?.(cents) };
 }
 

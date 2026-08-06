@@ -72,6 +72,123 @@ test('an explicit theme override beats the platform preference', async ({ page }
   expect(await backgroundOf(page)).toBe(toRgb(color.background.light));
 });
 
+/**
+ * User Story 1 (T019, T020) — the in-app control, FR-118.
+ *
+ * Every test here emulates the appearance OPPOSITE to the one it chooses, and
+ * that is not a stylistic choice. "Choose Dark, assert the page is dark" passes
+ * on a build where the control does nothing at all, provided the device happens
+ * to be dark — which is the single most likely way this feature ships broken.
+ * Contradicting the device is what makes the assertion mean "the choice took
+ * effect" rather than "something is dark".
+ *
+ * Persistence is deliberately NOT asserted here. US1 and US2 are different
+ * claims, and a control that works for one session is the whole of US1.
+ */
+async function openSettings(page: Page): Promise<void> {
+  await page.getByTestId('reference-badge').click();
+  await expect(page.getByTestId('settings-sheet')).toBeVisible();
+}
+
+for (const [device, chosen] of [
+  ['light', 'dark'],
+  ['dark', 'light'],
+] as const) {
+  test(`a device set to ${device} renders ${chosen} once ${chosen} is chosen (FR-118)`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: device });
+    await page.goto('/');
+    await waitForNote(page, 'E');
+
+    // The device is in charge until the user says otherwise.
+    expect(await backgroundOf(page)).toBe(toRgb(color.background[device]));
+
+    await openSettings(page);
+    await page.getByTestId(`appearance-${chosen}`).click();
+
+    // The whole app moved, not just the sheet — FR-118 is "every surface".
+    await expect(page.getByTestId(`appearance-${chosen}`)).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      await page
+        .getByTestId('settings-sheet')
+        .evaluate((el) => getComputedStyle(el).backgroundColor)
+    ).toBe(toRgb(color.background[chosen]));
+
+    await page.getByTestId('settings-close').click();
+    expect(await backgroundOf(page)).toBe(toRgb(color.background[chosen]));
+
+    // And the tuner underneath it, which is the surface the user came for.
+    const noteColor = await page
+      .getByTestId('note-label')
+      .evaluate((el) => getComputedStyle(el).color);
+    expect(noteColor).toBe(toRgb(color.inTune[chosen]));
+  });
+}
+
+test('the three options are offered by their plain-language names (FR-124)', async ({ page }) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+  await openSettings(page);
+
+  // "Match device", not "System" or "Auto" (research D8). Asserted rather than
+  // reviewed, because the mobile screen has to say the same words and nothing
+  // else checks that they still agree.
+  await expect(page.getByTestId('appearance-system')).toHaveText('Match device');
+  await expect(page.getByTestId('appearance-light')).toHaveText('Light');
+  await expect(page.getByTestId('appearance-dark')).toHaveText('Dark');
+
+  // System is the default, so it is the chosen one on a fresh profile.
+  await expect(page.getByTestId('appearance-system')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('appearance-light')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('appearance-dark')).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('changing appearance does not interrupt the reading or re-ask for the microphone (US1 AS4)', async ({
+  page,
+}) => {
+  // Count real getUserMedia calls. A control that rebuilt the audio graph — by
+  // remounting the tree, or by giving TunerProvider a new port identity — would
+  // stop the stream and ask again, which on a real device is a permission
+  // prompt in the middle of a performance.
+  await page.addInitScript(() => {
+    const media = navigator.mediaDevices;
+    const original = media.getUserMedia.bind(media);
+    (window as unknown as { __gumCalls: number }).__gumCalls = 0;
+    media.getUserMedia = (constraints?: MediaStreamConstraints) => {
+      (window as unknown as { __gumCalls: number }).__gumCalls += 1;
+      return original(constraints);
+    };
+  });
+
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  const callsBefore = await page.evaluate(
+    () => (window as unknown as { __gumCalls: number }).__gumCalls
+  );
+  expect(callsBefore, 'the microphone was never opened, so this proves nothing').toBeGreaterThan(0);
+
+  await openSettings(page);
+  await page.getByTestId('appearance-dark').click();
+  await page.getByTestId('settings-close').click();
+
+  expect(await backgroundOf(page)).toBe(toRgb(color.background.dark));
+
+  // The note is still being read, continuously, after the change — not merely
+  // present, which a frozen last-value display would also satisfy.
+  await expect(page.getByTestId('note-label')).toContainText('E');
+  await expect(page.getByTestId('cents-readout')).toContainText(/-?\d/);
+  await page.waitForTimeout(1_000);
+  await expect(page.getByTestId('note-label')).toContainText('E');
+
+  expect(
+    await page.evaluate(() => (window as unknown as { __gumCalls: number }).__gumCalls),
+    'the microphone was re-requested when the appearance changed'
+  ).toBe(callsBefore);
+});
+
 test('the tuning state is legible without colour at all (V10, SC-009)', async ({ page }) => {
   await page.goto('/');
   await waitForNote(page, 'E');

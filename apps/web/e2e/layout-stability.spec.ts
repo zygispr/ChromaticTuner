@@ -92,6 +92,15 @@ test('the settings sheet does not resize when a setting changes (FR-021)', async
   await expect(page.getByTestId('accidental-flat')).toHaveAttribute('aria-pressed', 'true');
   expect(await heightOf(), 'the sheet resized when the accidental style changed').toBe(opened);
 
+  // The appearance group is three members rather than two, so it is the one
+  // most likely to reflow: a label as long as "Match device" beside two short
+  // ones will wrap if the options are not equal-width.
+  for (const value of ['light', 'dark', 'system'] as const) {
+    await page.getByTestId(`appearance-${value}`).click();
+    await expect(page.getByTestId(`appearance-${value}`)).toHaveAttribute('aria-pressed', 'true');
+    expect(await heightOf(), `the sheet resized when the appearance became ${value}`).toBe(opened);
+  }
+
   await page.getByTestId('settings-reset').click();
   await expect(page.getByTestId('a4-value')).toHaveText('440');
   expect(await heightOf(), 'the sheet resized when the settings were reset').toBe(opened);
@@ -114,9 +123,45 @@ test('the settings groups are labelled without fieldset/legend layout (FR-021)',
   // Still grouped and still labelled — the point is the layout path, not the
   // semantics, which assistive technology reads identically either way (FR-020).
   const groups = sheet.getByRole('group');
-  await expect(groups).toHaveCount(2);
+  await expect(groups).toHaveCount(3);
   await expect(groups.nth(0)).toHaveAccessibleName('Reference pitch');
   await expect(groups.nth(1)).toHaveAccessibleName('Accidentals');
+  await expect(groups.nth(2)).toHaveAccessibleName('Appearance');
+});
+
+/**
+ * The three appearance options are one width (research D8, FR-118).
+ *
+ * Separate from the sheet-height check above, which cannot see this: the row
+ * keeps its height whether the options are equal or not. What resizes is the
+ * options themselves — "Match device" is more than twice as long as "Dark", so
+ * options sized to their content put the boxes at three different widths and
+ * move them under the finger as the selection's bold weight shifts.
+ */
+test('the appearance options are equal width and stay that way (FR-118)', async ({ page }) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+  await page.getByTestId('reference-badge').click();
+  await expect(page.getByTestId('settings-sheet')).toBeVisible();
+
+  const widths = async () =>
+    Promise.all(
+      (['system', 'light', 'dark'] as const).map(async (value) => {
+        const box = await page.getByTestId(`appearance-${value}`).boundingBox();
+        expect(box, `appearance-${value} has no box`).not.toBeNull();
+        return Math.round(box!.width);
+      })
+    );
+
+  const atRest = await widths();
+  expect(new Set(atRest).size, `the options are ${atRest.join('/')}px wide`).toBe(1);
+
+  // Selecting bolds a label, which is exactly when a content-sized box grows.
+  for (const value of ['light', 'dark', 'system'] as const) {
+    await page.getByTestId(`appearance-${value}`).click();
+    const after = await widths();
+    expect(after, `choosing ${value} resized the options`).toEqual(atRest);
+  }
 });
 
 test('the tuner does not move when a note is lost and re-acquired (FR-021)', async ({ page }) => {

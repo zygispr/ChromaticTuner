@@ -1,4 +1,4 @@
-import { A4_MAX_HZ, A4_MIN_HZ } from '@chromatic-tuner/core';
+import { A4_MAX_HZ, A4_MIN_HZ, type Appearance } from '@chromatic-tuner/core';
 import {
   InMemoryPreferencesStore,
   NoopWakeLock,
@@ -14,6 +14,8 @@ import { AudioManager } from 'react-native-audio-api';
 import { ReferenceBadge } from '../src/components/atoms/ReferenceBadge';
 import { SettingsScreen } from '../src/components/screens/SettingsScreen';
 import { TunerScreen } from '../src/components/screens/TunerScreen';
+
+import { Themed } from './theme-harness';
 
 /**
  * User Story 4 on mobile (T088, T089).
@@ -63,7 +65,15 @@ async function press(testID: string): Promise<void> {
  * constructing them inline in the JSX would rebuild the session — and re-run
  * every effect hanging off it — on each state update.
  */
-function Wrapper({ children, store }: { children: ReactNode; store: InMemoryPreferencesStore }) {
+function Wrapper({
+  children,
+  store,
+  device = 'light',
+}: {
+  children: ReactNode;
+  store: InMemoryPreferencesStore;
+  device?: Appearance;
+}) {
   const ports = useRef({ audioSource: new ScriptedAudioSource(), wakeLock: new NoopWakeLock() });
 
   return (
@@ -71,6 +81,7 @@ function Wrapper({ children, store }: { children: ReactNode; store: InMemoryPref
       audioSource={ports.current.audioSource}
       wakeLock={ports.current.wakeLock}
       preferences={store}
+      deviceAppearance={device}
       autoStart={false}
     >
       {children}
@@ -78,11 +89,15 @@ function Wrapper({ children, store }: { children: ReactNode; store: InMemoryPref
   );
 }
 
-async function renderSettings(store = new InMemoryPreferencesStore(), onClose = jest.fn()) {
+async function renderSettings(
+  store = new InMemoryPreferencesStore(),
+  onClose = jest.fn(),
+  device: Appearance = 'light'
+) {
   // RNTL 14 made `render` asynchronous; an un-awaited call leaves every
   // subsequent query resolving against a stale tree.
   await render(
-    <Wrapper store={store}>
+    <Wrapper store={store} device={device}>
       <SettingsScreen open onClose={onClose} />
     </Wrapper>
   );
@@ -94,7 +109,9 @@ async function renderSettings(store = new InMemoryPreferencesStore(), onClose = 
 describe('ReferenceBadge (FR-022, T089)', () => {
   it('reads as standard at concert pitch', async () => {
     await render(
-      <ReferenceBadge a4Hz={440} isNonStandard={false} onOpenSettings={() => undefined} />
+      <Themed>
+        <ReferenceBadge a4Hz={440} isNonStandard={false} onOpenSettings={() => undefined} />
+      </Themed>
     );
 
     expect(screen.getByTestId('reference-badge')).toHaveTextContent('A4 440 Hz');
@@ -105,7 +122,11 @@ describe('ReferenceBadge (FR-022, T089)', () => {
     // A non-standard reference silently changes the meaning of every reading,
     // so it must not be readable only as a subtle colour shift — the number and
     // the accessible label both carry it.
-    await render(<ReferenceBadge a4Hz={432} isNonStandard onOpenSettings={() => undefined} />);
+    await render(
+      <Themed>
+        <ReferenceBadge a4Hz={432} isNonStandard onOpenSettings={() => undefined} />
+      </Themed>
+    );
 
     expect(screen.getByTestId('reference-badge')).toHaveTextContent('A4 432 Hz');
     expect(screen.getByTestId('reference-badge').props.accessibilityLabel).toMatch(
@@ -116,7 +137,9 @@ describe('ReferenceBadge (FR-022, T089)', () => {
   it('opens settings when pressed', async () => {
     const onOpenSettings = jest.fn();
     await render(
-      <ReferenceBadge a4Hz={440} isNonStandard={false} onOpenSettings={onOpenSettings} />
+      <Themed>
+        <ReferenceBadge a4Hz={440} isNonStandard={false} onOpenSettings={onOpenSettings} />
+      </Themed>
     );
 
     await press('reference-badge');
@@ -241,6 +264,101 @@ describe('SettingsScreen (T088)', () => {
     // The label never moves, so the fill is carrying the choice on its own.
     expect(labelColorOf('Flats')).toBe(color.text.light);
     expect(labelColorOf('Sharps')).toBe(color.text.light);
+  });
+
+  /**
+   * User Story 1 on mobile (T021, FR-118, FR-124).
+   *
+   * The device is emulated as the OPPOSITE of whatever is chosen throughout.
+   * "Choose Dark, assert dark colours" passes on a build where the control is
+   * inert, as long as the device is already dark — and `useColorScheme()`
+   * returns whatever this environment feels like, so that would be a coin toss
+   * rather than a test.
+   */
+  it('offers three appearance options by their plain-language names (FR-124)', async () => {
+    await renderSettings();
+
+    // The same words the web sheet uses, in the same order (research D8).
+    // "Match device", not "System" or "Auto".
+    expect(screen.getByTestId('appearance-system')).toBeTruthy();
+    expect(screen.getByText('Match device')).toBeTruthy();
+    expect(screen.getByText('Light')).toBeTruthy();
+    expect(screen.getByText('Dark')).toBeTruthy();
+
+    // 'system' is the default, so it is the chosen one on a fresh install.
+    expect(screen.getByTestId('appearance-system').props.accessibilityState.selected).toBe(true);
+    expect(screen.getByTestId('appearance-light').props.accessibilityState.selected).toBe(false);
+    expect(screen.getByTestId('appearance-dark').props.accessibilityState.selected).toBe(false);
+  });
+
+  it('repaints the sheet when an appearance is chosen against the device (FR-118)', async () => {
+    // Device light; the user asks for dark.
+    const { store } = await renderSettings(new InMemoryPreferencesStore(), jest.fn(), 'light');
+
+    const sheetBackground = () =>
+      (
+        StyleSheet.flatten(screen.getByTestId('settings-sheet').props.style) as {
+          backgroundColor?: string;
+        }
+      ).backgroundColor;
+
+    expect(sheetBackground()).toBe(color.background.light);
+
+    await press('appearance-dark');
+
+    expect(screen.getByTestId('appearance-dark').props.accessibilityState.selected).toBe(true);
+    expect(screen.getByTestId('appearance-system').props.accessibilityState.selected).toBe(false);
+    // The rendered colours moved, not just the selected flag.
+    expect(sheetBackground()).toBe(color.background.dark);
+    // US1 does not claim persistence, but the choice must at least reach the
+    // provider as the CHOICE — 'dark', not the light it was resolved against.
+    expect((await store.load())?.appearance).toBe('dark');
+  });
+
+  it('hands the appearance back to a device set the other way (FR-115)', async () => {
+    // Device dark, preference explicitly light, then back to Match device.
+    await renderSettings(new InMemoryPreferencesStore(), jest.fn(), 'dark');
+
+    await press('appearance-light');
+    const sheetBackground = () =>
+      (
+        StyleSheet.flatten(screen.getByTestId('settings-sheet').props.style) as {
+          backgroundColor?: string;
+        }
+      ).backgroundColor;
+    expect(sheetBackground()).toBe(color.background.light);
+
+    await press('appearance-system');
+
+    // Back under the device's control, which is dark — so this only passes if
+    // 'system' resolves live rather than freezing what it replaced.
+    expect(sheetBackground()).toBe(color.background.dark);
+  });
+
+  it('marks the chosen appearance with the same fill the accidentals use (FR-126)', async () => {
+    await renderSettings(new InMemoryPreferencesStore(), jest.fn(), 'light');
+
+    const boxOf = (testID: string) =>
+      StyleSheet.flatten(screen.getByTestId(testID).props.style) as {
+        backgroundColor?: string;
+        borderWidth?: number;
+        borderColor?: string;
+      };
+
+    expect(boxOf('appearance-system').backgroundColor).toBe(color.selected.light);
+    expect(boxOf('appearance-light').backgroundColor).toBeUndefined();
+    expect(boxOf('appearance-dark').backgroundColor).toBeUndefined();
+
+    // Equal borders on all three, or the row resizes under the finger.
+    expect(boxOf('appearance-light').borderWidth).toBe(boxOf('appearance-system').borderWidth);
+    expect(boxOf('appearance-dark').borderWidth).toBe(boxOf('appearance-system').borderWidth);
+
+    await press('appearance-dark');
+
+    // The fill FOLLOWS the choice — a static check would pass on three buttons
+    // permanently styled this way.
+    expect(boxOf('appearance-dark').backgroundColor).toBe(color.selected.dark);
+    expect(boxOf('appearance-system').backgroundColor).toBeUndefined();
   });
 
   it('resets to defaults and clears storage (FR-024)', async () => {

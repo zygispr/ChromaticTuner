@@ -358,23 +358,110 @@ tuner, settings, status messaging — is dark, with the device's own setting unc
 
 ### Checks for User Story 1 ⚠️ Write these first and observe them failing
 
-- [ ] T019 [P] [US1] Extend `apps/web/e2e/appearance.spec.ts`: with the device emulated **light**, choose Dark in the settings sheet and assert the computed background of `main` is the dark token — and the reverse, device dark → choose Light (FR-118, US1 AS2/AS3)
-- [ ] T020 [P] [US1] Add to `apps/web/e2e/appearance.spec.ts`: changing appearance while a note is being read does not interrupt the readout or re-request microphone permission (US1 AS4, FR-118)
-- [ ] T021 [P] [US1] Extend `apps/mobile/__tests__/settings.test.tsx`: the appearance group renders three options, the current one is reported selected, and choosing one updates the rendered colours (FR-118, FR-124)
-- [ ] T022 [P] [US1] Update `apps/web/e2e/layout-stability.spec.ts` for a **three**-member option group — choosing an option must not resize the row under the finger that chose it (research **D8**)
+- [X] T019 [P] [US1] Extend `apps/web/e2e/appearance.spec.ts`: with the device emulated **light**, choose Dark in the settings sheet and assert the computed background of `main` is the dark token — and the reverse, device dark → choose Light (FR-118, US1 AS2/AS3)
+- [X] T020 [P] [US1] Add to `apps/web/e2e/appearance.spec.ts`: changing appearance while a note is being read does not interrupt the readout or re-request microphone permission (US1 AS4, FR-118)
+- [X] T021 [P] [US1] Extend `apps/mobile/__tests__/settings.test.tsx`: the appearance group renders three options, the current one is reported selected, and choosing one updates the rendered colours (FR-118, FR-124)
+- [X] T022 [P] [US1] Update `apps/web/e2e/layout-stability.spec.ts` for a **three**-member option group — choosing an option must not resize the row under the finger that chose it (research **D8**)
 
 ### Implementation for User Story 1
 
-- [ ] T023 [P] [US1] Create `apps/web/src/useDeviceAppearance.ts` — `useSyncExternalStore` over `matchMedia('(prefers-color-scheme: dark)')`, returning `Appearance`
-- [ ] T024 [US1] Pass `deviceAppearance` into `TunerProvider` in `apps/web/src/main.tsx`, and add the effect that writes `data-theme` on `<html>` from the resolved appearance — **gated on `preferencesLoaded` (M10)**; writing before it is true reintroduces the flash Phase 4 exists to prevent
-- [ ] T025 [US1] Add the three-option appearance group to `apps/web/src/components/organisms/SettingsSheet.tsx`, reusing the Accidentals group's exact treatment — `selected` tint fill, bold label, 1px border, `a11y.minTouchTarget`, equal widths, `role="group"` + `aria-pressed`, `data-testid="appearance-{value}"` (research **D8**, FR-125–FR-127)
-- [ ] T026 [P] [US1] Rewrite `useAppearance()` in `apps/mobile/src/theme.ts` to read the resolved appearance from context instead of calling `useColorScheme()` directly (M9) — the old implementation is **replaced, not left beside its successor** (Principle I)
-- [ ] T027 [US1] Pass `useColorScheme()` into `TunerProvider` as `deviceAppearance` in `apps/mobile/src/App.tsx` — depends on T026
-- [ ] T028 [US1] Add the three-option appearance group to `apps/mobile/src/components/screens/SettingsScreen.tsx`, mirroring the web group exactly — same labels, same order, same default, `accessibilityRole="radio"`, `accessibilityState={{ selected }}`, `testID="appearance-{value}"` (FR-124)
-- [ ] T029 [US1] Diff the option labels and order between `apps/web/src/components/organisms/SettingsSheet.tsx` and `apps/mobile/src/components/screens/SettingsScreen.tsx` and confirm they are the plain-language set from research **D8** — "Match device", "Light", "Dark"; not "System", not "Auto" (FR-124, Principle IV)
-- [ ] T030 [US1] Verify no literal colour was introduced in `apps/web/src/components/organisms/SettingsSheet.tsx` or `apps/mobile/src/components/screens/SettingsScreen.tsx` — `pnpm lint` enforces this on `apps/**`, but confirm the new group reads every colour through tokens (FR-129)
+- [X] T023 [P] [US1] Create `apps/web/src/useDeviceAppearance.ts` — `useSyncExternalStore` over `matchMedia('(prefers-color-scheme: dark)')`, returning `Appearance`
+- [X] T024 [US1] Pass `deviceAppearance` into `TunerProvider` in `apps/web/src/main.tsx`, and add the effect that writes `data-theme` on `<html>` from the resolved appearance — **gated on `preferencesLoaded` (M10)**; writing before it is true reintroduces the flash Phase 4 exists to prevent
+- [X] T025 [US1] Add the three-option appearance group to `apps/web/src/components/organisms/SettingsSheet.tsx`, reusing the Accidentals group's exact treatment — `selected` tint fill, bold label, 1px border, `a11y.minTouchTarget`, equal widths, `role="group"` + `aria-pressed`, `data-testid="appearance-{value}"` (research **D8**, FR-125–FR-127)
+- [X] T026 [P] [US1] Rewrite `useAppearance()` in `apps/mobile/src/theme.ts` to read the resolved appearance from context instead of calling `useColorScheme()` directly (M9) — the old implementation is **replaced, not left beside its successor** (Principle I)
+- [X] T027 [US1] Pass `useColorScheme()` into `TunerProvider` as `deviceAppearance` in `apps/mobile/src/App.tsx` — depends on T026
+- [X] T028 [US1] Add the three-option appearance group to `apps/mobile/src/components/screens/SettingsScreen.tsx`, mirroring the web group exactly — same labels, same order, same default, `accessibilityRole="radio"`, `accessibilityState={{ selected }}`, `testID="appearance-{value}"` (FR-124)
+- [X] T029 [US1] Diff the option labels and order between `apps/web/src/components/organisms/SettingsSheet.tsx` and `apps/mobile/src/components/screens/SettingsScreen.tsx` and confirm they are the plain-language set from research **D8** — "Match device", "Light", "Dark"; not "System", not "Auto" (FR-124, Principle IV)
+- [X] T030 [US1] Verify no literal colour was introduced in `apps/web/src/components/organisms/SettingsSheet.tsx` or `apps/mobile/src/components/screens/SettingsScreen.tsx` — `pnpm lint` enforces this on `apps/**`, but confirm the new group reads every colour through tokens (FR-129)
 
 **Checkpoint**: the control works on both platforms and changes the appearance instantly. Closing the app still loses the choice — that is Phase 4.
+
+---
+
+## Phase 3 build log (2026-08-06)
+
+### Test-first, observed
+
+Eleven new or changed assertions across four files, all run before any
+implementation existed:
+
+| Check | First run |
+| --- | --- |
+| T019 device/choice contradiction, both directions | **2 failed** — no `appearance-*` control to click |
+| T019 plain-language names | **1 failed** — `toHaveText` found nothing |
+| T020 reading survives the change, no second `getUserMedia` | **1 failed** |
+| T021 mobile group, selection, repaint, fill | **4 failed** — `Unable to find an element with testID: appearance-system` |
+| T022 group count 2→3, equal widths, sheet height | **3 failed** |
+
+After implementation: `pnpm test:e2e` **120 passed** (was 115), mobile jest
+**86 passed** (was 82), `pnpm test` 462, coverage unchanged at **100% lines /
+95% branches**, typecheck green across 5 projects, lint, format and build green.
+
+### T026 was not a one-file change — it moved the mobile app onto app state
+
+`useAppearance()` is called by **seven** components, so rewriting it to read
+context (M9) is what makes the whole mobile tree follow the choice for free. It
+also means every one of those components now needs a `TunerProvider` above it,
+where before they read a global and rendered bare.
+
+**Three test files rendered them bare: 18 failures across 3 suites**, all
+`usePreferences must be used inside a <TunerProvider>`. Fixed by wrapping the
+isolated renders in a new `apps/mobile/__tests__/theme-harness.tsx` (one shared
+`Themed` wrapper rather than three copies; `jest.config.js` matches only
+`*.test.{ts,tsx}`, so a helper can live in that directory).
+
+**This dependency is the feature working, not a cost of it.** A component that
+could still resolve its own colours without the provider is a component able to
+disagree with the rest of the app about which appearance is in effect — which is
+FR-118's failure mode. The breakage was the type system and the tests noticing
+that theming stopped being ambient.
+
+### `ThemeSync` keys off the PREFERENCE, not the resolved appearance
+
+The obvious reading of T024 is "write `data-theme` from the resolved
+appearance". That is wrong for `'system'`, and it took reading T033 and T042
+together to see why:
+
+- `packages/tokens` emits **both** a `prefers-color-scheme` media query and a
+  `[data-theme]` override block.
+- Writing `data-theme="dark"` for a `'system'` user pins the override on. It
+  still tracks the OS, because `useDeviceAppearance` re-renders and the effect
+  rewrites the attribute — so every Phase 3 and Phase 5 test would pass.
+- But T033 (Phase 4) requires the attribute to be **absent** under `'system'`,
+  and M12 says the same of the inline script, precisely so the media query keeps
+  control and an OS change is followed **with no JavaScript at all**.
+
+So the effect sets the attribute for `'light'`/`'dark'` and **removes** it for
+`'system'`, which is the same rule the inline script will follow in T036. Two
+mechanisms, one rule — rather than two mechanisms that agree only by accident.
+
+### Deviations, stated rather than hidden
+
+**1. `main.tsx` gained two components and moved its port construction.** The tree
+used to be built at module scope; `useDeviceAppearance` is a hook, so it needs a
+component (`Root`), and the `data-theme` effect needs one inside the provider
+(`ThemeSync`). The ports moved to module scope **deliberately** — constructing
+them inside `Root` would give `TunerProvider` new port identities on every
+device-appearance change, rebuilding the audio graph and re-requesting the
+microphone. That is exactly the failure T020 asserts against, and it would have
+been introduced by the same commit that added the test for it.
+
+**2. `apps/web/e2e/press-affordance.spec.ts` needed updating**, and T004's audit
+did not list it. It hard-codes the number of buttons in the sheet — `4` for Done,
+Sharps, Flats, Reset — as a sentinel against a control quietly stopping being a
+button. Three options makes it **7**. The loop underneath it is the part that
+matters and it now covers the new controls for free: each is asserted clean at
+rest and washed on hover (FR-058). Nothing about the assertion was weakened.
+
+**3. `apps/mobile/src/theme.ts` no longer defines `Appearance`.** It had its own
+`'light' | 'dark'` union, which is now the core type re-exported, so the two
+cannot drift. No consumer changed — they all import the name from the same
+place they always did.
+
+**4. The mobile group uses `accessibilityRole="radio"`, the web uses
+`aria-pressed`.** That asymmetry is research D8's instruction rather than an
+oversight, and it matches what each platform's screen reader expects of a
+mutually exclusive set. T051 is where it gets heard rather than read.
 
 ---
 

@@ -9,6 +9,8 @@ import { PermissionPrompt } from '../src/components/molecules/PermissionPrompt';
 import { StatusBanner } from '../src/components/molecules/StatusBanner';
 import { TunerScreen } from '../src/components/screens/TunerScreen';
 
+import { Themed } from './theme-harness';
+
 /**
  * User Story 3 on mobile (T069–T071).
  *
@@ -33,21 +35,33 @@ function tone(midi: number, length = SAMPLE_RATE): Float32Array {
 
 describe('PermissionPrompt (FR-028, FR-031)', () => {
   it('states plainly that audio is never recorded or transmitted', async () => {
-    await render(<PermissionPrompt onAllow={() => undefined} />);
+    await render(
+      <Themed>
+        <PermissionPrompt onAllow={() => undefined} />
+      </Themed>
+    );
 
     expect(screen.getByTestId('privacy-note')).toHaveTextContent(/never recorded/i);
     expect(screen.getByTestId('privacy-note')).toHaveTextContent(/never sent anywhere/i);
   });
 
   it('says what the microphone is for before asking for it', async () => {
-    await render(<PermissionPrompt onAllow={() => undefined} />);
+    await render(
+      <Themed>
+        <PermissionPrompt onAllow={() => undefined} />
+      </Themed>
+    );
 
     expect(screen.getByTestId('permission-prompt')).toHaveTextContent(/hear the string you play/i);
   });
 
   it('hands control back only when the user chooses to continue', async () => {
     const onAllow = jest.fn();
-    await render(<PermissionPrompt onAllow={onAllow} />);
+    await render(
+      <Themed>
+        <PermissionPrompt onAllow={onAllow} />
+      </Themed>
+    );
 
     expect(onAllow).not.toHaveBeenCalled();
     fireEvent.press(screen.getByTestId('allow-microphone'));
@@ -67,7 +81,11 @@ describe('StatusBanner recovery copy (SC-014)', () => {
 
   for (const { status, steps } of FAILURES) {
     it(`gives ${status.kind} an explanation and a next step`, async () => {
-      await render(<StatusBanner status={status} onRetry={() => undefined} />);
+      await render(
+        <Themed>
+          <StatusBanner status={status} onRetry={() => undefined} />
+        </Themed>
+      );
 
       // Both halves matter: a title with no steps is a dead end, and steps with
       // no way to act on them are a suggestion the user cannot follow.
@@ -79,10 +97,12 @@ describe('StatusBanner recovery copy (SC-014)', () => {
 
   it('names this platform’s real settings path, not a vague instruction', async () => {
     await render(
-      <StatusBanner
-        status={{ kind: 'permission-denied', canRetry: true }}
-        onRetry={() => undefined}
-      />
+      <Themed>
+        <StatusBanner
+          status={{ kind: 'permission-denied', canRetry: true }}
+          onRetry={() => undefined}
+        />
+      </Themed>
     );
 
     // "Allow the microphone in Settings" is useless if the switch cannot be
@@ -92,14 +112,22 @@ describe('StatusBanner recovery copy (SC-014)', () => {
 
   it('retries when asked', async () => {
     const onRetry = jest.fn();
-    await render(<StatusBanner status={{ kind: 'no-microphone' }} onRetry={onRetry} />);
+    await render(
+      <Themed>
+        <StatusBanner status={{ kind: 'no-microphone' }} onRetry={onRetry} />
+      </Themed>
+    );
 
     fireEvent.press(screen.getByTestId('retry-button'));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
   it('shows a hint but no recovery while merely listening', async () => {
-    await render(<StatusBanner status={{ kind: 'listening' }} onRetry={() => undefined} />);
+    await render(
+      <Themed>
+        <StatusBanner status={{ kind: 'listening' }} onRetry={() => undefined} />
+      </Themed>
+    );
 
     expect(screen.getByTestId('tuner-status')).toHaveTextContent(/play a string/i);
     expect(screen.queryByTestId('recovery-steps')).toBeNull();
@@ -115,7 +143,11 @@ describe('StatusBanner recovery copy (SC-014)', () => {
       state: 'in-tune' as const,
       timestamp: 0,
     };
-    await render(<StatusBanner status={{ kind: 'reading', reading }} onRetry={() => undefined} />);
+    await render(
+      <Themed>
+        <StatusBanner status={{ kind: 'reading', reading }} onRetry={() => undefined} />
+      </Themed>
+    );
 
     expect(screen.queryByTestId('status-banner')).toBeNull();
   });

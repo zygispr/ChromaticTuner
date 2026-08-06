@@ -1,4 +1,9 @@
-import { A4_MAX_HZ, A4_MIN_HZ, type AccidentalStyle } from '@chromatic-tuner/core';
+import {
+  A4_MAX_HZ,
+  A4_MIN_HZ,
+  type AccidentalStyle,
+  type AppearancePreference,
+} from '@chromatic-tuner/core';
 import { usePreferences } from '@chromatic-tuner/react';
 import { a11y, motion, space, type as typeTokens } from '@chromatic-tuner/tokens';
 import { useEffect, useState } from 'react';
@@ -20,6 +25,18 @@ export interface SettingsScreenProps {
 const ACCIDENTAL_OPTIONS: Array<{ value: AccidentalStyle; label: string; example: string }> = [
   { value: 'sharp', label: 'Sharps', example: 'C♯ D♯ F♯' },
   { value: 'flat', label: 'Flats', example: 'D♭ E♭ G♭' },
+];
+
+/**
+ * The same words, in the same order, as the web sheet (research D8, FR-124).
+ *
+ * "Match device", not "System" or "Auto". Both platforms assert this list, since
+ * two hand-maintained copies of one vocabulary is how they drift apart.
+ */
+const APPEARANCE_OPTIONS: Array<{ value: AppearancePreference; label: string }> = [
+  { value: 'system', label: 'Match device' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
 ];
 
 /** How far one press of the stepper moves the reference pitch. */
@@ -53,10 +70,12 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
   const {
     a4Hz,
     accidentalStyle,
+    appearancePreference,
     isNonStandardReference,
     persistenceFailed,
     setA4Hz,
     setAccidentalStyle,
+    setAppearancePreference,
     reset,
   } = usePreferences();
 
@@ -265,6 +284,58 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
                           </Text>
                           <Text style={[styles.optionExample, { color: colors.text }]}>
                             {option.example}
+                          </Text>
+                        </>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View>
+              <Text style={[styles.legend, { color: colors.text }]}>Appearance</Text>
+
+              {/* The Accidentals group's treatment, reused rather than
+                  rewritten (research D8) — `selected` tint fill, bold label,
+                  one border width. `accessibilityRole="radio"` because these
+                  are mutually exclusive and exactly one is always chosen,
+                  which is what a radio means to VoiceOver. */}
+              <View style={styles.options}>
+                {APPEARANCE_OPTIONS.map((option) => {
+                  const selected = appearancePreference === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      testID={`appearance-${option.value}`}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
+                      onPress={() => setAppearancePreference(option.value)}
+                      style={({ pressed }) => [
+                        styles.option,
+                        { borderColor: selected ? colors.text : colors.line },
+                        selected && { backgroundColor: colors.selected },
+                        // The wash replaces the background outright, so it may
+                        // only be applied to an option that has none. The
+                        // filled one layers it as an overlay, below.
+                        pressed && !selected && { backgroundColor: colors.pressed },
+                      ]}
+                    >
+                      {({ pressed }) => (
+                        <>
+                          {pressed && selected && (
+                            <View
+                              testID={`appearance-${option.value}-wash`}
+                              style={[styles.wash, { backgroundColor: colors.pressed }]}
+                            />
+                          )}
+                          <Text
+                            style={[
+                              styles.optionLabel,
+                              { color: colors.text, fontWeight: selected ? '700' : '400' },
+                            ]}
+                          >
+                            {option.label}
                           </Text>
                         </>
                       )}

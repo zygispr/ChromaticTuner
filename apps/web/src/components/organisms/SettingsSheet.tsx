@@ -1,5 +1,10 @@
 import { usePreferences } from '@chromatic-tuner/react';
-import { A4_MAX_HZ, A4_MIN_HZ, type AccidentalStyle } from '@chromatic-tuner/core';
+import {
+  A4_MAX_HZ,
+  A4_MIN_HZ,
+  type AccidentalStyle,
+  type AppearancePreference,
+} from '@chromatic-tuner/core';
 import { a11y, motion, space, type } from '@chromatic-tuner/tokens';
 import { useEffect, useRef } from 'react';
 
@@ -16,7 +21,25 @@ const ACCIDENTAL_OPTIONS: Array<{ value: AccidentalStyle; label: string; example
 ];
 
 /**
- * The two settings the product has, and a way back to defaults (FR-022–FR-024).
+ * Plain, mechanism-free copy (research D8, FR-124).
+ *
+ * "Match device", not "System" or "Auto" — "device" is the word for the thing
+ * the user actually changed. `apps/mobile/src/components/screens/SettingsScreen`
+ * carries the same list in the same order, and both are asserted, because two
+ * hand-maintained copies of one vocabulary is exactly how the platforms drift.
+ *
+ * "Match device" leads, so the default sits first and the list reads as
+ * defer / override-light / override-dark.
+ */
+const APPEARANCE_OPTIONS: Array<{ value: AppearancePreference; label: string }> = [
+  { value: 'system', label: 'Match device' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+];
+
+/**
+ * The three settings the product has, and a way back to defaults (FR-022–FR-024,
+ * FR-117).
  *
  * A sheet rather than a page: the spec's out-of-scope list is binding, so there
  * will never be enough settings to justify navigation, and the tuner staying
@@ -27,10 +50,12 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
   const {
     a4Hz,
     accidentalStyle,
+    appearancePreference,
     isNonStandardReference,
     persistenceFailed,
     setA4Hz,
     setAccidentalStyle,
+    setAppearancePreference,
     reset,
   } = usePreferences();
 
@@ -289,6 +314,61 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
                   <span style={{ display: 'block', opacity: a11y.mutedOpacity, fontSize: 12 }}>
                     {option.example}
                   </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* The same treatment as the Accidentals group above, deliberately
+            reused rather than rewritten (research D8). Reuse inherits the fix
+            from `500dfb5`: the selected state is a `selected` tint FILL, not a
+            heavier `text` border, because that border is the app's focus idiom
+            and tabbing to an *unchosen* option made it look chosen. A new
+            selection treatment here would be a fresh chance to make the same
+            mistake. */}
+        <div role="group" aria-labelledby="appearance-label">
+          <span
+            id="appearance-label"
+            style={{
+              display: 'block',
+              fontSize: `${type.labelSize}px`,
+              fontWeight: type.weightMedium,
+            }}
+          >
+            Appearance
+          </span>
+
+          <div style={{ display: 'flex', gap: space.sm, marginTop: space.sm }}>
+            {APPEARANCE_OPTIONS.map((option) => {
+              const selected = appearancePreference === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  data-testid={`appearance-${option.value}`}
+                  aria-pressed={selected}
+                  onClick={() => setAppearancePreference(option.value)}
+                  style={{
+                    // `flex: 1` resolves to a 0% basis, so all three boxes are
+                    // one width whatever their labels say. It matters more here
+                    // than above: "Match device" is more than twice as long as
+                    // "Dark", so content-sized boxes would be three different
+                    // widths and would shift under the finger as the selected
+                    // label takes its bold weight.
+                    flex: 1,
+                    minHeight: a11y.minTouchTarget,
+                    padding: `${space.sm}px`,
+                    fontSize: `${type.labelSize}px`,
+                    fontWeight: selected ? type.weightBold : type.weightRegular,
+                    color: themedVar('text'),
+                    background: selected ? themedVar('selected') : 'transparent',
+                    border: `1px solid ${selected ? themedVar('text') : themedVar('line')}`,
+                    borderRadius: space.sm,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {option.label}
                 </button>
               );
             })}
