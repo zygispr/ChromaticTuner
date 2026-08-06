@@ -519,12 +519,141 @@ suspends — and it is unaffected, because the lock exists only while the sheet 
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T025 [P] Create `apps/mobile/__tests__/settings-modality.test.tsx` with V56's three assertions (**D7**, FR-142, FR-143) — the settings render inside a `Modal` whose `accessibilityViewIsModal` is `true` (assert the value, not the prop's presence); the tuner screen has no scrollable ancestor; changing a preference from the sheet never calls `AccessibilityInfo.setAccessibilityFocus`. All three pass on today's code, which is the point: they pin behaviour the platform gives us free and a refactor could silently remove. A separate file from `__tests__/settings.test.tsx` so FR-143's assertions cannot be deleted alongside a settings test someone is rewriting
-- [ ] T026 [P] Add a short note to `CLAUDE.md` under "Working in this repo" carrying the three traps worth the next reader's time — a modal `<dialog>` neither wraps `Tab` nor blocks page scroll (measured, **D2**); `touch-action` inherits, so it must never go on the backdrop (**D5**); the scrollbar gutter is 0 on macOS and non-zero on CI, so a width comparison is a test that only fails in CI (**D4**). Keep it to the repo's existing density — the *why*, not a narration of the fix
-- [ ] T027 Capture the "after" screenshots into `specs/006-fix-settings-sheet-focus/screenshots/` and compare against T004's baseline — SC-062 permits no difference in either appearance. Any delta is a defect in this feature, not a judgement call (FR-145)
-- [ ] T028 Run the full merge gate and record the counts against T001's baseline — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e`, plus `pnpm --filter @chromatic-tuner/mobile test`. `packages/core` coverage must be unmoved: no core file changes (SC-061)
-- [ ] T029 Run V57's manual screen-reader gate against `apps/web` and `apps/mobile`, recording the result in this file — VoiceOver on macOS Safari and iOS, TalkBack on Android: open the settings, navigate by element past the end of the sheet, confirm the cursor cannot reach the tuner and the surface is announced as a dialog. Record the result here. This is the half of K8 no automated engine in this repo can observe — Axe checks that `aria-modal` is present, not that a screen reader honours it (SC-060)
-- [ ] T030 Record the build log for this feature in this file — deviations from the plan, anything **D1–D8** got wrong, and any test that passed on its first run (which per the rule above means the test was wrong and what was done about it)
+- [X] T025 [P] Create `apps/mobile/__tests__/settings-modality.test.tsx` with V56's three assertions (**D7**, FR-142, FR-143) — the settings render inside a `Modal` whose `accessibilityViewIsModal` is `true` (assert the value, not the prop's presence); the tuner screen has no scrollable ancestor; changing a preference from the sheet never calls `AccessibilityInfo.setAccessibilityFocus`. All three pass on today's code, which is the point: they pin behaviour the platform gives us free and a refactor could silently remove. A separate file from `__tests__/settings.test.tsx` so FR-143's assertions cannot be deleted alongside a settings test someone is rewriting
+- [X] T026 [P] Add a short note to `CLAUDE.md` under "Working in this repo" carrying the three traps worth the next reader's time — a modal `<dialog>` neither wraps `Tab` nor blocks page scroll (measured, **D2**); `touch-action` inherits, so it must never go on the backdrop (**D5**); the scrollbar gutter is 0 on macOS and non-zero on CI, so a width comparison is a test that only fails in CI (**D4**). Keep it to the repo's existing density — the *why*, not a narration of the fix
+- [X] T027 Capture the "after" screenshots into `specs/006-fix-settings-sheet-focus/screenshots/` and compare against T004's baseline — SC-062 permits no difference in either appearance. Any delta is a defect in this feature, not a judgement call (FR-145)
+- [X] T028 Run the full merge gate and record the counts against T001's baseline — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e`, plus `pnpm --filter @chromatic-tuner/mobile test`. `packages/core` coverage must be unmoved: no core file changes (SC-061)
+- [ ] T029 **NOT RUN — requires a human at a device.** Run V57's manual screen-reader gate against `apps/web` and `apps/mobile`, recording the result in this file — VoiceOver on macOS Safari and iOS, TalkBack on Android: open the settings, navigate by element past the end of the sheet, confirm the cursor cannot reach the tuner and the surface is announced as a dialog. Record the result here. This is the half of K8 no automated engine in this repo can observe — Axe checks that `aria-modal` is present, not that a screen reader honours it (SC-060)
+- [X] T030 Record the build log for this feature in this file — deviations from the plan, anything **D1–D8** got wrong, and any test that passed on its first run (which per the rule above means the test was wrong and what was done about it)
+
+**Checkpoint**: everything automatable is done and green. **T029 remains open** — see below.
+
+### T029 — not run, and it cannot be faked
+
+**Status: OPEN.** This gate needs a person driving VoiceOver on macOS Safari and iOS, and TalkBack on
+Android. It was not run, and nothing here should be read as evidence that it was.
+
+What *is* established, and what is not:
+
+- **Automated (T014):** `settings-sheet` carries `role="dialog"` and `aria-modal="true"`, and
+  `settings-backdrop` covers the full viewport. Axe reports no violations on the open sheet.
+- **Not established:** that a screen reader **honours** `aria-modal` and refuses to walk the cursor onto
+  the tuner behind the scrim. That is the whole of SC-060 and no engine in this repo can observe it.
+
+The distinction matters because the attribute being present is exactly the state this feature *started*
+in — the sheet has claimed `aria-modal="true"` since `001` while the keyboard walked straight out of it.
+Presence was never the guarantee.
+
+**To close it**, on each of the three combinations: open the settings, navigate by element past the last
+control, confirm the cursor cannot reach the tuner, and confirm the surface is announced as a dialog.
+Record the result here. It is a release gate rather than a merge gate, as V57 says.
+
+### T025 — the mobile assertions, and one the environment cannot support
+
+Four tests in `apps/mobile/__tests__/settings-modality.test.tsx`, all passing on unchanged mobile
+production code. Two landed as designed; one had to retreat, and the retreat is the interesting part.
+
+**The Modal assertion works and asserts the value.** `screen.getByTestId('settings-modal').type` is
+`'Modal'` and `accessibilityViewIsModal` is `true`, both checked. The hazard table's last row wanted
+exactly this: a test that only checked the prop was *present* would pass for
+`accessibilityViewIsModal={false}`, which is the web defect arriving on the other platform.
+
+**"No scrollable ancestor" cannot be asserted against the rendered tree here, measured.** The obvious
+form is "no `ScrollView` in the output", and under this setup it **cannot fail**:
+
+- RNTL 14.0.1 **removed** the `UNSAFE_getByType` / `UNSAFE_queryAllByType` queries the plan assumed.
+- What replaces them is `TestInstance.queryAll(predicate)`, where `type` is a host component *name*.
+- Probed directly: a real `<ScrollView>` renders as `type: 'View'` with props `["children"]` —
+  **indistinguishable from a plain `<View>`** — and a `<FlatList>` is too.
+
+So a render-level check would have passed happily on a tuner screen full of scroll views. That is
+precisely the class of green-on-broken test this feature exists to stop shipping, so it was not written.
+The assertion **reads the source instead**, scanning every `.tsx` under `apps/mobile/src/components`
+except `SettingsScreen.tsx` — the sheet may legitimately scroll its own content one day; FR-142 is about
+what sits *behind* it. Crude, and it fails on the change that matters.
+
+**Mutation-tested rather than assumed.** Adding the word `ScrollView` to `TunerScreen.tsx` turns it red
+and names the file. It also carries a `sources.length > 5` guard, so a walk that silently finds nothing
+cannot pass as a clean result.
+
+**That scan cost one config change.** `apps/mobile/tsconfig.json` had `types: ["jest"]`, so `node:fs`
+did not typecheck; it is now `["jest", "node"]`. This is the type checker agreeing with a decision the
+linter had already made — `eslint.config.js:178` has granted `globals.node` to
+`apps/mobile/__tests__/**` since before this feature. Recorded because widening `types` is the kind of
+change that deserves a reason on the record rather than a silent commit.
+
+### T027 — pixel-identical, byte for byte
+
+The T004 harness was recreated from the recipe recorded there, writing `after-sheet-*.png`:
+
+|  | light | dark |
+| --- | --- | --- |
+| before | `fd02fc4c…d0d3111` | `d3a8c0c8…7feb7` |
+| after | `fd02fc4c…d0d3111` | `d3a8c0c8…7feb7` |
+| sheet box | x 380, y 188, w 520, h 532 — unchanged | identical |
+
+**The SHA-256s match exactly**, in both appearances, and the bounding box is unmoved. SC-062 and FR-145
+are satisfied as a measurement rather than an assurance. Both sets are kept in `screenshots/` as the
+evidence; the harness was deleted again for T004's reason.
+
+### T028 — the full merge gate against T001
+
+| Gate | T001 baseline | Now |
+| --- | --- | --- |
+| `pnpm lint` | pass | pass |
+| `pnpm format:check` | pass | pass |
+| `pnpm typecheck` | pass, 5 projects | pass, 5 projects |
+| `pnpm test` | 483 passed | **483 passed** — unchanged, no core file touched |
+| `pnpm test:coverage` | 98.53 / 95.23 / 97.4 / **100 lines** | **98.53 / 95.23 / 97.4 / 100** — identical |
+| `pnpm test:e2e` | 145 passed | **156 passed** (+11) |
+| mobile `jest` | 117 passed, 16 suites | **121 passed, 17 suites** (+4) |
+| `pnpm verify:listing` | red, Android screenshots only | red, **the same three problems** |
+
+`packages/core` coverage is unmoved to the decimal, which is SC-061 stated as evidence: this feature
+changed one component and three test files and never entered the core.
+
+The eleven new e2e tests: V49 (1), V50 (2 — one per key), V51 (1), V52 (1), V53 (3 — one per close
+route), the K8 pin (1), V54 (1), V55 (1).
+
+### T030 — build log
+
+**What D1–D8 got right.** All eight decisions survived contact. **D2** is the standout: its claim that a
+modal `<dialog>` neither wraps `Tab` nor blocks scrolling was independently reproduced twice here, on
+our own sheet — V52 landed on `BODY` from the last control, and V54's wheel scrolled the page — so the
+rejection was justified on evidence rather than on the taste it could have been mistaken for. **D4**'s
+`overflow: hidden` claim was doubted mid-implementation and vindicated by direct probe. **D7** was right
+that mobile needs no production change.
+
+**What the plan did not have.** Four things, all found by writing the tests rather than by reading:
+
+1. **`locator.press()` focuses before pressing** (T006). V51 written the obvious way passes on the
+   broken build. The single most dangerous thing in this feature, and it is now a hazard-table row.
+2. **A restore assertion is vacuous without proof the lock applied** (T020). V55 as specified would
+   have passed on an implementation that never locked anything.
+3. **Playwright scrolls a click target into view** (T022), so V55's own fixture destroyed the
+   precondition it was asserting about. Cost an hour of blaming the implementation.
+4. **RNTL 14 cannot see a `ScrollView`** (T025), which turned one planned assertion into a source scan.
+
+**Tests that passed on their first run.** Two, both legitimate and both stated as such in advance:
+the **K8 pin** (T014) and all of **V56** (T025). Neither is a regression test — they pin behaviour that
+already works and that FR-144 and FR-143 forbid this feature from costing. No test passed first time
+that was *supposed* to fail.
+
+**One test rewritten after its red run, and re-reddened.** V54 and V55 were edited after being observed
+failing, so the original observation no longer covered the final assertions. The implementation was
+stashed and both re-run against the unfixed component before being accepted. Recorded because "observed
+failing" quietly meaning "an earlier draft was observed failing" is exactly how Principle III erodes.
+
+**One line written and deleted before it ran**: a `shiftKey && active === last` branch in the Tab
+handler, unreachable and therefore dead (T016).
+
+**Numbering slips in the task file**, both corrected in place: the hazard table said the suite was 115
+tests when it was 145, and T018 asked to re-run "V52–V54" when V54 belonged to the next phase.
+
+**The code-review obligation on K11 stands unresolved, by design.** The document element still carries
+no inline `overflow`/`padding-right`, so restoring the captured values and assigning `''` remain
+indistinguishable to every test. The implementation captures and restores; T003 recorded the measurement
+that makes this a known gap rather than an oversight.
 
 ---
 
