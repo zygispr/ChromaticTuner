@@ -159,9 +159,47 @@ no infrastructure, no schema, and no module.
 
 **⚠️ Blocking**: T005 must land before any test task in Phases 3–5.
 
-- [ ] T005 Add `openSettings(page)` and `activeTestId(page)` to `apps/web/e2e/helpers.ts` — `openSettings` clicks `reference-badge` and waits for `settings-sheet`; `activeTestId` returns `document.activeElement`'s `data-testid` (falling back to the tag name, so a `BODY` result is reported as `BODY` rather than `undefined` — every hazard row above depends on being able to tell those apart)
+- [X] T005 Add `openSettings(page)` and `activeTestId(page)` to `apps/web/e2e/helpers.ts` — `openSettings` clicks `reference-badge` and waits for `settings-sheet`; `activeTestId` returns `document.activeElement`'s `data-testid` (falling back to the tag name, so a `BODY` result is reported as `BODY` rather than `undefined` — every hazard row above depends on being able to tell those apart)
 
-**Checkpoint**: the story phases can be written independently and in any order.
+**Checkpoint**: the story phases can be written independently and in any order. ✅
+
+### T005 — the two helpers, and one thing the task got wrong
+
+Both landed in `apps/web/e2e/helpers.ts`. Lint, `format:check` and `apps/web` typecheck all pass.
+
+**`openSettings` waits for one more thing than the task specified, and it has to.** Waiting for
+`settings-sheet` to be visible is not enough: `open` is React state, so the sheet paints in the commit
+while the autofocus lands in a **passive** effect flushed after it. A `toBeVisible()` that polls in
+between resolves on a sheet whose focus is still moving, and a test that then focuses a control of its
+own races the effect and loses at random — which for this feature would look exactly like the defect
+under test. So it also waits for `settings-close` to be focused, which is K1 and existing behaviour, so
+every caller starts from one known active element rather than from whichever of the two won.
+
+**Verified against the unfixed build** with a throwaway spec, since T005 blocks Phases 3–5 and neither
+helper has a test of its own. Deleted after the run, same reasoning as T004's harness:
+
+```text
+before open:                    BODY
+after open:                     settings-close
+after focusing the slider:      a4-slider
+after ArrowRight (the defect):  settings-close     ← defect 3, reproduced
+a4-value now:                   441
+after close:                    BODY               ← FR-138 violated, as V53 predicts
+one Tab from the top:           reference-badge
+```
+
+`activeTestId`'s tag-name fallback is load-bearing rather than defensive: two of the three lines above
+that matter report `BODY`, and without it they would both report `undefined` and be indistinguishable
+from a helper that failed to read anything.
+
+> **T013 must not read `activeTestId` before focusing something, or V53 will pass on the unfixed
+> build.** The task says to read the opener "**before** opening" rather than hard-coding
+> `reference-badge`. Measured above, focus before opening is **`BODY`** — nothing is focused on a
+> freshly loaded page. A V53 that captures `BODY` and asserts the restore matches it would assert
+> exactly what today's broken build does, and pass. The capture is only meaningful once the opener is
+> genuinely focused: press `Tab` (which reaches `reference-badge`, measured), read `activeTestId`,
+> *then* open. The hazard table's row about hard-coding `reference-badge` is still right; this is the
+> same trap arriving through the opposite door.
 
 ---
 
