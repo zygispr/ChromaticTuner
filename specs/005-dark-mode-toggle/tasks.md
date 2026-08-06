@@ -1142,6 +1142,88 @@ Mobile jest **94** (was 93); lint, format, typecheck green.
 
 ---
 
+## Defect — the display jumped on Start/Stop listening (2026-08-06, reported after Phase 6)
+
+**Reported**: on mobile, pressing Start/Stop listening shifts the whole display vertically.
+
+**It was never a mobile bug.** It is a narrow-viewport bug that mobile is simply always in, and the
+existing web gate missed it for exactly that reason.
+
+### Measured, not reasoned about
+
+`TunerDisplay` reserves a fixed slot for `StatusBanner` so the centre-justified column cannot re-centre
+when the banner appears or changes — that fix is `001`'s and it works. The slot was `labelSize * 4`
+= 64px. Reproduced on **web** by running the existing stop/restart assertion at a 360px viewport:
+
+```
+banner height: reading 0px -> stopped 74px
+note-label y: 97 -> 92   (shift -5px)
+```
+
+The banner's container is `maxWidth: 420`, so at the default desktop viewport the stopped state's
+recovery sentence fits on ONE line and the banner comes to ~51px — inside the slot, test green. Narrow
+it and the sentence wraps to two, the banner measures 74px against 64px, and the centred column splits
+the 10px difference as a 5px shift of everything.
+
+`labelSize * 4` was also the wrong unit: it assumed a 16px line box while the title was rendering at the
+font's own ~18px and the steps at 24px. Four "lines" of what was never measured.
+
+### The fix is a smaller worst case, not a bigger slot
+
+Growing the slot was the obvious move and **it broke the fold**:
+
+```
+✘ the scroll cue is visible and overlaps nothing (FR-068)
+  Error: the scroll cue overlaps: microphone-toggle
+```
+
+`vite.config.ts` already documented why: the tuner column measures 582px inside 592px at the smallest
+supported viewport — **ten pixels of slack**, and the slot had just grown by sixteen.
+
+So the worst case came down instead:
+
+- The recovery sentence is shorter — "Choose Start listening to tune again." — so it fits one line at
+  360px. Nothing asserted the old wording.
+- Both text styles are pinned to one known line box, `labelSize * 1.5`, so the reservation is arithmetic
+  rather than a guess about fonts.
+- `STATUS_SLOT` is now `line * 2 + gap` = **56px**, exported from `StatusBanner` and imported by
+  `TunerDisplay`. It was declared in `TunerDisplay` and computed from constants the banner did not
+  use — which is how the two drifted in the first place.
+
+That is **8px less** than before, so the fold budget improved rather than tightened.
+
+### Two gates, and both were watched failing
+
+`layout-stability.spec.ts` gains a phone-width copy of the stop/restart assertion, and a direct check
+that the stopped banner fits its slot — the second catches the *cause*, so a future copy edit fails
+loudly instead of quietly restoring the jump. Verified by putting the long sentence back:
+
+```
+✘ reference-badge moved -9px when capture stopped at phone width
+✘ the stopped banner is 80px in a 56px slot — it will shift the column by 12px
+```
+
+### Verified on the device, since the test suite cannot see mobile layout
+
+jest has no layout engine, so the mobile half was measured from a screen recording. `capturing` was
+temporarily auto-toggled every 2.5s, a Release build run on an iPhone 17 simulator (393pt), and a
+vertical pixel slice through the reference badge tracked across every frame:
+
+```
+frames analysed: 197
+badge top-edge row: min 446  max 446  -> movement 0px
+distinct banner-region line counts seen: [5, 10]
+```
+
+Zero movement across 197 frames, and the banner region genuinely changed between the two states — so
+the stability is not vacuous. The temporary toggle was reverted (`git diff` clean).
+
+### Verification
+
+`pnpm test:e2e` **142** (was 140) · mobile jest 94 · typecheck, lint, format, build green.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

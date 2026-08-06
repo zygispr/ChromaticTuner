@@ -15,6 +15,43 @@ export interface StatusBannerProps {
   readonly captureStopped?: boolean;
 }
 
+/**
+ * One line box of banner text, pinned rather than left to the font.
+ *
+ * `TunerDisplay` reserves a fixed slot for this banner so the centred column
+ * cannot re-centre when the banner appears, changes, or vanishes. That
+ * reservation is only correct if a "line" is a known height — the slot used to
+ * be `labelSize * 4`, which assumed a 16px line box while the browser was
+ * actually giving the title ~18px and the steps 24px.
+ */
+export const STATUS_LINE_HEIGHT = type.labelSize * 1.5;
+
+/**
+ * The height `TunerDisplay` reserves, derived from what this banner renders.
+ *
+ * One title line, the gap, and one line of recovery text — the tallest ROUTINE
+ * banner, which is the stopped state. That the recovery sentence fits on one
+ * line even at the narrowest supported viewport is a REQUIREMENT, not luck: it
+ * used to be a longer sentence that wrapped to two lines on any phone, putting
+ * the banner at 74px against a 64px slot and shifting the whole centred column
+ * ~5px on every Start/Stop. `layout-stability.spec.ts` asserts the fit at 360px
+ * so a future edit to the copy fails a gate instead of quietly bringing the jump
+ * back.
+ *
+ * Reserving MORE was the obvious fix and is not available: the tuner column has
+ * about ten pixels of slack inside the smallest supported viewport (see
+ * `vite.config.ts`), and a taller slot pushes the microphone control into the
+ * scroll cue — which `fold.spec.ts` catches. Shortening the worst case was the
+ * only direction with room in it, and it gives 8px back.
+ *
+ * Exported from here, not declared in `TunerDisplay`, so the reservation and the
+ * thing being reserved for cannot drift apart. They did.
+ *
+ * The rare failure banners still grow past this, which remains the right trade —
+ * those are terminal states where nothing is being tuned.
+ */
+export const STATUS_SLOT_PX = STATUS_LINE_HEIGHT * 2 + space.sm;
+
 interface Recovery {
   readonly title: string;
   /** What the user should do next. Never absent for a failure (SC-014). */
@@ -89,7 +126,7 @@ export function StatusBanner({ status, onRetry, captureStopped = false }: Status
   const recovery = captureStopped
     ? {
         title: 'The microphone is off',
-        steps: 'Choose Start listening when you want to tune again.',
+        steps: 'Choose Start listening to tune again.',
         canRetry: false,
       }
     : recoveryFor(status);
@@ -116,6 +153,7 @@ export function StatusBanner({ status, onRetry, captureStopped = false }: Status
         style={{
           margin: 0,
           fontSize: `${type.labelSize}px`,
+          lineHeight: `${STATUS_LINE_HEIGHT}px`,
           fontWeight: recovery.steps ? type.weightMedium : type.weightRegular,
           opacity: recovery.steps ? 1 : 0.7,
         }}
@@ -130,7 +168,7 @@ export function StatusBanner({ status, onRetry, captureStopped = false }: Status
             margin: 0,
             fontSize: `${type.labelSize}px`,
             opacity: 0.75,
-            lineHeight: 1.5,
+            lineHeight: `${STATUS_LINE_HEIGHT}px`,
           }}
         >
           {recovery.steps}

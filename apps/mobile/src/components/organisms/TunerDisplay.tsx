@@ -4,7 +4,7 @@ import {
   usePreferences,
   useTuner,
 } from '@chromatic-tuner/react';
-import { space, type as typeTokens } from '@chromatic-tuner/tokens';
+import { space } from '@chromatic-tuner/tokens';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -14,26 +14,9 @@ import { NoteLabel } from '../atoms/NoteLabel';
 import { ReferenceBadge } from '../atoms/ReferenceBadge';
 import { ScreenReaderAnnouncer } from '../atoms/ScreenReaderAnnouncer';
 import { MicrophoneToggle } from '../molecules/MicrophoneToggle';
-import { StatusBanner } from '../molecules/StatusBanner';
+import { StatusBanner, STATUS_SLOT } from '../molecules/StatusBanner';
 import { TuningLine } from '../molecules/TuningLine';
 import { SettingsScreen } from '../screens/SettingsScreen';
-
-/**
- * Height reserved for the status banner, whether or not it has anything to say.
- *
- * Mirrors the web organism. `StatusBanner` renders nothing while a note is being
- * read and something while listening, stopped, or failing, and the column is
- * centre-justified — so without a reserved slot it re-centres every time the
- * banner appears or vanishes. On web that measured 37 px of movement on stop and
- * 21 px every time a note was lost or re-acquired, which is what a tuner does
- * constantly.
- *
- * Four lines of label text: the tallest routine banner is the stopped state's
- * title plus its recovery line, and a slot that merely *nearly* fits still moves
- * the display. The rare failure banners will still grow past it, which is the
- * right trade: those are terminal states where nothing is being tuned.
- */
-const STATUS_SLOT = typeTokens.labelSize * 4;
 
 /**
  * The whole tuner in one screen, mirroring the web organism exactly.

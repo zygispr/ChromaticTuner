@@ -180,3 +180,74 @@ test('the tuner does not move when a note is lost and re-acquired (FR-021)', asy
   await page.waitForTimeout(300);
   expectUnmoved(reading, await positions(page), 'when the note was re-acquired');
 });
+
+/**
+ * The same guarantee at phone width, where it actually broke.
+ *
+ * The test above runs at the default desktop viewport, and that is why it stayed
+ * green through a real defect: the banner's container is `maxWidth: 420`, so at
+ * 1280px the stopped state's recovery line — "Choose Start listening when you
+ * want to tune again." — fits on ONE line and the banner comes to ~51px, inside
+ * the reserved slot. Narrow the viewport and it wraps to two, the banner
+ * measures 74px against a 64px slot, and the centred column absorbs the
+ * difference by moving everything 5px.
+ *
+ * Reported on the mobile app, where the width is always narrow. It was never a
+ * mobile bug — it was a narrow-viewport bug that mobile is simply always in.
+ */
+test.describe('at phone width', () => {
+  test.use({ viewport: { width: 360, height: 640 } });
+
+  test('the tuner does not move when capture is stopped and restarted (FR-021)', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await waitForNote(page, 'E');
+    await page.waitForTimeout(300);
+
+    const reading = await positions(page);
+    expect(Object.keys(reading).length).toBeGreaterThan(3);
+
+    await page.getByTestId('microphone-toggle').click();
+    await expect(page.getByTestId('tuner-status')).toContainText(/microphone is off/i);
+    expectUnmoved(reading, await positions(page), 'when capture stopped at phone width');
+
+    await page.getByTestId('microphone-toggle').click();
+    await waitForNote(page, 'E');
+    await page.waitForTimeout(300);
+    expectUnmoved(reading, await positions(page), 'when capture restarted at phone width');
+  });
+
+  /**
+   * The stopped banner must FIT the slot reserved for it, not merely happen to.
+   *
+   * The test above only catches a jump once the copy is long enough to cause
+   * one. This catches the cause directly, so an edit to the recovery sentence
+   * that pushes it onto a second line fails here — with an obvious reason —
+   * rather than reintroducing a 5px shift nobody looks for.
+   *
+   * Reserving more is not the escape hatch: the tuner column has about ten
+   * pixels of slack in the smallest viewport, and `fold.spec.ts` fails when the
+   * microphone control is pushed into the scroll cue. The banner has to fit.
+   */
+  test('the stopped banner fits its reserved slot at phone width (FR-021)', async ({ page }) => {
+    await page.goto('/');
+    await waitForNote(page, 'E');
+    await page.getByTestId('microphone-toggle').click();
+    await expect(page.getByTestId('tuner-status')).toContainText(/microphone is off/i);
+
+    const { banner, slot } = await page.evaluate(() => {
+      const b = document.querySelector('[data-testid="status-banner"]')!;
+      return {
+        banner: Math.ceil(b.getBoundingClientRect().height),
+        slot: Math.round(parseFloat(getComputedStyle(b.parentElement!).minHeight)),
+      };
+    });
+
+    expect(slot, 'the reserved slot is gone or no longer a fixed height').toBeGreaterThan(0);
+    expect(
+      banner,
+      `the stopped banner is ${banner}px in a ${slot}px slot — it will shift the column by ${Math.ceil((banner - slot) / 2)}px`
+    ).toBeLessThanOrEqual(slot);
+  });
+});

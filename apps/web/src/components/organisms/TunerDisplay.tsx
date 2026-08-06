@@ -4,7 +4,7 @@ import {
   usePreferences,
   useTuner,
 } from '@chromatic-tuner/react';
-import { space, type } from '@chromatic-tuner/tokens';
+import { space } from '@chromatic-tuner/tokens';
 import { useState } from 'react';
 
 import { CentsReadout } from '../atoms/CentsReadout';
@@ -13,27 +13,9 @@ import { NoteLabel } from '../atoms/NoteLabel';
 import { ReferenceBadge } from '../atoms/ReferenceBadge';
 import { ScreenReaderAnnouncer } from '../atoms/ScreenReaderAnnouncer';
 import { MicrophoneToggle } from '../molecules/MicrophoneToggle';
-import { StatusBanner } from '../molecules/StatusBanner';
+import { StatusBanner, STATUS_SLOT_PX } from '../molecules/StatusBanner';
 import { TuningLine } from '../molecules/TuningLine';
 import { SettingsSheet } from './SettingsSheet';
-
-/**
- * Height reserved for the status banner, whether or not it has anything to say.
- *
- * `StatusBanner` renders nothing while a note is being read and something while
- * listening, stopped, or failing. Without a reserved slot the column — which is
- * centre-justified — re-centres every time it appears or vanishes: measured at
- * **37 px** of movement on stop, and **21 px** every time a note was lost or
- * re-acquired, which is what a tuner does constantly.
- *
- * Four lines of label text: the tallest routine banner is the stopped state's
- * title plus its recovery line, measured at 50 px, and a slot that merely
- * *nearly* fits still moves the display — the first attempt reserved three
- * lines and left a 1 px shift. The rare failure banners carry recovery steps
- * and a retry button and will still grow past it, which is the right trade:
- * those are terminal states where nothing is being tuned.
- */
-const STATUS_SLOT_PX = type.labelSize * 4;
 
 /**
  * The whole tuner in one screen.
