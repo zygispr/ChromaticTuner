@@ -61,6 +61,35 @@ export function ReferenceBadge({ a4Hz, isNonStandard, onOpenSettings }: Referenc
       {/* Text, not just colour — FR-015's rule applies here too. */}
       <span aria-hidden="true">A4</span>
       <span>{a4Hz} Hz</span>
+      {/*
+        The gear says what the control DOES; the pitch says what it shows.
+        Trailing rather than leading for that reason — the label here is data,
+        not the button's name, so the affordance follows it the way a disclosure
+        indicator does. A leading gear would read as belonging to "A4".
+
+        A text glyph rather than an inline SVG, so the mobile atom can be
+        character-for-character the same (FR-018) without `react-native-svg`,
+        which would be a dependency for one icon. `▾`, `−` and `+` are already
+        drawn this way elsewhere in the app.
+
+        U+FE0E is the text presentation selector: without it some platforms
+        render U+2699 as a colour emoji, which would put a hue into a design
+        that is otherwise entirely token-driven and greyscale-safe.
+
+        `aria-hidden`, because the accessible name already begins "Settings." —
+        letting the glyph through would only corrupt the channel that was
+        already right.
+      */}
+      {/*
+        Never bold, unlike the pitch beside it. The non-standard state is louder
+        on two channels — the attention colour and a heavier weight (FR-053) —
+        and both belong to the VALUE that changed. A gear that thickened too
+        would add a third signal carrying no information, and blunt the two that
+        do. The button sets the weight, so this has to opt out explicitly.
+      */}
+      <span aria-hidden="true" style={{ fontWeight: type.weightRegular }}>
+        {'⚙︎'}
+      </span>
     </button>
   );
 }

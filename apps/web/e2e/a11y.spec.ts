@@ -438,3 +438,38 @@ for (const scheme of ['light', 'dark'] as const) {
     }
   });
 }
+
+/**
+ * The way into settings has to look like the way into settings.
+ *
+ * The reference badge is the tuner screen's only control and it opens the
+ * settings sheet — but its visible label is a reference pitch, so nothing about
+ * it said "settings" to a sighted user. Assistive technology was already told:
+ * the accessible name has begun with "Settings." since `001`. This closes the
+ * gap the other way round.
+ *
+ * The gear is decoration, so it must be hidden from assistive technology —
+ * otherwise the name gains a stray glyph and the one channel that was already
+ * correct gets worse.
+ */
+test('the settings entry point carries a gear, hidden from assistive technology', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  const badge = page.getByTestId('reference-badge');
+
+  // Visible to the eye...
+  await expect(badge).toContainText('⚙');
+
+  // ...and absent from the name a screen reader reads, which still leads with
+  // the word that matters.
+  const name = await badge.evaluate((el) => el.getAttribute('aria-label'));
+  expect(name).toMatch(/^Settings\./);
+  expect(name, 'the gear leaked into the accessible name').not.toContain('⚙');
+
+  // The pitch is still the thing being read out, and the gear trails it.
+  const text = (await badge.textContent()) ?? '';
+  expect(text).toMatch(/A4\s*440 Hz\s*⚙/);
+});

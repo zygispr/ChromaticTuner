@@ -114,7 +114,9 @@ describe('ReferenceBadge (FR-022, T089)', () => {
       </Themed>
     );
 
-    expect(screen.getByTestId('reference-badge')).toHaveTextContent('A4 440 Hz');
+    // A regex, not a string: this matcher is an EXACT match here, and the
+    // badge now trails a gear glyph. What matters is that the pitch is shown.
+    expect(screen.getByTestId('reference-badge')).toHaveTextContent(/A4 440 Hz/);
     expect(screen.getByTestId('reference-badge').props.accessibilityLabel).toMatch(/standard 440/i);
   });
 
@@ -128,10 +130,34 @@ describe('ReferenceBadge (FR-022, T089)', () => {
       </Themed>
     );
 
-    expect(screen.getByTestId('reference-badge')).toHaveTextContent('A4 432 Hz');
+    expect(screen.getByTestId('reference-badge')).toHaveTextContent(/A4 432 Hz/);
     expect(screen.getByTestId('reference-badge').props.accessibilityLabel).toMatch(
       /not the standard 440/i
     );
+  });
+
+  /**
+   * The way into settings has to look like the way into settings.
+   *
+   * The badge's visible label is a reference pitch, so nothing about it said
+   * "settings" to a sighted user — while assistive technology has been told
+   * since `001`, the accessible label leading with the word. The gear closes
+   * that gap the other way round, and must NOT reach the label, which is
+   * already correct.
+   */
+  it('carries a gear the label does not mention (FR-052)', async () => {
+    await render(
+      <Themed>
+        <ReferenceBadge a4Hz={440} isNonStandard={false} onOpenSettings={() => undefined} />
+      </Themed>
+    );
+
+    const badge = screen.getByTestId('reference-badge');
+    // Pitch first, gear trailing — asserted as one ordered pattern rather than
+    // two independent substrings, so a leading gear would fail.
+    expect(badge).toHaveTextContent(/A4 440 Hz\s*⚙/);
+    expect(badge.props.accessibilityLabel).toMatch(/^Settings\./);
+    expect(badge.props.accessibilityLabel).not.toContain('⚙');
   });
 
   it('opens settings when pressed', async () => {

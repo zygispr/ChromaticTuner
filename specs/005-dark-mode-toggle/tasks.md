@@ -1036,6 +1036,65 @@ sheet (no `simctl` input injection), which is the same limitation T057 records.
 
 ---
 
+## Change — a gear on the way into settings (2026-08-06, requested after Phase 6)
+
+**Requested**: "the Settings button should have a gear icon at the start or end (whatever's more
+conventional) to better signify that it's a settings button."
+
+The control meant is `ReferenceBadge` — the tuner screen's only control, showing "A4 440 Hz" and opening
+the settings sheet. Nothing labelled "Settings" is a button; the sheet's own "Settings" is a heading.
+
+**The gap was real and one-sided.** The badge's accessible name has begun with `"Settings."` since
+`001`, so assistive technology was already told what the control does. A sighted user saw only a
+reference pitch. This closes it the other way round.
+
+### Trailing, not leading
+
+The label here is **data** — the pitch the tuner is using — not the button's name. So the gear follows
+it, the way a disclosure indicator does, rather than leading it as it would on a `⚙ Settings` menu item.
+A leading gear would also read as belonging to "A4".
+
+### A text glyph, not an SVG
+
+`U+2699` + `U+FE0E`, identical character-for-character on both platforms (FR-018).
+
+`react-native-svg` **is not a dependency** and adding it for one icon is what Principle II's ~30-line
+rule exists to refuse. The app already draws iconography this way — `▾` for the scroll cue, `−` and `+`
+for the reference stepper — so this is house practice rather than a workaround. Using the same glyph on
+both platforms also makes them identical by construction instead of by review.
+
+`U+FE0E` is the text presentation selector and is load-bearing: without it some platforms render
+`U+2699` as a **colour emoji**, which would put a hue into a design that is otherwise entirely
+token-driven and greyscale-safe. Verified by screenshot rather than assumed — web renders it
+monochrome, and iOS was checked too, being the platform most likely to ignore the selector.
+
+### The gear never goes bold
+
+The non-standard reference state is louder on two channels, the attention colour and a heavier weight
+(FR-053), and **both belong to the value that changed**. The gear takes the colour — it is part of the
+same control — but stays at regular weight, so it adds no third signal carrying no information. On web
+that needs an explicit opt-out, because the weight is set on the button.
+
+### Two existing assertions had to change, and the reason is worth knowing
+
+`toHaveTextContent` under this setup is an **exact** match, not a substring one:
+
+```
+Expected instance to have text content:  A4 440 Hz
+Received:                                A4 440 Hz⚙︎
+```
+
+The two pre-existing badge assertions became regexes. The new one asserts `/A4 440 Hz\s*⚙/` as a single
+ordered pattern rather than two independent substrings, so a *leading* gear would fail it.
+
+### Verification
+
+`pnpm test:e2e` **140** (was 139) · mobile jest **93** (was 92) · typecheck, lint, format, build green.
+The gear is asserted present and visible, absent from the accessible name, and trailing — on both
+platforms.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
