@@ -1,14 +1,21 @@
-import type { AccidentalStyle } from '../types';
+import type { AccidentalStyle, AppearancePreference } from '../types';
 
 /**
- * The only state this product persists: two preferences, on the device the
- * user set them on. No accounts, no server, no sync (FR-032, SC-015).
+ * The only state this product persists: three preferences, on the device the
+ * user set them on. No accounts, no server, no sync (FR-032, SC-015, FR-131).
  *
- * Contract: specs/001-chromatic-guitar-tuner/contracts/platform-ports.md §2
+ * Contract: specs/001-chromatic-guitar-tuner/contracts/platform-ports.md §2,
+ * extended by specs/005-dark-mode-toggle/contracts/appearance.md §2.
  */
 export interface StoredPreferences {
   readonly a4Hz: number;
   readonly accidentalStyle: AccidentalStyle;
+  /**
+   * Added by 005. The PORT is unchanged — this is one more field inside a blob
+   * both adapters already treat as opaque, which is why neither of them needed
+   * to learn anything (contract §5).
+   */
+  readonly appearance: AppearancePreference;
   /**
    * Forward-migration hook, carried from the first release because Principle VI
    * requires a migration path from day one and retrofitting one is far more

@@ -65,6 +65,23 @@ export function ReferenceBadge({ a4Hz, isNonStandard, onOpenSettings }: Referenc
       >
         A4 {a4Hz} Hz
       </Text>
+      {/*
+        The gear says what the control DOES; the pitch says what it shows.
+        Trailing rather than leading for that reason — the label here is data,
+        not the button's name, so the affordance follows it the way a disclosure
+        indicator does.
+
+        The same text glyph the web atom uses, character for character (FR-018).
+        An SVG would mean adding `react-native-svg` for one icon; `−` and `+` in
+        the settings stepper are already drawn as glyphs. U+FE0E forces text
+        presentation, so it does not arrive as a colour emoji in a design that is
+        otherwise entirely token-driven.
+
+        Not announced: the Pressable above carries an `accessibilityLabel` that
+        already begins "Settings.", and that label is what VoiceOver reads —
+        these Text children are not traversed separately.
+      */}
+      <Text style={[styles.gear, { color: isNonStandard ? accent : colors.text }]}>{'⚙︎'}</Text>
     </Pressable>
   );
 }
@@ -73,8 +90,12 @@ const styles = StyleSheet.create({
   badge: {
     minHeight: a11y.minTouchTarget,
     paddingHorizontal: space.md,
+    // A row, since the gear sits beside the pitch rather than under it. The
+    // web atom is an `inline-flex` with the same `space.xs` gap.
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: space.xs,
     borderWidth: 1,
     borderRadius: space.sm,
   },
@@ -82,5 +103,17 @@ const styles = StyleSheet.create({
     fontSize: typeTokens.labelSize,
     letterSpacing: 0.6,
     fontVariant: ['tabular-nums'],
+  },
+  /**
+   * Never bold, unlike the pitch beside it.
+   *
+   * The non-standard state is louder on two channels — the attention colour and
+   * a heavier weight (FR-053) — and both belong to the VALUE that changed. A
+   * gear that thickened too would add a third signal carrying no information,
+   * and blunt the two that do.
+   */
+  gear: {
+    fontSize: typeTokens.labelSize,
+    fontWeight: '400',
   },
 });

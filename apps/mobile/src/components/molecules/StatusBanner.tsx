@@ -23,6 +23,59 @@ interface Recovery {
   readonly canRetry: boolean;
 }
 
+/**
+ * One line box of banner text, pinned rather than left to the platform font.
+ *
+ * `TunerDisplay` reserves a fixed slot for this banner so the centred column
+ * cannot re-centre when the banner appears, changes, or vanishes. That
+ * reservation is only correct if a "line" is a known height — the slot used to
+ * be `labelSize * 4`, which assumed a 16pt line box while React Native was
+ * giving the title the font's own ~19pt and the steps 24pt.
+ */
+export const STATUS_LINE_HEIGHT = typeTokens.labelSize * 1.5;
+
+/**
+ * The height `TunerDisplay` reserves, derived from what this banner renders.
+ *
+ * One title line, the gap, and one line of recovery text — the tallest ROUTINE
+ * banner, which is the stopped state. That the recovery sentence fits on one
+ * line even at the narrowest supported viewport is a REQUIREMENT, not luck: it
+ * used to be a longer sentence that wrapped to two lines on any phone, putting
+ * the banner at 74px against a 64px slot and shifting the whole centred column
+ * ~5px on every Start/Stop. `layout-stability.spec.ts` asserts the fit at 360px
+ * so a future edit to the copy fails a gate instead of quietly bringing the jump
+ * back.
+ *
+ * Reserving MORE was the obvious fix and is not available: the tuner column has
+ * about ten pixels of slack inside the smallest supported viewport (see
+ * `vite.config.ts`), and a taller slot pushes the microphone control into the
+ * scroll cue — which `fold.spec.ts` catches. Shortening the worst case was the
+ * only direction with room in it, and it gives 8px back.
+ *
+ * Exported from here, not declared in `TunerDisplay`, so the reservation and the
+ * thing being reserved for cannot drift apart. They did.
+ *
+ * The rare failure banners still grow past this, which remains the right trade —
+ * those are terminal states where nothing is being tuned.
+ *
+ * **A function of the font scale, not a constant.** React Native scales both
+ * `fontSize` and `lineHeight` by the reader's Dynamic Type setting, so a slot
+ * fixed in points stops matching its contents the moment anyone leaves the
+ * default. Measured on a 393pt device: no movement at `medium` or `large`, 3pt
+ * at `extra-large`, 5.7pt at `extra-extra-large` — which is the "slight jump"
+ * reported from a physical phone after the simulator, sitting at the default,
+ * had shown none.
+ */
+export function statusSlotHeight(fontScale: number): number {
+  // Only the text scales. The gap between title and steps is layout, and React
+  // Native leaves it alone.
+  //
+  // NOT rounded. `Math.ceil` here was tried and measured: it moved which text
+  // sizes show a 1px (0.3pt) residual rather than removing any, so it bought a
+  // line of code and nothing else.
+  return STATUS_LINE_HEIGHT * 2 * fontScale + space.sm;
+}
+
 /** Where the microphone permission actually lives on this OS. */
 const SETTINGS_PATH =
   Platform.OS === 'ios'
@@ -93,7 +146,7 @@ export function StatusBanner({ status, onRetry, captureStopped = false }: Status
   const recovery = captureStopped
     ? {
         title: 'The microphone is off',
-        steps: 'Choose Start listening when you want to tune again.',
+        steps: 'Choose Start listening to tune again.',
         canRetry: false,
       }
     : recoveryFor(status);
@@ -153,6 +206,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: typeTokens.labelSize,
+    lineHeight: STATUS_LINE_HEIGHT,
     textAlign: 'center',
   },
   titleStrong: {
@@ -160,7 +214,7 @@ const styles = StyleSheet.create({
   },
   steps: {
     fontSize: typeTokens.labelSize,
-    lineHeight: typeTokens.labelSize * 1.5,
+    lineHeight: STATUS_LINE_HEIGHT,
     textAlign: 'center',
     opacity: 0.75,
   },

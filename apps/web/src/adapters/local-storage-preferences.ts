@@ -1,10 +1,5 @@
+import { PREFERENCES_STORAGE_KEY as KEY } from '@chromatic-tuner/core';
 import type { PreferencesStore, StoredPreferences } from '@chromatic-tuner/core';
-
-/**
- * One key, one JSON blob (data-model §6). Namespaced so it cannot collide with
- * anything else on the same origin.
- */
-const KEY = 'chromatic-tuner:preferences';
 
 /**
  * Web adapter for the {@link PreferencesStore} port, backed by `localStorage`.

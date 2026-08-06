@@ -192,3 +192,70 @@ test('reaches a usable tuning display within the cold-start budget (Principle V)
 
   expect(coldStartMs!).toBeLessThanOrEqual(2_000);
 });
+
+/**
+ * T056 / SC-050 — switching appearance while a note is ringing costs no frames.
+ *
+ * The change is deliberately instant, with no transition (research D7), so the
+ * cost is one attribute write plus a React re-render of the settings sheet —
+ * and the risk is that it lands on top of the continuous reading path, which is
+ * already writing the marker ~43 times a second.
+ *
+ * Sampled the same way as the session budget above, so the two numbers are
+ * directly comparable: real presented frames via `requestAnimationFrame`, with
+ * the switch performed in the middle of the window rather than before it.
+ */
+test('switching appearance mid-reading costs no dropped frames (SC-050)', async ({ page }) => {
+  test.setTimeout(120_000);
+
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/');
+  await waitForNote(page, 'E');
+  await page.getByTestId('reference-badge').click();
+  await expect(page.getByTestId('settings-sheet')).toBeVisible();
+
+  // Start sampling, then flip the appearance three times while it runs. The
+  // sampler resolves on its own; the clicks happen against a live frame loop.
+  const sampling = page.evaluate(async () => {
+    const deltas: number[] = [];
+    await new Promise<void>((resolve) => {
+      let previous = performance.now();
+      const started = previous;
+      const tick = (now: number) => {
+        deltas.push(now - previous);
+        previous = now;
+        if (now - started >= 6_000) resolve();
+        else requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    return deltas;
+  });
+
+  for (const value of ['dark', 'light', 'dark'] as const) {
+    await page.waitForTimeout(1_200);
+    await page.getByTestId(`appearance-${value}`).click();
+  }
+
+  const frames = await sampling;
+  const steady = frames.slice(1).sort((a, b) => a - b);
+  expect(steady.length).toBeGreaterThan(100);
+
+  const p50 = steady[Math.floor(steady.length * 0.5)]!;
+  const p95 = steady[Math.floor(steady.length * 0.95)]!;
+  const worst = steady[steady.length - 1]!;
+
+  console.log(
+    `appearance switch frame time: p50 ${p50.toFixed(1)}ms  p95 ${p95.toFixed(1)}ms  max ${worst.toFixed(1)}ms`
+  );
+
+  // The same budget the continuous session is held to. A switch that repainted
+  // every token through a transition would show up in p95 first.
+  expect(p50).toBeLessThanOrEqual(17.5);
+  expect(p95).toBeLessThanOrEqual(33.4);
+
+  // And the appearance actually changed — otherwise this measures an idle page.
+  expect(await page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe(
+    'dark'
+  );
+});

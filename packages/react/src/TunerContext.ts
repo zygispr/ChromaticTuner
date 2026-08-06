@@ -1,6 +1,11 @@
 import { createContext } from 'react';
 
-import type { AccidentalStyle, TunerSession } from '@chromatic-tuner/core';
+import type {
+  AccidentalStyle,
+  Appearance,
+  AppearancePreference,
+  TunerSession,
+} from '@chromatic-tuner/core';
 
 /**
  * The resolved preference state, shared by every consumer.
@@ -23,10 +28,40 @@ export interface PreferencesContextValue {
    */
   readonly persistenceFailed: boolean;
 
+  /**
+   * The appearance to RENDER — already resolved against the device (M9).
+   *
+   * Resolved once in the provider so no two surfaces can disagree about which
+   * appearance is in effect. No component may call `resolveAppearance` itself,
+   * and no component may consult the platform appearance directly.
+   */
+  readonly appearance: Appearance;
+  /**
+   * The appearance the user CHOSE, which is what the control shows as selected.
+   *
+   * Distinct from `appearance` because `'system'` is a real stored choice
+   * (FR-119) and cannot be recovered from the resolved value: "dark, because
+   * the device is dark" and "dark, because I said so" render identically and
+   * must not be offered identically.
+   */
+  readonly appearancePreference: AppearancePreference;
+
   /** Clamped to the supported range rather than rejected (guarantee R4). */
   readonly setA4Hz: (hz: number) => void;
   readonly setAccidentalStyle: (style: AccidentalStyle) => void;
+  readonly setAppearancePreference: (preference: AppearancePreference) => void;
   readonly reset: () => void;
+
+  /**
+   * False until storage has answered; true from then on, never false again
+   * (M10).
+   *
+   * Narrow and load-bearing: the web app must not write `data-theme` from React
+   * state before this is true. Writing the DEFAULT state's appearance on mount
+   * would overwrite what the inline no-flash script correctly established, and
+   * reintroduce the exact flash that script exists to prevent (FR-120).
+   */
+  readonly preferencesLoaded: boolean;
 }
 
 export interface TunerContextValue {

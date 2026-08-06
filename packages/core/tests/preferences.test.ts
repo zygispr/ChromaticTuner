@@ -6,6 +6,7 @@ import {
   A4_MIN_HZ,
   DEFAULT_PREFERENCES,
   PREFERENCES_SCHEMA_VERSION,
+  PREFERENCES_STORAGE_KEY,
   clampA4Hz,
   isNonStandardReference,
   loadPreferences,
@@ -67,10 +68,11 @@ describe('normalizePreferences (obligation P1, data-model §6)', () => {
   });
 
   it('keeps valid values untouched', () => {
-    const stored = { a4Hz: 432, accidentalStyle: 'flat', schemaVersion: 1 };
+    const stored = { a4Hz: 432, accidentalStyle: 'flat', appearance: 'dark', schemaVersion: 1 };
     expect(normalizePreferences(stored)).toEqual({
       a4Hz: 432,
       accidentalStyle: 'flat',
+      appearance: 'dark',
       schemaVersion: PREFERENCES_SCHEMA_VERSION,
     });
   });
@@ -103,6 +105,71 @@ describe('normalizePreferences (obligation P1, data-model §6)', () => {
     expect(normalizePreferences({}).schemaVersion).toBe(PREFERENCES_SCHEMA_VERSION);
   });
 
+  /**
+   * V40 / M5-M7 — the appearance field (data-model §2).
+   *
+   * Split out rather than folded into the cases above because the field's
+   * default is what makes FR-122 true for records written before this feature
+   * existed: they have no appearance, and "no appearance" must mean "match the
+   * device", which is exactly what the app did before it could be told
+   * otherwise.
+   */
+  it('defaults every unusable appearance to system (M5, FR-121)', () => {
+    // 'System' and 'auto' are here deliberately. They are the two values a
+    // plausible hand-edit or a rival implementation would produce, and both
+    // must be rejected: the union is case-sensitive and 'auto' is not a member
+    // of it, so accepting either would mean the guard is doing a loose match.
+    const unusable = [undefined, null, 0, '', 'System', 'auto', 'Dark', 'chartreuse', true, {}, []];
+
+    for (const value of unusable) {
+      expect(
+        normalizePreferences({ appearance: value }).appearance,
+        `${JSON.stringify(value)} should have defaulted to 'system'`
+      ).toBe('system');
+    }
+  });
+
+  it('keeps each of the three permitted appearances (M5)', () => {
+    for (const appearance of ['light', 'dark', 'system'] as const) {
+      expect(normalizePreferences({ appearance }).appearance).toBe(appearance);
+    }
+  });
+
+  it('repairs a bad appearance without disturbing the other fields (M6, FR-121)', () => {
+    // The failure this catches is an implementation that resets the WHOLE
+    // record when one field is unusable, throwing away a reference pitch the
+    // user deliberately set because an unrelated field was corrupt.
+    const repaired = normalizePreferences({
+      a4Hz: 432,
+      accidentalStyle: 'flat',
+      appearance: 'chartreuse',
+    });
+
+    expect(repaired.appearance).toBe('system');
+    expect(repaired.a4Hz).toBe(432);
+    expect(repaired.accidentalStyle).toBe('flat');
+  });
+
+  it('repairs a bad reference pitch without disturbing a valid appearance (M6)', () => {
+    // The same guarantee in the other direction — the one that would be missed
+    // by only ever corrupting the new field.
+    const repaired = normalizePreferences({ a4Hz: 'broken', appearance: 'dark' });
+
+    expect(repaired.appearance).toBe('dark');
+    expect(repaired.a4Hz).toBe(A4_DEFAULT_HZ);
+  });
+
+  it('loads a record written before this feature without loss (M7, FR-122)', () => {
+    // Exactly the shape 001 shipped. No migration runs, and none should: D6
+    // keeps the schema version at 1 because there is nothing to migrate.
+    expect(normalizePreferences({ a4Hz: 432, accidentalStyle: 'flat', schemaVersion: 1 })).toEqual({
+      a4Hz: 432,
+      accidentalStyle: 'flat',
+      appearance: 'system',
+      schemaVersion: 1,
+    });
+  });
+
   it('repairs one bad field without discarding the good ones', () => {
     // Throwing away a perfectly good accidental preference because the pitch
     // was corrupt would be a worse answer than the one the user set.
@@ -132,6 +199,18 @@ describe('normalizePreferences (obligation P1, data-model §6)', () => {
   });
 });
 
+describe('PREFERENCES_STORAGE_KEY (M8, research D4)', () => {
+  it('is the exact key already on users devices', () => {
+    // The literal is pinned HERE and nowhere else. Every consumer imports the
+    // constant since 005, so the class of bug where two of them disagree is
+    // gone — but that also means a change to this string would compile, pass,
+    // and silently orphan the settings of everyone who already has some. This
+    // assertion is the tripwire for that; changing it must be a deliberate act
+    // with a migration behind it.
+    expect(PREFERENCES_STORAGE_KEY).toBe('chromatic-tuner:preferences');
+  });
+});
+
 describe('isNonStandardReference (FR-022)', () => {
   it('is false at concert pitch and true anywhere else', () => {
     expect(isNonStandardReference(A4_DEFAULT_HZ)).toBe(false);
@@ -152,6 +231,7 @@ describe('loadPreferences (obligation P1)', () => {
     const store = new InMemoryPreferencesStore({
       a4Hz: 432,
       accidentalStyle: 'flat',
+      appearance: 'dark',
       schemaVersion: 1,
     });
     store.corrupt = true;
@@ -171,10 +251,16 @@ describe('loadPreferences (obligation P1)', () => {
 
   it('round-trips a saved preference', async () => {
     const store = new InMemoryPreferencesStore();
-    await savePreferences(store, { a4Hz: 415, accidentalStyle: 'flat', schemaVersion: 1 });
+    await savePreferences(store, {
+      a4Hz: 415,
+      accidentalStyle: 'flat',
+      appearance: 'light',
+      schemaVersion: 1,
+    });
     expect(await loadPreferences(store)).toEqual({
       a4Hz: 415,
       accidentalStyle: 'flat',
+      appearance: 'light',
       schemaVersion: PREFERENCES_SCHEMA_VERSION,
     });
   });
@@ -200,12 +286,17 @@ describe('savePreferences (obligation P2)', () => {
     await savePreferences(store, {
       a4Hz: 9999,
       accidentalStyle: 'flat',
+      // Not a member of the union. It must be repaired on the way IN to
+      // storage, not merely on the way out (M5) — otherwise a value the app
+      // itself wrote is one that its own loader has to defend against.
+      appearance: 'chartreuse' as never,
       schemaVersion: 0,
     });
 
     expect(await store.load()).toEqual({
       a4Hz: A4_MAX_HZ,
       accidentalStyle: 'flat',
+      appearance: 'system',
       schemaVersion: PREFERENCES_SCHEMA_VERSION,
     });
   });

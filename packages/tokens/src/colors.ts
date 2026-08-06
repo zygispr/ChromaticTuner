@@ -30,7 +30,38 @@ export const color = {
   /** Listening, with no usable signal. Deliberately quiet. */
   noReading: { light: '#565B66', dark: '#9BA2B0' },
 
-  background: { light: '#FCFCFD', dark: '#0B0B0F' },
+  /**
+   * The app's base canvas — the tuner screen itself.
+   *
+   * The dark value was `#0B0B0F` (L* 3.1) until it was reported as "way too
+   * dark". That is darker than either platform's own baseline — Material's
+   * dark surface is `#121212` (L* 6.5) — and it left nothing below it, which
+   * is the reason the settings sheet could not be told apart from the screen
+   * behind it: see `surface`.
+   */
+  background: { light: '#FCFCFD', dark: '#121419' },
+
+  /**
+   * A surface that sits ABOVE the background — today, the settings sheet.
+   *
+   * Identical to `background` in light, and deliberately so: there the sheet is
+   * separated by the scrim, which dims the tuner behind it from L* 99 to L* 57
+   * — a step of 41. Nothing more is needed.
+   *
+   * **Dark cannot use that mechanism at all**, and this token exists because it
+   * was quietly broken. A scrim darkens, and there is almost nothing below
+   * `background` to darken towards: `#0B0B0F` dimmed by the dark scrim became
+   * `#040406`, so a sheet painted in `background` stood out from the screen
+   * behind it by ΔL* 2.0 — measurably invisible, against 41.5 in light. The
+   * `box-shadow` contributed nothing either, being black on near-black.
+   *
+   * So elevation in dark is carried by LIGHTNESS, as it is on both platforms:
+   * a raised surface is lighter, not shadowed. `#1F232B` puts the sheet ΔL*
+   * 11.5 above the dimmed tuner. The sheet also draws a `line` edge, so the
+   * separation survives greyscale and any future retune of these two values.
+   */
+  surface: { light: '#FCFCFD', dark: '#1F232B' },
+
   text: { light: '#16181D', dark: '#F2F4F8' },
   /** The horizontal line itself and its tick marks. */
   line: { light: '#7A818F', dark: '#6B7280' },
@@ -67,8 +98,14 @@ export const color = {
    * test asserts in both appearances. That constraint is tighter than it looks:
    * the tint darkens the surface enough that the buttons' example line, set at
    * a fraction of `text`, lands close to the 4.5:1 floor.
+   *
+   * Measured against `surface`, not `background`, because that is what these
+   * options actually sit on — they only ever appear inside the settings sheet.
+   * The two were the same colour until the sheet gained its own elevation, at
+   * which point the dark tint had to come up with it or it would have been a
+   * step DOWN from the surface it tints.
    */
-  selected: { light: '#E6E8ED', dark: '#23262E' },
+  selected: { light: '#E6E8ED', dark: '#2E333D' },
 
   /**
    * The hover / pressed wash on any control (FR-058, FR-059).

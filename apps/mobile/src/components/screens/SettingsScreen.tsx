@@ -1,4 +1,9 @@
-import { A4_MAX_HZ, A4_MIN_HZ, type AccidentalStyle } from '@chromatic-tuner/core';
+import {
+  A4_MAX_HZ,
+  A4_MIN_HZ,
+  type AccidentalStyle,
+  type AppearancePreference,
+} from '@chromatic-tuner/core';
 import { usePreferences } from '@chromatic-tuner/react';
 import { a11y, motion, space, type as typeTokens } from '@chromatic-tuner/tokens';
 import { useEffect, useState } from 'react';
@@ -20,6 +25,18 @@ export interface SettingsScreenProps {
 const ACCIDENTAL_OPTIONS: Array<{ value: AccidentalStyle; label: string; example: string }> = [
   { value: 'sharp', label: 'Sharps', example: 'C♯ D♯ F♯' },
   { value: 'flat', label: 'Flats', example: 'D♭ E♭ G♭' },
+];
+
+/**
+ * The same words, in the same order, as the web sheet (research D8, FR-124).
+ *
+ * "Match device", not "System" or "Auto". Both platforms assert this list, since
+ * two hand-maintained copies of one vocabulary is how they drift apart.
+ */
+const APPEARANCE_OPTIONS: Array<{ value: AppearancePreference; label: string }> = [
+  { value: 'system', label: 'Match device' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
 ];
 
 /** How far one press of the stepper moves the reference pitch. */
@@ -53,10 +70,12 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
   const {
     a4Hz,
     accidentalStyle,
+    appearancePreference,
     isNonStandardReference,
     persistenceFailed,
     setA4Hz,
     setAccidentalStyle,
+    setAppearancePreference,
     reset,
   } = usePreferences();
 
@@ -143,7 +162,10 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
             testID="settings-sheet"
             accessible={false}
             onPress={() => undefined}
-            style={[styles.sheet, { backgroundColor: colors.background }]}
+            // `surface` + a `line` edge, not `background`: the sheet is raised,
+            // and in dark the scrim cannot say so — there is nothing below the
+            // background to darken towards. See the token's own comment.
+            style={[styles.sheet, { backgroundColor: colors.surface, borderTopColor: colors.line }]}
           >
             <View style={styles.header}>
               <Text style={[styles.heading, { color: colors.text }]}>Settings</Text>
@@ -274,6 +296,58 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
               </View>
             </View>
 
+            <View>
+              <Text style={[styles.legend, { color: colors.text }]}>Appearance</Text>
+
+              {/* The Accidentals group's treatment, reused rather than
+                  rewritten (research D8) — `selected` tint fill, bold label,
+                  one border width. `accessibilityRole="radio"` because these
+                  are mutually exclusive and exactly one is always chosen,
+                  which is what a radio means to VoiceOver. */}
+              <View style={styles.options}>
+                {APPEARANCE_OPTIONS.map((option) => {
+                  const selected = appearancePreference === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      testID={`appearance-${option.value}`}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
+                      onPress={() => setAppearancePreference(option.value)}
+                      style={({ pressed }) => [
+                        styles.option,
+                        { borderColor: selected ? colors.text : colors.line },
+                        selected && { backgroundColor: colors.selected },
+                        // The wash replaces the background outright, so it may
+                        // only be applied to an option that has none. The
+                        // filled one layers it as an overlay, below.
+                        pressed && !selected && { backgroundColor: colors.pressed },
+                      ]}
+                    >
+                      {({ pressed }) => (
+                        <>
+                          {pressed && selected && (
+                            <View
+                              testID={`appearance-${option.value}-wash`}
+                              style={[styles.wash, { backgroundColor: colors.pressed }]}
+                            />
+                          )}
+                          <Text
+                            style={[
+                              styles.optionLabel,
+                              { color: colors.text, fontWeight: selected ? '700' : '400' },
+                            ]}
+                          >
+                            {option.label}
+                          </Text>
+                        </>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
             {persistenceFailed && (
               <Text testID="persistence-warning" style={[styles.warning, { color: accent }]}>
                 These settings apply now but could not be saved, so they will not be remembered next
@@ -316,6 +390,10 @@ const styles = StyleSheet.create({
     gap: space.lg,
     borderTopLeftRadius: space.md,
     borderTopRightRadius: space.md,
+    // Top only — the sheet is anchored to the bottom and spans the full width,
+    // so its other three edges are off-screen. Colour comes from the component,
+    // because a literal here would be an ESLint error and rightly so.
+    borderTopWidth: 1,
   },
   header: {
     flexDirection: 'row',
@@ -407,12 +485,30 @@ const styles = StyleSheet.create({
   },
   optionLabel: {
     fontSize: typeTokens.labelSize,
+    /*
+     * `alignItems: 'center'` on the option box is not enough on its own.
+     *
+     * That centres the Text ELEMENT, which is all that is needed while a label
+     * fits on one line. "Match device" does not: at `labelSize` it needs ~95pt
+     * in the ~92pt an option gets on a 393pt-wide phone, so it wraps — and React
+     * Native left-aligns wrapped lines by default, leaving "Match" / "device"
+     * ragged.
+     *
+     * The web half never showed this, because a `<button>` inherits
+     * `text-align: center` from the UA stylesheet. Same layout, two different
+     * defaults, which is the drift FR-018 exists to catch — and it took a human
+     * looking at both apps side by side to see it.
+     */
+    textAlign: 'center',
   },
   optionExample: {
     fontSize: 12,
     // The `selected` tint sits close enough to this text that a heavier fade
     // drops it under AA; the token carries the measurement.
     opacity: a11y.mutedOpacity,
+    // Same reason as the label above: this one is short today, but it is the
+    // second line of the same box and must not go ragged if it ever wraps.
+    textAlign: 'center',
   },
   warning: {
     fontSize: typeTokens.labelSize,

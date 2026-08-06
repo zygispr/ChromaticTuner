@@ -92,6 +92,15 @@ test('the settings sheet does not resize when a setting changes (FR-021)', async
   await expect(page.getByTestId('accidental-flat')).toHaveAttribute('aria-pressed', 'true');
   expect(await heightOf(), 'the sheet resized when the accidental style changed').toBe(opened);
 
+  // The appearance group is three members rather than two, so it is the one
+  // most likely to reflow: a label as long as "Match device" beside two short
+  // ones will wrap if the options are not equal-width.
+  for (const value of ['light', 'dark', 'system'] as const) {
+    await page.getByTestId(`appearance-${value}`).click();
+    await expect(page.getByTestId(`appearance-${value}`)).toHaveAttribute('aria-pressed', 'true');
+    expect(await heightOf(), `the sheet resized when the appearance became ${value}`).toBe(opened);
+  }
+
   await page.getByTestId('settings-reset').click();
   await expect(page.getByTestId('a4-value')).toHaveText('440');
   expect(await heightOf(), 'the sheet resized when the settings were reset').toBe(opened);
@@ -114,9 +123,45 @@ test('the settings groups are labelled without fieldset/legend layout (FR-021)',
   // Still grouped and still labelled — the point is the layout path, not the
   // semantics, which assistive technology reads identically either way (FR-020).
   const groups = sheet.getByRole('group');
-  await expect(groups).toHaveCount(2);
+  await expect(groups).toHaveCount(3);
   await expect(groups.nth(0)).toHaveAccessibleName('Reference pitch');
   await expect(groups.nth(1)).toHaveAccessibleName('Accidentals');
+  await expect(groups.nth(2)).toHaveAccessibleName('Appearance');
+});
+
+/**
+ * The three appearance options are one width (research D8, FR-118).
+ *
+ * Separate from the sheet-height check above, which cannot see this: the row
+ * keeps its height whether the options are equal or not. What resizes is the
+ * options themselves — "Match device" is more than twice as long as "Dark", so
+ * options sized to their content put the boxes at three different widths and
+ * move them under the finger as the selection's bold weight shifts.
+ */
+test('the appearance options are equal width and stay that way (FR-118)', async ({ page }) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+  await page.getByTestId('reference-badge').click();
+  await expect(page.getByTestId('settings-sheet')).toBeVisible();
+
+  const widths = async () =>
+    Promise.all(
+      (['system', 'light', 'dark'] as const).map(async (value) => {
+        const box = await page.getByTestId(`appearance-${value}`).boundingBox();
+        expect(box, `appearance-${value} has no box`).not.toBeNull();
+        return Math.round(box!.width);
+      })
+    );
+
+  const atRest = await widths();
+  expect(new Set(atRest).size, `the options are ${atRest.join('/')}px wide`).toBe(1);
+
+  // Selecting bolds a label, which is exactly when a content-sized box grows.
+  for (const value of ['light', 'dark', 'system'] as const) {
+    await page.getByTestId(`appearance-${value}`).click();
+    const after = await widths();
+    expect(after, `choosing ${value} resized the options`).toEqual(atRest);
+  }
 });
 
 test('the tuner does not move when a note is lost and re-acquired (FR-021)', async ({ page }) => {
@@ -134,4 +179,75 @@ test('the tuner does not move when a note is lost and re-acquired (FR-021)', asy
   await waitForNote(page, 'E');
   await page.waitForTimeout(300);
   expectUnmoved(reading, await positions(page), 'when the note was re-acquired');
+});
+
+/**
+ * The same guarantee at phone width, where it actually broke.
+ *
+ * The test above runs at the default desktop viewport, and that is why it stayed
+ * green through a real defect: the banner's container is `maxWidth: 420`, so at
+ * 1280px the stopped state's recovery line — "Choose Start listening when you
+ * want to tune again." — fits on ONE line and the banner comes to ~51px, inside
+ * the reserved slot. Narrow the viewport and it wraps to two, the banner
+ * measures 74px against a 64px slot, and the centred column absorbs the
+ * difference by moving everything 5px.
+ *
+ * Reported on the mobile app, where the width is always narrow. It was never a
+ * mobile bug — it was a narrow-viewport bug that mobile is simply always in.
+ */
+test.describe('at phone width', () => {
+  test.use({ viewport: { width: 360, height: 640 } });
+
+  test('the tuner does not move when capture is stopped and restarted (FR-021)', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await waitForNote(page, 'E');
+    await page.waitForTimeout(300);
+
+    const reading = await positions(page);
+    expect(Object.keys(reading).length).toBeGreaterThan(3);
+
+    await page.getByTestId('microphone-toggle').click();
+    await expect(page.getByTestId('tuner-status')).toContainText(/microphone is off/i);
+    expectUnmoved(reading, await positions(page), 'when capture stopped at phone width');
+
+    await page.getByTestId('microphone-toggle').click();
+    await waitForNote(page, 'E');
+    await page.waitForTimeout(300);
+    expectUnmoved(reading, await positions(page), 'when capture restarted at phone width');
+  });
+
+  /**
+   * The stopped banner must FIT the slot reserved for it, not merely happen to.
+   *
+   * The test above only catches a jump once the copy is long enough to cause
+   * one. This catches the cause directly, so an edit to the recovery sentence
+   * that pushes it onto a second line fails here — with an obvious reason —
+   * rather than reintroducing a 5px shift nobody looks for.
+   *
+   * Reserving more is not the escape hatch: the tuner column has about ten
+   * pixels of slack in the smallest viewport, and `fold.spec.ts` fails when the
+   * microphone control is pushed into the scroll cue. The banner has to fit.
+   */
+  test('the stopped banner fits its reserved slot at phone width (FR-021)', async ({ page }) => {
+    await page.goto('/');
+    await waitForNote(page, 'E');
+    await page.getByTestId('microphone-toggle').click();
+    await expect(page.getByTestId('tuner-status')).toContainText(/microphone is off/i);
+
+    const { banner, slot } = await page.evaluate(() => {
+      const b = document.querySelector('[data-testid="status-banner"]')!;
+      return {
+        banner: Math.ceil(b.getBoundingClientRect().height),
+        slot: Math.round(parseFloat(getComputedStyle(b.parentElement!).minHeight)),
+      };
+    });
+
+    expect(slot, 'the reserved slot is gone or no longer a fixed height').toBeGreaterThan(0);
+    expect(
+      banner,
+      `the stopped banner is ${banner}px in a ${slot}px slot — it will shift the column by ${Math.ceil((banner - slot) / 2)}px`
+    ).toBeLessThanOrEqual(slot);
+  });
 });

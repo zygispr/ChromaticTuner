@@ -2,7 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { A4_MAX_HZ, A4_MIN_HZ, frequencyOf } from '@chromatic-tuner/core';
-import type { PreferencesStore } from '@chromatic-tuner/core';
+import type { Appearance, PreferencesStore, StoredPreferences } from '@chromatic-tuner/core';
 import {
   InMemoryPreferencesStore,
   NoopWakeLock,
@@ -90,7 +90,12 @@ describe('defaults and loading', () => {
 
   it('adopts a stored preference on mount', async () => {
     renderWith(
-      new InMemoryPreferencesStore({ a4Hz: 432, accidentalStyle: 'flat', schemaVersion: 1 })
+      new InMemoryPreferencesStore({
+        a4Hz: 432,
+        accidentalStyle: 'flat',
+        appearance: 'system',
+        schemaVersion: 1,
+      })
     );
 
     await waitFor(() => expect(screen.getByTestId('a4').textContent).toBe('432'));
@@ -173,6 +178,7 @@ describe('persistence', () => {
     const store = new InMemoryPreferencesStore({
       a4Hz: 415,
       accidentalStyle: 'flat',
+      appearance: 'dark',
       schemaVersion: 1,
     });
     renderWith(store);
@@ -216,6 +222,262 @@ describe('the reference pitch reaches the live analyzer (T086)', () => {
   });
 });
 
+/**
+ * V42 / M9-M11 — the appearance at the React seam.
+ *
+ * The rule itself is proved exhaustively in `packages/core`. What is only
+ * testable here is that the provider RESOLVES rather than passes through: that
+ * it publishes one appearance every surface reads (M9), that it says when
+ * storage has answered (M10), and that a seeded provider is correct on its very
+ * first render rather than one commit later (M11).
+ */
+function AppearanceHarness() {
+  const { appearance, appearancePreference, preferencesLoaded, setAppearancePreference } =
+    usePreferences();
+
+  return (
+    <div>
+      <span data-testid="appearance">{appearance}</span>
+      <span data-testid="preference">{appearancePreference}</span>
+      <span data-testid="loaded">{String(preferencesLoaded)}</span>
+      <button data-testid="choose-dark" onClick={() => setAppearancePreference('dark')}>
+        dark
+      </button>
+      <button data-testid="choose-system" onClick={() => setAppearancePreference('system')}>
+        system
+      </button>
+    </div>
+  );
+}
+
+function renderAppearance(props: {
+  device?: Appearance;
+  store?: PreferencesStore;
+  initial?: StoredPreferences;
+}) {
+  // Built conditionally rather than spread with undefineds: the package sets
+  // `exactOptionalPropertyTypes`, so `deviceAppearance={undefined}` is a type
+  // error rather than the same thing as omitting it.
+  const optional = {
+    ...(props.device === undefined ? {} : { deviceAppearance: props.device }),
+    ...(props.store === undefined ? {} : { preferences: props.store }),
+    ...(props.initial === undefined ? {} : { initialPreferences: props.initial }),
+  };
+
+  return render(
+    <TunerProvider
+      audioSource={new ScriptedAudioSource()}
+      wakeLock={new NoopWakeLock()}
+      {...optional}
+    >
+      <AppearanceHarness />
+    </TunerProvider>
+  );
+}
+
+describe('the provider resolves one appearance for the whole tree (M9)', () => {
+  it('lets an explicit choice beat a contradicting device (FR-116)', async () => {
+    // The device says light and the stored preference says dark. An
+    // implementation that forwards `deviceAppearance` to the tree — or that
+    // never calls the rule at all — renders 'light' here.
+    renderAppearance({
+      device: 'light',
+      store: new InMemoryPreferencesStore({
+        a4Hz: 440,
+        accidentalStyle: 'sharp',
+        appearance: 'dark',
+        schemaVersion: 1,
+      }),
+    });
+
+    await waitFor(() => expect(screen.getByTestId('appearance').textContent).toBe('dark'));
+    // The stored preference is published alongside it, because the control has
+    // to show 'dark' as chosen rather than infer it from what was rendered.
+    expect(screen.getByTestId('preference').textContent).toBe('dark');
+  });
+
+  it('follows the device while the preference is system (FR-115)', async () => {
+    const { rerender } = renderAppearance({ device: 'dark' });
+    await waitFor(() => expect(screen.getByTestId('appearance').textContent).toBe('dark'));
+
+    rerender(
+      <TunerProvider
+        audioSource={new ScriptedAudioSource()}
+        wakeLock={new NoopWakeLock()}
+        deviceAppearance="light"
+      >
+        <AppearanceHarness />
+      </TunerProvider>
+    );
+
+    expect(screen.getByTestId('appearance').textContent).toBe('light');
+    expect(screen.getByTestId('preference').textContent).toBe('system');
+  });
+
+  it('stops following the device once an explicit choice is made (FR-116)', async () => {
+    const { rerender } = renderAppearance({
+      device: 'light',
+      store: new InMemoryPreferencesStore(),
+    });
+    await waitFor(() => expect(screen.getByTestId('appearance').textContent).toBe('light'));
+
+    await act(async () => {
+      screen.getByTestId('choose-dark').click();
+    });
+    expect(screen.getByTestId('appearance').textContent).toBe('dark');
+
+    // The device swings to dark and back. Neither move may be visible, because
+    // the user has taken the decision away from it.
+    for (const device of ['dark', 'light'] as const) {
+      rerender(
+        <TunerProvider
+          audioSource={new ScriptedAudioSource()}
+          wakeLock={new NoopWakeLock()}
+          deviceAppearance={device}
+        >
+          <AppearanceHarness />
+        </TunerProvider>
+      );
+      expect(screen.getByTestId('appearance').textContent).toBe('dark');
+    }
+  });
+
+  it('defaults deviceAppearance to light so a test need not care', () => {
+    renderAppearance({});
+    expect(screen.getByTestId('appearance').textContent).toBe('light');
+  });
+});
+
+describe('preferencesLoaded (M10, M11)', () => {
+  it('is false until the store answers, then true and never false again', async () => {
+    const seen: string[] = [];
+
+    function Recorder() {
+      const { preferencesLoaded } = usePreferences();
+      seen.push(String(preferencesLoaded));
+      return null;
+    }
+
+    render(
+      <TunerProvider
+        audioSource={new ScriptedAudioSource()}
+        wakeLock={new NoopWakeLock()}
+        preferences={new InMemoryPreferencesStore()}
+      >
+        <Recorder />
+      </TunerProvider>
+    );
+
+    // The first render happens before any promise can settle, so this is the
+    // state the web app must NOT write `data-theme` from.
+    expect(seen[0]).toBe('false');
+
+    await waitFor(() => expect(seen.at(-1)).toBe('true'));
+    // Once true it stays true: a later render must never hand the web effect a
+    // reason to stop writing.
+    expect(seen.slice(seen.indexOf('true'))).not.toContain('false');
+  });
+
+  it('is true on the FIRST render when initialPreferences is supplied (M11)', () => {
+    const seen: string[] = [];
+
+    function Recorder() {
+      const { preferencesLoaded, appearance } = usePreferences();
+      seen.push(`${String(preferencesLoaded)}:${appearance}`);
+      return null;
+    }
+
+    render(
+      <TunerProvider
+        audioSource={new ScriptedAudioSource()}
+        wakeLock={new NoopWakeLock()}
+        deviceAppearance="light"
+        initialPreferences={{
+          a4Hz: 440,
+          accidentalStyle: 'sharp',
+          appearance: 'dark',
+          schemaVersion: 1,
+        }}
+      >
+        <Recorder />
+      </TunerProvider>
+    );
+
+    // Asserted with no act() flush and no waitFor: this is the initial commit,
+    // and it is the whole point. A provider that seeds from DEFAULT_PREFERENCES
+    // and corrects itself in an effect renders 'false:light' here — one frame
+    // of the wrong appearance, which on mobile is the flash D5 exists to
+    // prevent (FR-120).
+    expect(seen[0]).toBe('true:dark');
+  });
+
+  it('does not read the store at all when initialPreferences is supplied (M11)', () => {
+    const store = new InMemoryPreferencesStore({
+      a4Hz: 432,
+      accidentalStyle: 'flat',
+      appearance: 'light',
+      schemaVersion: 1,
+    });
+
+    renderAppearance({
+      device: 'light',
+      store,
+      initial: {
+        a4Hz: 440,
+        accidentalStyle: 'sharp',
+        appearance: 'dark',
+        schemaVersion: 1,
+      },
+    });
+
+    // The seed wins, and the async load is skipped rather than raced — if it
+    // ran, this would flip to 'light' a tick later and the store would have
+    // been read.
+    expect(screen.getByTestId('appearance').textContent).toBe('dark');
+    expect(store.loadCount).toBe(0);
+  });
+});
+
+describe('the appearance choice is persisted like any other preference', () => {
+  it('writes the whole record, keeping the other two settings', async () => {
+    const store = new InMemoryPreferencesStore();
+    renderAppearance({ device: 'light', store });
+    await waitFor(() => expect(screen.getByTestId('loaded').textContent).toBe('true'));
+
+    await act(async () => {
+      screen.getByTestId('choose-dark').click();
+    });
+
+    await waitFor(async () => {
+      expect(await store.load()).toEqual({
+        a4Hz: 440,
+        accidentalStyle: 'sharp',
+        appearance: 'dark',
+        schemaVersion: 1,
+      });
+    });
+  });
+
+  it('stores system as a choice in its own right, not as what it resolved to', async () => {
+    // FR-119: a user who picks "Match device" in daylight is still matching the
+    // device that night. Storing 'light' here would break that the first time
+    // the OS changed.
+    const store = new InMemoryPreferencesStore();
+    renderAppearance({ device: 'light', store });
+    await waitFor(() => expect(screen.getByTestId('loaded').textContent).toBe('true'));
+
+    await act(async () => {
+      screen.getByTestId('choose-dark').click();
+    });
+    await act(async () => {
+      screen.getByTestId('choose-system').click();
+    });
+
+    await waitFor(async () => expect((await store.load())?.appearance).toBe('system'));
+    expect(screen.getByTestId('appearance').textContent).toBe('light');
+  });
+});
+
 describe('the accidental choice reaches every note display (FR-023)', () => {
   it('spells the same pitch as D♯ or E♭ according to the preference', async () => {
     const source = new ScriptedAudioSource({ samples: tone(39) }); // D#2 / Eb2
@@ -244,7 +506,12 @@ describe('the accidental choice reaches every note display (FR-023)', () => {
         audioSource={flatSource}
         wakeLock={new NoopWakeLock()}
         preferences={
-          new InMemoryPreferencesStore({ a4Hz: 440, accidentalStyle: 'flat', schemaVersion: 1 })
+          new InMemoryPreferencesStore({
+            a4Hz: 440,
+            accidentalStyle: 'flat',
+            appearance: 'system',
+            schemaVersion: 1,
+          })
         }
       >
         <Harness />

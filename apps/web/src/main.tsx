@@ -1,6 +1,6 @@
-import { TunerProvider } from '@chromatic-tuner/react';
+import { TunerProvider, usePreferences } from '@chromatic-tuner/react';
 import { motion } from '@chromatic-tuner/tokens';
-import { StrictMode } from 'react';
+import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { LocalStoragePreferences } from './adapters/local-storage-preferences';
@@ -8,6 +8,7 @@ import { WebAudioSource } from './adapters/web-audio-source';
 import { WebWakeLock } from './adapters/web-wake-lock';
 import { TunerPage } from './components/pages/TunerPage';
 import { registerServiceWorker } from './register-sw';
+import { useDeviceAppearance } from './useDeviceAppearance';
 
 /**
  * A return visit starts at the tuner, never where the reader left off (FR-067).
@@ -115,21 +116,85 @@ if (!container) {
   throw new Error('Root element #root not found in index.html');
 }
 
-createRoot(container).render(
-  <StrictMode>
-    {/*
+/**
+ * Keeps `data-theme` on `<html>` in step with the stored choice (FR-118).
+ *
+ * Renders nothing; it exists because the attribute lives outside React's tree
+ * and something inside the provider has to own it.
+ *
+ * **Gated on `preferencesLoaded` (M10), and that gate is the whole point.** The
+ * provider's first render carries `DEFAULT_PREFERENCES`, so writing on mount
+ * would stamp `system`'s answer over whatever the inline no-flash script had
+ * correctly established a moment earlier — reintroducing the exact flash that
+ * script exists to prevent.
+ *
+ * **Keyed off the PREFERENCE, not the resolved appearance.** For `'system'` the
+ * attribute is removed rather than set to the resolved value: `packages/tokens`
+ * emits both a `prefers-color-scheme` media query and a `[data-theme]` override,
+ * and leaving the override off is what keeps the media query in charge — so a
+ * user who has chosen "Match device" follows the OS with no JavaScript involved
+ * at all. Writing the resolved value here would work, right up until it did not.
+ */
+function ThemeSync() {
+  const { appearancePreference, preferencesLoaded } = usePreferences();
+
+  useEffect(() => {
+    if (!preferencesLoaded) return;
+
+    const root = document.documentElement;
+    if (appearancePreference === 'system') {
+      delete root.dataset.theme;
+    } else {
+      root.dataset.theme = appearancePreference;
+    }
+  }, [appearancePreference, preferencesLoaded]);
+
+  return null;
+}
+
+/**
+ * The app root, which exists so the device appearance can be read with a hook.
+ *
+ * `useDeviceAppearance` subscribes to the media query, so it has to run inside a
+ * component rather than at module scope where the tree used to be built.
+ */
+function Root() {
+  const deviceAppearance = useDeviceAppearance();
+
+  return (
+    /*
       autoStart is off because TunerGate decides when to open the microphone:
       immediately when permission is already held, or after the explainer when a
       browser prompt is still coming (FR-028).
-    */}
+    */
     <TunerProvider
-      audioSource={new WebAudioSource()}
-      wakeLock={new WebWakeLock()}
-      preferences={new LocalStoragePreferences()}
+      audioSource={audioSource}
+      wakeLock={wakeLock}
+      preferences={preferences}
+      deviceAppearance={deviceAppearance}
       autoStart={false}
     >
+      <ThemeSync />
       <TunerPage />
     </TunerProvider>
+  );
+}
+
+/**
+ * Constructed once, at module scope, not per render.
+ *
+ * `TunerProvider` builds a new session whenever the port identities change, so
+ * constructing these inside `Root` would tear down and rebuild the audio graph
+ * on every device-appearance change — which is precisely the "re-asks for the
+ * microphone" failure `appearance.spec.ts` guards against.
+ */
+const audioSource = new WebAudioSource();
+const wakeLock = new WebWakeLock();
+const preferences = new LocalStoragePreferences();
+
+createRoot(container).render(
+  <StrictMode>
+    <Root />
   </StrictMode>
 );
 

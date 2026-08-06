@@ -1,5 +1,6 @@
-import type { AudioSource } from '@chromatic-tuner/core';
+import type { AudioSource, StoredPreferences } from '@chromatic-tuner/core';
 import { TunerProvider } from '@chromatic-tuner/react';
+import { useColorScheme } from 'react-native';
 
 import { AsyncStoragePreferences } from './adapters/async-storage-preferences';
 import { ExpoWakeLock } from './adapters/expo-wake-lock';
@@ -50,19 +51,54 @@ function createAudioSource(): AudioSource {
 
 const audioSource = createAudioSource();
 const wakeLock = new ExpoWakeLock();
-const preferences = new AsyncStoragePreferences();
+
+/**
+ * Exported so `index.js` reads preferences through the SAME store instance the
+ * provider will write through (research D5).
+ *
+ * Two instances would work — the adapter is stateless and both wrap the same
+ * AsyncStorage key — but one is what makes the entry point and the provider
+ * provably the same consumer of M8's key rather than two that happen to agree.
+ */
+export const preferences = new AsyncStoragePreferences();
 
 /**
  * autoStart is off because `TunerGate` decides when to open the microphone:
  * immediately when permission is already held, or after the explainer when the
  * OS prompt is still to come (FR-028).
  */
-export default function App() {
+export interface AppProps {
+  /**
+   * Preferences already read from storage, so the first frame is correct rather
+   * than corrected (M11, research D5).
+   *
+   * Supplied by `index.js`, which awaits the read before registering the root
+   * component. Optional so a test can mount `App` without one, and so the app
+   * still starts if the entry point ever stops providing it — the appearance
+   * would then be a frame late, which is a regression rather than a crash.
+   */
+  readonly initialPreferences?: StoredPreferences;
+}
+
+export default function App({ initialPreferences }: AppProps = {}) {
+  /**
+   * The one place the OS appearance enters the tree (M9).
+   *
+   * `useAppearance()` in `theme.ts` used to call this hook itself, in every
+   * component that needed a colour. Reading it once here and letting the
+   * provider resolve it against the stored choice is what makes an explicit
+   * preference able to win at all — a component asking the OS directly would
+   * ignore the choice no matter what the provider decided (FR-116).
+   */
+  const deviceAppearance = useColorScheme() === 'dark' ? 'dark' : 'light';
+
   return (
     <TunerProvider
       audioSource={audioSource}
       wakeLock={wakeLock}
       preferences={preferences}
+      deviceAppearance={deviceAppearance}
+      {...(initialPreferences === undefined ? {} : { initialPreferences })}
       autoStart={false}
     >
       <TunerScreen />

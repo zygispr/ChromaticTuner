@@ -1,11 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PREFERENCES_STORAGE_KEY as KEY } from '@chromatic-tuner/core';
 import type { PreferencesStore, StoredPreferences } from '@chromatic-tuner/core';
-
-/**
- * One key, one JSON blob (data-model §6). Namespaced so it cannot collide with
- * anything else the app stores later.
- */
-const KEY = 'chromatic-tuner:preferences';
 
 /**
  * Mobile adapter for the {@link PreferencesStore} port, backed by AsyncStorage.

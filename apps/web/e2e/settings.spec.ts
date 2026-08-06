@@ -1,3 +1,5 @@
+import { PREFERENCES_STORAGE_KEY } from '@chromatic-tuner/core';
+import { color } from '@chromatic-tuner/tokens';
 import { expect, test } from '@playwright/test';
 
 import { audioArgs, waitForNote } from './helpers';
@@ -13,7 +15,7 @@ test.use(audioArgs('e2-in-tune.wav'));
  * restart — which only a real browser reload can actually demonstrate.
  */
 
-const STORAGE_KEY = 'chromatic-tuner:preferences';
+const STORAGE_KEY = PREFERENCES_STORAGE_KEY;
 
 test('shows the reference pitch and marks a non-standard one (FR-022)', async ({ page }) => {
   await page.goto('/');
@@ -265,4 +267,60 @@ test('Done and Escape still dismiss (FR-050, SC-013)', async ({ page }) => {
   await page.getByTestId('reference-badge').click();
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('settings-sheet')).toBeHidden();
+});
+
+/**
+ * T054 / FR-123 / SC-054 — a failed write must not undo the choice.
+ *
+ * Private browsing is emulated by making `localStorage.setItem` throw, which is
+ * exactly what Safari's old private mode did and what a full quota does today.
+ * Reading still works, so the app starts normally and only the write fails —
+ * the awkward case, rather than storage being absent altogether.
+ *
+ * The appearance is the preference where reverting would be most visible: the
+ * whole app would repaint and then repaint back, which reads as a broken
+ * control rather than as a storage problem.
+ */
+test('a failed write leaves the appearance applied and says it will not be remembered (FR-123)', async ({
+  page,
+}) => {
+  // The key is passed in rather than written here: M8 keeps the literal to one
+  // definition, and a copy inside an init script is the kind that drifts unseen.
+  await page.addInitScript((key) => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function setItem(...args: [string, string]) {
+      if (args[0] === key) throw new Error('QuotaExceededError');
+      return original.apply(this, args);
+    };
+  }, STORAGE_KEY);
+
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  await page.getByTestId('reference-badge').click();
+  await expect(page.getByTestId('settings-sheet')).toBeVisible();
+  await expect(page.getByTestId('persistence-warning')).toHaveCount(0);
+
+  await page.getByTestId('appearance-dark').click();
+
+  // The choice applies for this session, visibly. Compared against the actual
+  // token rather than "not transparent" — the device is emulated light, so only
+  // the choice can produce this value.
+  await expect(page.getByTestId('appearance-dark')).toHaveAttribute('aria-pressed', 'true');
+  const { r, g, b } = {
+    r: parseInt(color.background.dark.slice(1, 3), 16),
+    g: parseInt(color.background.dark.slice(3, 5), 16),
+    b: parseInt(color.background.dark.slice(5, 7), 16),
+  };
+  expect(await page.locator('main').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
+    `rgb(${r}, ${g}, ${b})`
+  );
+  expect(await page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe(
+    'dark'
+  );
+
+  // And the EXISTING surface says so — no new warning was introduced for this.
+  await expect(page.getByTestId('persistence-warning')).toBeVisible();
+  await expect(page.getByTestId('persistence-warning')).toContainText(/not be remembered/i);
 });

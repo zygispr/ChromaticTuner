@@ -65,6 +65,21 @@ describe('WCAG 2.1 AA contrast (token guarantee T2)', () => {
         expect(ratio).toBeGreaterThanOrEqual(3);
       });
 
+      // The same graphic floor on the raised surface, because `line` is what
+      // draws the settings sheet's own edge — the second, non-luminance channel
+      // that keeps the sheet reading as a sheet.
+      it('line meets 3:1 against the raised surface too', () => {
+        const ratio = contrastRatio(color.line[theme], color.surface[theme]);
+        expect(ratio).toBeGreaterThanOrEqual(3);
+      });
+
+      for (const [name, themed] of textColors) {
+        it(`${name} meets 4.5:1 against the raised surface`, () => {
+          const ratio = contrastRatio(themed[theme], color.surface[theme]);
+          expect(ratio).toBeGreaterThanOrEqual(4.5);
+        });
+      }
+
       // `selected` is a surface, so the 4.5:1 rule applies to what sits ON it
       // rather than to the token itself. The label of a chosen option stays
       // `text` — the whole point of a tinted container over an inverted one —
@@ -168,14 +183,19 @@ describe('token shape', () => {
    */
   it('keeps the selected fill a tint, not an inversion', () => {
     for (const theme of THEMES) {
-      const step = contrastRatio(color.selected[theme], color.background[theme]);
+      // Measured against `surface`, not `background`. These options only ever
+      // appear inside the settings sheet, so the surface they tint is the
+      // sheet's. The two tokens were the same colour until the sheet gained its
+      // own elevation, and this assertion silently measured the wrong pair for
+      // as long as that was true.
+      const step = contrastRatio(color.selected[theme], color.surface[theme]);
       expect(step).toBeGreaterThan(1.1);
       expect(step).toBeLessThan(2);
 
-      // On the same side of the surface as the background, not across it: a
+      // On the same side of the surface as the surface itself, not across it: a
       // fill that crossed `text` would be an inversion whatever its ratio.
       const distanceToBackground = Math.abs(
-        relativeLuminance(color.selected[theme]) - relativeLuminance(color.background[theme])
+        relativeLuminance(color.selected[theme]) - relativeLuminance(color.surface[theme])
       );
       const distanceToText = Math.abs(
         relativeLuminance(color.selected[theme]) - relativeLuminance(color.text[theme])
