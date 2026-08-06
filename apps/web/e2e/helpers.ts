@@ -33,6 +33,52 @@ export async function waitForNote(page: Page, note: string): Promise<void> {
   await expect(page.getByTestId('note-label')).toContainText(note, { timeout: 20_000 });
 }
 
+/**
+ * Open the settings sheet and wait until it is ready to be driven.
+ *
+ * Waiting for the sheet to be visible is not enough. `open` is React state, so
+ * the sheet paints in the commit and the autofocus lands in a PASSIVE effect
+ * flushed after it — a `toBeVisible()` that polls in between resolves on a
+ * sheet whose focus is still moving. A test that then focuses a control of its
+ * own races the effect and loses at random, which for this feature would look
+ * exactly like the defect under test.
+ *
+ * So this waits on the state the sheet actually settles into: focus on the
+ * Done button, which is guarantee K1 and existing behaviour (FR-020). Every
+ * caller starts from one known active element rather than from whichever of
+ * the two won.
+ */
+export async function openSettings(page: Page): Promise<void> {
+  await page.getByTestId('reference-badge').click();
+  await expect(page.getByTestId('settings-sheet')).toBeVisible();
+  await expect(page.getByTestId('settings-close')).toBeFocused();
+}
+
+/**
+ * What currently holds focus, named the way an assertion can read it.
+ *
+ * Returns the active element's `data-testid`, falling back to its tag name —
+ * so focus resting on the document body reports `BODY` rather than
+ * `undefined`, and "focus escaped to the page behind" is distinguishable from
+ * "focus escaped to nowhere". Those are different defects with different
+ * causes: a half-written trap produces the first, and a native `<dialog>`
+ * produces the second (D2, measured).
+ *
+ * Playwright's `toBeFocused()` cannot serve here. It asserts against a locator
+ * chosen in advance, and these tests need the opposite question — not "is X
+ * focused" but "what is", when the failure being caught is focus landing on an
+ * element the test did not think to name.
+ */
+export async function activeTestId(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const active = document.activeElement;
+    // Only observed with no document at all; reported rather than coerced to a
+    // tag name that would read as a real element.
+    if (!active) return 'NONE';
+    return active.getAttribute('data-testid') ?? active.tagName;
+  });
+}
+
 /** Parse the signed integer out of the cents readout. */
 export async function readCents(page: Page): Promise<number> {
   const text = await page.getByTestId('cents-readout').textContent();

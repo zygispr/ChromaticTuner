@@ -7,7 +7,13 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowJs": true,
-    "types": ["jest"]
+    // `node` alongside `jest` because the tests run in Node and some of them
+    // read the source tree — `settings-modality.test.tsx` asserts FR-142 by
+    // scanning for scrollers, because this environment renders a real
+    // ScrollView as an indistinguishable `View`. eslint.config.js already
+    // grants `globals.node` to `__tests__/**` for the same reason; this is the
+    // type checker agreeing with a decision the linter had already made.
+    "types": ["jest", "node"]
   },
   // metro.config.js and babel.config.js are excluded: their inferred types
   // reference pnpm's nested store paths and cannot be named portably (TS2742).

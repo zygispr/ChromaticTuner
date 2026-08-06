@@ -38,6 +38,23 @@ const APPEARANCE_OPTIONS: Array<{ value: AppearancePreference; label: string }> 
 ];
 
 /**
+ * What `Tab` may reach inside the sheet (K5).
+ *
+ * Deliberately narrow: every control in here is a `<button>` or an `<input>`,
+ * none is in a portal or a shadow root, and there is exactly one dialog in the
+ * app. That is the whole reason a focus-trap dependency was declined — the
+ * cases those libraries earn their weight on do not exist here (research D8).
+ */
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  'a[href]',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
+
+/**
  * The three settings the product has, and a way back to defaults (FR-022–FR-024,
  * FR-117).
  *
@@ -61,6 +78,9 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
 
   const closeRef = useRef<HTMLButtonElement>(null);
 
+  /** The containment surface the Tab handler measures focus against (K4). */
+  const sheetRef = useRef<HTMLElement>(null);
+
   /**
    * Whether the gesture currently in flight has stayed on the backdrop.
    *
@@ -77,15 +97,173 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
    */
   const gestureStayedOnBackdrop = useRef(false);
 
+  /**
+   * Opening is the only thing that may move focus (K1).
+   *
+   * Keyed on `open` ALONE, and it must stay that way. This lived in the effect
+   * below until `006`, sharing its `[open, onClose]` — and `onClose` is the
+   * inline arrow at `TunerDisplay.tsx:96`, in a component that destructures
+   * `usePreferences()` at `:41`. So every preference change re-rendered it,
+   * minted a new arrow, re-ran the effect, and called `focus()` on Done:
+   * reported defects 3 and 4, and a violation of K2.
+   *
+   * What the user felt was worse than a lost ring. The NEXT arrow key went to a
+   * button that ignores it, so the reference pitch accepted one step and
+   * appeared to stop responding — eight presses moved it one hertz (K3).
+   *
+   * The two halves have genuinely different triggers, which is why splitting
+   * them is the fix rather than a tidy-up: moving focus answers "did it just
+   * open", listening for Escape answers "is it open", and only the second needs
+   * the current `onClose`. Do not merge them back together, and do not "fix"
+   * this from `TunerDisplay` with a `useCallback` — that repairs the defect in a
+   * different file from the one that is wrong, and leaves this component still
+   * asserting through its dependency array that it wants to re-focus whenever
+   * its close handler changes identity (research D1).
+   */
   useEffect(() => {
     if (!open) return;
 
-    // Focus lands on a real control rather than nowhere, and Escape closes —
-    // the minimum for a dialog to be operable by keyboard (FR-020, SC-013).
+    // Captured INSIDE the effect, which is what makes this converge under
+    // <StrictMode> (main.tsx:202). Dev mounts, cleans up, and mounts again:
+    // the first run captures the badge and focuses Done, the cleanup puts
+    // focus back on the badge, and the second run captures the badge again
+    // because the restore is what it reads. Move this capture outside the
+    // effect and the second run captures Done instead — closing would then
+    // return focus to a control that no longer exists, in dev only (D6).
+    const opener = document.activeElement as HTMLElement | null;
+
+    // A real control rather than nowhere, so the dialog is operable by keyboard
+    // from the first keystroke (FR-020, FR-133, SC-013).
     closeRef.current?.focus();
 
+    // Cleanup rather than a call in `onClose`, because the sheet has four exits
+    // — Done, Escape, a backdrop press, and unmount — and this is the only
+    // place all four pass through (K7, FR-138). Without it the closing sheet
+    // takes focus down with it and the next Tab restarts from the top of the
+    // page, behind the tuner.
+    return () => {
+      // A restore that targets a removed node moves focus nowhere and loses it
+      // silently, which is worse than not restoring at all.
+      //
+      // `preventScroll` so restoring focus cannot move the page (FR-140).
+      // Today it is belt and braces — this cleanup runs before the scroll
+      // lock's, so the document is still `overflow: hidden` and `focus()` could
+      // not scroll it anyway — but that is an accident of the order these two
+      // effects are declared in. This holds if they are ever reordered.
+      if (opener && document.contains(opener)) opener.focus({ preventScroll: true });
+    };
+  }, [open]);
+
+  /**
+   * The page behind the sheet does not move (K9–K11).
+   *
+   * Reported defect 2. `TunerLayout` is `100dvh` with its own `overflow:
+   * hidden`, but `003` put supporting content after `#root` in `index.html`, so
+   * the SCROLLER is the document element — and nothing was stopping it.
+   *
+   * `overflow: hidden` here rather than `position: fixed` on the body, which is
+   * the other standard recipe. Fixing the body discards the scroll offset, so
+   * FR-140 would then need the position saved and re-applied on close, with a
+   * visible jump whenever the bookkeeping is wrong. `overflow: hidden` does not
+   * reset `scrollTop`, so the position is preserved BY CONSTRUCTION (D4).
+   *
+   * A native modal `<dialog>` would not have helped: measured, the page scrolled
+   * on both wheel and `End` in Chromium and WebKit alike (D2).
+   */
+  useEffect(() => {
+    if (!open) return;
+
+    const root = document.documentElement;
+
+    // Captured rather than assumed empty. There is no inline style on this
+    // element today, so restoring these and assigning `''` are the same thing
+    // and no test can tell them apart — which is exactly why this must be
+    // written the correct way now, while someone is looking (K11).
+    const previousOverflow = root.style.overflow;
+    const previousPaddingRight = root.style.paddingRight;
+    const previousOverscrollBehavior = root.style.overscrollBehavior;
+
+    // Measured BEFORE the lock: removing the scrollbar is what frees the gutter,
+    // so once `overflow: hidden` lands this reads 0 everywhere. It is 0 on
+    // macOS overlay scrollbars and non-zero on CI's Ubuntu runners, so paying
+    // it back is a no-op on one and load-bearing on the other (FR-141, D4).
+    const gutter = window.innerWidth - root.clientWidth;
+
+    root.style.overflow = 'hidden';
+
+    // Scroll chaining, not the document scroll — `overflow: hidden` already
+    // stops that. This is the rubber-band on a drag that begins on the scrim.
+    //
+    // NOT `touch-action: none` on the backdrop. `touch-action` INHERITS, and
+    // the backdrop is this sheet's parent, so it would also apply to the
+    // reference pitch `<input type="range">` — whose thumb is dragged with
+    // precisely the gesture that property cancels. That fixes a rubber-band by
+    // breaking the reference pitch on every phone (D5, pinned by V55).
+    root.style.overscrollBehavior = 'none';
+
+    if (gutter > 0) root.style.paddingRight = `${gutter}px`;
+
+    return () => {
+      root.style.overflow = previousOverflow;
+      root.style.paddingRight = previousPaddingRight;
+      root.style.overscrollBehavior = previousOverscrollBehavior;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+
+      // Only the keyboard needs an owner. The pointer is contained by the
+      // full-viewport backdrop below, and assistive technology by
+      // `aria-modal="true"` — the keyboard had nothing, which is defect 1.
+      //
+      // Document-level rather than `onKeyDown` on the section: a handler on the
+      // sheet only fires while focus is already inside it, so it cannot recover
+      // from the one state worth recovering from. Here containment is an
+      // invariant rather than a hope (D3).
+      const sheet = sheetRef.current;
+      if (!sheet) return;
+
+      // Queried on every keypress, never cached at open (K5). The persistence
+      // warning appears and disappears while the sheet is open and `Reset to
+      // defaults` changes what is selected, so a list captured at open time is
+      // a cache with no invalidation. Eight elements on a user-paced keystroke:
+      // there is no budget to save here.
+      const focusable = [...sheet.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)];
+      // A sheet with nothing focusable has nowhere to send focus, so the
+      // browser's own order is better than anything this could do. Stated
+      // rather than left to fall out of the index arithmetic (Principle I).
+      if (focusable.length === 0) return;
+
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      const active = document.activeElement;
+
+      if (!sheet.contains(active)) {
+        // Focus got out some other way — the browser's UI, a programmatic
+        // focus, a click that landed nowhere. Pull it back.
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+
+      // Every other Tab falls through untouched, so the browser's own order
+      // still runs inside the sheet. Cancelling those would contain focus
+      // perfectly and make the sheet untraversable, which V52 checks for by
+      // pressing Tab in the MIDDLE — at either end the two are indistinguishable.
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
@@ -119,6 +297,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
       }}
     >
       <section
+        ref={sheetRef}
         data-testid="settings-sheet"
         role="dialog"
         aria-modal="true"
