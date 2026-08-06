@@ -57,8 +57,12 @@ export const color = {
    *
    * So elevation in dark is carried by LIGHTNESS, as it is on both platforms:
    * a raised surface is lighter, not shadowed. `#1F232B` puts the sheet ΔL*
-   * 11.5 above the dimmed tuner. The sheet also draws a `line` edge, so the
-   * separation survives greyscale and any future retune of these two values.
+   * 11.5 above the dimmed tuner. That step and the corner radius are the whole
+   * of the edge: the sheet drew a `line` border on top of them for a while, as
+   * a second channel, but `line` is sized for the tuning ruler's 3:1 against
+   * `background` and at L* 48 it was brighter than both the dimmed tuner and
+   * this surface — a rule across the screen rather than an edge. Retuning
+   * either of these two values means re-checking that step by eye.
    */
   surface: { light: '#FCFCFD', dark: '#1F232B' },
 

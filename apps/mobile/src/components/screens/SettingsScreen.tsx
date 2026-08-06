@@ -162,10 +162,10 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
             testID="settings-sheet"
             accessible={false}
             onPress={() => undefined}
-            // `surface` + a `line` edge, not `background`: the sheet is raised,
-            // and in dark the scrim cannot say so — there is nothing below the
-            // background to darken towards. See the token's own comment.
-            style={[styles.sheet, { backgroundColor: colors.surface, borderTopColor: colors.line }]}
+            // `surface`, not `background`: the sheet is raised, and in dark the
+            // scrim cannot say so — there is nothing below the background to
+            // darken towards. See the token's own comment.
+            style={[styles.sheet, { backgroundColor: colors.surface }]}
           >
             <View style={styles.header}>
               <Text style={[styles.heading, { color: colors.text }]}>Settings</Text>
@@ -390,10 +390,9 @@ const styles = StyleSheet.create({
     gap: space.lg,
     borderTopLeftRadius: space.md,
     borderTopRightRadius: space.md,
-    // Top only — the sheet is anchored to the bottom and spans the full width,
-    // so its other three edges are off-screen. Colour comes from the component,
-    // because a literal here would be an ESLint error and rightly so.
-    borderTopWidth: 1,
+    // No border on this edge — see the web sheet, which dropped the same
+    // `line` rule for the same reason: at the ruler's contrast it reads as a
+    // drawn rule in dark and as nothing at all in light.
   },
   header: {
     flexDirection: 'row',
