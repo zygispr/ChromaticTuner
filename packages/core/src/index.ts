@@ -40,10 +40,15 @@ export { statusForAudioError } from './types';
 export type {
   AccidentalStyle,
   ActiveStatusKind,
+  Appearance,
+  AppearancePreference,
   PitchReading,
   TunerStatus,
   TuningState,
 } from './types';
+
+// --- Appearance resolution (005 contract §1) ---
+export { resolveAppearance } from './appearance';
 
 // --- Platform ports (contracts/platform-ports.md) ---
 export { isAudioSourceError } from './ports/audio-source';
@@ -75,6 +80,7 @@ export type {
 export {
   DEFAULT_PREFERENCES,
   PREFERENCES_SCHEMA_VERSION,
+  PREFERENCES_STORAGE_KEY,
   clampA4Hz,
   isNonStandardReference,
   loadPreferences,

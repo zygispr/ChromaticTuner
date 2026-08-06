@@ -4,6 +4,23 @@ import type { AudioSourceError } from './ports/audio-source';
 export type AccidentalStyle = 'sharp' | 'flat';
 
 /**
+ * What is actually rendered. There are exactly two palettes and there always
+ * were — `packages/tokens` has shipped both since 001.
+ */
+export type Appearance = 'light' | 'dark';
+
+/**
+ * What the user chose, and what is stored (data-model §1).
+ *
+ * `'system'` is a stored value in its own right, not a sentinel for "unset" and
+ * not a snapshot of what the device said when it was picked. FR-119 turns on
+ * exactly that distinction: someone who selects "Match device" in daylight must
+ * still be matching the device that night, which is only true if the choice is
+ * stored as the choice rather than as the light it resolved to.
+ */
+export type AppearancePreference = Appearance | 'system';
+
+/**
  * The classification the entire UI keys off (data-model §4).
  *
  * Deliberately a closed set of four so that colour, marker position, and text

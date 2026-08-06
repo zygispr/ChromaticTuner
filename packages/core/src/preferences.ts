@@ -1,8 +1,21 @@
 import { A4_DEFAULT_HZ, A4_MAX_HZ, A4_MIN_HZ } from './notes/frequency';
 import type { PreferencesStore, StoredPreferences } from './ports/preferences-store';
-import type { AccidentalStyle } from './types';
+import type { AccidentalStyle, AppearancePreference } from './types';
 
 export { A4_DEFAULT_HZ, A4_MAX_HZ, A4_MIN_HZ };
+
+/**
+ * The one definition of the storage key (guarantee M8, research D4).
+ *
+ * It lived as a private constant in each adapter until 005, which was correct
+ * while there were two: Principle I extracts on the third occurrence, not the
+ * second. The third is the web's no-flash script, and it is the one that makes
+ * the duplication dangerous rather than merely untidy — a copy of the string
+ * inside a generated `<script>` body is outside the type checker's reach, so it
+ * would drift silently and the only symptom would be a flash of the wrong
+ * appearance in production builds.
+ */
+export const PREFERENCES_STORAGE_KEY = 'chromatic-tuner:preferences';
 
 /**
  * Bumped only when the stored shape changes incompatibly.
@@ -16,6 +29,10 @@ export const PREFERENCES_SCHEMA_VERSION = 1;
 export const DEFAULT_PREFERENCES: StoredPreferences = {
   a4Hz: A4_DEFAULT_HZ,
   accidentalStyle: 'sharp',
+  // FR-114 and FR-122 in one line: someone who has never chosen, and a record
+  // written before this feature existed, both land on the behaviour the app
+  // already had.
+  appearance: 'system',
   schemaVersion: PREFERENCES_SCHEMA_VERSION,
 };
 
@@ -44,6 +61,16 @@ function isAccidentalStyle(value: unknown): value is AccidentalStyle {
 }
 
 /**
+ * Guarantee M5. Deliberately an exact match against the three literals: the
+ * union is case-sensitive, so `'System'` and `'auto'` — the two values a
+ * hand-edit or a rival implementation would plausibly produce — are rejected
+ * rather than coerced.
+ */
+function isAppearancePreference(value: unknown): value is AppearancePreference {
+  return value === 'light' || value === 'dark' || value === 'system';
+}
+
+/**
  * Turn anything at all into a usable set of preferences.
  *
  * This function is TOTAL: it is the single place where obligation P1's promise
@@ -62,8 +89,13 @@ export function normalizePreferences(raw: unknown): StoredPreferences {
 
   let a4Hz: unknown;
   let accidentalStyle: unknown;
+  let appearance: unknown;
   try {
-    ({ a4Hz, accidentalStyle } = raw as { a4Hz?: unknown; accidentalStyle?: unknown });
+    ({ a4Hz, accidentalStyle, appearance } = raw as {
+      a4Hz?: unknown;
+      accidentalStyle?: unknown;
+      appearance?: unknown;
+    });
   } catch {
     // A throwing getter is not a shape we can read at all. Storage should never
     // produce one, but "never throws" has to mean never.
@@ -75,6 +107,10 @@ export function normalizePreferences(raw: unknown): StoredPreferences {
     accidentalStyle: isAccidentalStyle(accidentalStyle)
       ? accidentalStyle
       : DEFAULT_PREFERENCES.accidentalStyle,
+    // M5-M7. An absent appearance is the normal case for every record written
+    // before 005, and it takes the default like any other unusable value — one
+    // clause, no migration, which is why D6 leaves the schema version alone.
+    appearance: isAppearancePreference(appearance) ? appearance : DEFAULT_PREFERENCES.appearance,
     // Always written at the current version: reading an older record and
     // storing it back is the migration.
     schemaVersion: PREFERENCES_SCHEMA_VERSION,

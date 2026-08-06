@@ -147,7 +147,12 @@ describe('SettingsScreen (T088)', () => {
 
   it('does not go past the top of the range', async () => {
     await renderSettings(
-      new InMemoryPreferencesStore({ a4Hz: A4_MAX_HZ, accidentalStyle: 'sharp', schemaVersion: 1 })
+      new InMemoryPreferencesStore({
+        a4Hz: A4_MAX_HZ,
+        accidentalStyle: 'sharp',
+        appearance: 'system',
+        schemaVersion: 1,
+      })
     );
     expect(screen.getByTestId('a4-value')).toHaveTextContent(`${A4_MAX_HZ} Hz`);
 
@@ -160,7 +165,12 @@ describe('SettingsScreen (T088)', () => {
 
   it('does not go past the bottom of the range', async () => {
     await renderSettings(
-      new InMemoryPreferencesStore({ a4Hz: A4_MIN_HZ, accidentalStyle: 'sharp', schemaVersion: 1 })
+      new InMemoryPreferencesStore({
+        a4Hz: A4_MIN_HZ,
+        accidentalStyle: 'sharp',
+        appearance: 'system',
+        schemaVersion: 1,
+      })
     );
     expect(screen.getByTestId('a4-value')).toHaveTextContent(`${A4_MIN_HZ} Hz`);
 
@@ -235,7 +245,12 @@ describe('SettingsScreen (T088)', () => {
 
   it('resets to defaults and clears storage (FR-024)', async () => {
     const { store } = await renderSettings(
-      new InMemoryPreferencesStore({ a4Hz: 415, accidentalStyle: 'flat', schemaVersion: 1 })
+      new InMemoryPreferencesStore({
+        a4Hz: 415,
+        accidentalStyle: 'flat',
+        appearance: 'system',
+        schemaVersion: 1,
+      })
     );
     expect(screen.getByTestId('a4-value')).toHaveTextContent('415 Hz');
 

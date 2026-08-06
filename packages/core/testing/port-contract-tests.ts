@@ -34,6 +34,41 @@ function assertEqual<T>(actual: T, expected: T, message: string): void {
   }
 }
 
+/**
+ * Compare a whole stored record, field for field, in both directions.
+ *
+ * `assertEqual` cannot do this — it is `!==`, so two structurally identical
+ * records fail it. That matters more than it sounds: a round-trip check written
+ * as a few `assertEqual`s on named fields passes on an adapter that silently
+ * DROPS every field the check does not happen to name, which is exactly how a
+ * newly added preference gets lost. Comparing the key sets in both directions
+ * catches a dropped field and an invented one.
+ */
+function assertSameRecord(actualValue: object, expectedValue: object, message: string): void {
+  // Widened here rather than in the signature: an interface without an index
+  // signature is not assignable to Record<string, unknown>, and every caller
+  // passes exactly that.
+  const actual = actualValue as Record<string, unknown>;
+  const expected = expectedValue as Record<string, unknown>;
+
+  const actualKeys = Object.keys(actual).sort();
+  const expectedKeys = Object.keys(expected).sort();
+
+  if (actualKeys.join(',') !== expectedKeys.join(',')) {
+    throw new Error(
+      `Contract violation: ${message} (expected keys ${expectedKeys.join(',')}, got ${actualKeys.join(',')})`
+    );
+  }
+
+  for (const key of expectedKeys) {
+    if (actual[key] !== expected[key]) {
+      throw new Error(
+        `Contract violation: ${message} (${key}: expected ${String(expected[key])}, got ${String(actual[key])})`
+      );
+    }
+  }
+}
+
 async function expectRejection(promise: Promise<unknown>, message: string): Promise<unknown> {
   try {
     await promise;
@@ -152,18 +187,52 @@ export const preferencesStoreContract: Record<
 
   'P1: round-trips a saved value': async (factory) => {
     const store = factory();
-    const prefs = { a4Hz: 432, accidentalStyle: 'flat', schemaVersion: 1 } as const;
+    const prefs = {
+      a4Hz: 432,
+      accidentalStyle: 'flat',
+      appearance: 'dark',
+      schemaVersion: 1,
+    } as const;
     await store.save(prefs);
     const loaded = await store.load();
     assert(loaded !== null, 'a saved value must load back');
-    assertEqual(loaded.a4Hz, 432, 'a4Hz must round-trip');
-    assertEqual(loaded.accidentalStyle, 'flat', 'accidentalStyle must round-trip');
-    assertEqual(loaded.schemaVersion, 1, 'schemaVersion must round-trip');
+    assertSameRecord(
+      loaded,
+      prefs,
+      'the whole record must round-trip, not just the fields we name'
+    );
+  },
+
+  /**
+   * V41 — every appearance survives storage, on every adapter.
+   *
+   * Separate from the round-trip above because the failure it catches is
+   * value-specific rather than shape-specific: an adapter that serialises
+   * through a hand-written mapping keeps whichever value the other test used
+   * and loses the rest. Each of the three is stored and read back on its own.
+   */
+  'P1: every appearance value round-trips (M5, V41)': async (factory) => {
+    for (const appearance of ['light', 'dark', 'system'] as const) {
+      const store = factory();
+      await store.clear();
+
+      const prefs = { a4Hz: 440, accidentalStyle: 'sharp', appearance, schemaVersion: 1 } as const;
+      await store.save(prefs);
+
+      const loaded = await store.load();
+      assert(loaded !== null, `a record with appearance '${appearance}' must load back`);
+      assertSameRecord(loaded, prefs, `the record carrying appearance '${appearance}' changed`);
+    }
   },
 
   'P4: clear removes the stored value': async (factory) => {
     const store = factory();
-    await store.save({ a4Hz: 440, accidentalStyle: 'sharp', schemaVersion: 1 });
+    await store.save({
+      a4Hz: 440,
+      accidentalStyle: 'sharp',
+      appearance: 'system',
+      schemaVersion: 1,
+    });
     await store.clear();
     assertEqual(await store.load(), null, 'clear must remove the stored value');
   },

@@ -1,3 +1,4 @@
+import { PREFERENCES_STORAGE_KEY } from '@chromatic-tuner/core';
 import { expect, test } from '@playwright/test';
 
 import { audioArgs, waitForNote } from './helpers';
@@ -13,7 +14,7 @@ test.use(audioArgs('e2-in-tune.wav'));
  * restart — which only a real browser reload can actually demonstrate.
  */
 
-const STORAGE_KEY = 'chromatic-tuner:preferences';
+const STORAGE_KEY = PREFERENCES_STORAGE_KEY;
 
 test('shows the reference pitch and marks a non-standard one (FR-022)', async ({ page }) => {
   await page.goto('/');

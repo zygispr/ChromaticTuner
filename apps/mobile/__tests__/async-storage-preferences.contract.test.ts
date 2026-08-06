@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PREFERENCES_STORAGE_KEY } from '@chromatic-tuner/core';
 import { preferencesStoreContract } from '@chromatic-tuner/core/testing';
 
 import { AsyncStoragePreferences } from '../src/adapters/async-storage-preferences';
@@ -23,7 +24,7 @@ describe('AsyncStoragePreferences failure handling', () => {
     // Obligation P1's real-world case: a half-written record, or something
     // another version of the app left behind. Validation lives in the core, so
     // all this adapter owes is "null, never throw".
-    await AsyncStorage.setItem('chromatic-tuner:preferences', '{ this is not json');
+    await AsyncStorage.setItem(PREFERENCES_STORAGE_KEY, '{ this is not json');
 
     const store = new AsyncStoragePreferences();
     await expect(store.load()).resolves.toBeNull();
@@ -34,13 +35,22 @@ describe('AsyncStoragePreferences failure handling', () => {
   it('round-trips through the same key the app actually reads', async () => {
     // Guards against the adapter and a future migration disagreeing about the
     // storage key, which would silently look like "the user has no settings".
+    // Since 005 both sides read one exported constant (M8), so what this now
+    // proves is the other half: that the adapter writes the WHOLE record and
+    // invents nothing, which is where a newly added field goes missing.
     const store = new AsyncStoragePreferences();
-    await store.save({ a4Hz: 415, accidentalStyle: 'flat', schemaVersion: 1 });
+    const prefs = {
+      a4Hz: 415,
+      accidentalStyle: 'flat',
+      appearance: 'dark',
+      schemaVersion: 1,
+    } as const;
+    await store.save(prefs);
 
-    const raw = await AsyncStorage.getItem('chromatic-tuner:preferences');
+    const raw = await AsyncStorage.getItem(PREFERENCES_STORAGE_KEY);
 
     expect(raw).not.toBeNull();
-    expect(JSON.parse(raw!)).toEqual({ a4Hz: 415, accidentalStyle: 'flat', schemaVersion: 1 });
+    expect(JSON.parse(raw!)).toEqual(prefs);
 
     await store.clear();
   });
