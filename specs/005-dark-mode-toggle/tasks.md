@@ -1224,6 +1224,63 @@ the stability is not vacuous. The temporary toggle was reverted (`git diff` clea
 
 ---
 
+## Defect — the jump survived the first fix, on a physical phone (2026-08-06)
+
+**Reported**: "I still see a slight vertical jump on my physical iPhone 15."
+
+Correct, and the previous fix's verification had a blind spot in it.
+
+### Why the simulator said zero and the phone did not
+
+Two blind spots, found by widening the measurement rather than by reasoning:
+
+1. **No audio on the simulator**, so the app never reached `reading`. The earlier
+   recording only ever compared `listening` ↔ `stopped`. Rebuilt with
+   `EXPO_PUBLIC_SCREENSHOT_CAPTURE=true` — `004`'s capture source feeds a generated tone — and the
+   `reading` state was reached. Still **0px** at the default text size, so this was not the cause.
+2. **Dynamic Type.** The simulator sits at `medium`; a physical phone very often does not. React Native
+   scales `fontSize` **and** `lineHeight` by the reader's text size, while the reserved slot was a fixed
+   number of points. Measured on a 393pt device across `simctl ui content_size`:
+
+| text size | before | after |
+| --- | --- | --- |
+| medium (simulator default) | 0px | 0px |
+| large | 0px | 0px |
+| extra-large | **9px (3.0pt)** | 0px |
+| extra-extra-large | **17px (5.7pt)** | 1px (0.3pt) |
+| extra-extra-extra-large | — | 1px (0.3pt) |
+
+### The fix
+
+`STATUS_SLOT` became `statusSlotHeight(fontScale)`. The two text line boxes scale; the gap between
+title and steps does not, because React Native does not scale layout. `TunerDisplay` reads the scale
+from **`useWindowDimensions()`** rather than `PixelRatio.getFontScale()` — the hook re-renders when the
+reader changes their text size, where the module-scope call would keep whatever the scale was at load.
+
+**The web needs no equivalent.** Browser zoom scales the px slot and the px text together, so the two
+cannot drift the way points and Dynamic Type do.
+
+### What is left, stated rather than rounded away
+
+**1px — a third of a point — remains at the two largest sizes.** `Math.ceil` on the reservation was
+tried and measured: it moved which sizes show the residual rather than removing any, so it was reverted
+and the comment in the code says so. The reported symptom was 3–5.7pt; a 0.33pt residual is below the
+threshold this was ever about. Not claimed as fixed.
+
+### Method note for whoever measures this next
+
+jest has no layout engine and the settings sheet cannot be opened on a simulator, so mobile layout is
+measured from screen recordings: `capturing` auto-toggled on a timer, `simctl io recordVideo`, then a
+one-pixel vertical slice through the reference badge tracked frame by frame with `ffmpeg` +  a few lines
+of Python. The banner region's bright-run count is recorded alongside it, so a "no movement" result can
+be shown to be non-vacuous — the states really did change. Both temporary changes were reverted
+(`git diff` clean).
+
+**Three rounds of this defect, and each round the measurement was the thing that was wrong**, not the
+reasoning: first the wrong viewport, then no audio, then the wrong text size.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

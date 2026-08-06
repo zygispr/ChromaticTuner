@@ -6,7 +6,7 @@ import {
 } from '@chromatic-tuner/react';
 import { space } from '@chromatic-tuner/tokens';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { CentsReadout } from '../atoms/CentsReadout';
 import { DirectionCue } from '../atoms/DirectionCue';
@@ -14,7 +14,7 @@ import { NoteLabel } from '../atoms/NoteLabel';
 import { ReferenceBadge } from '../atoms/ReferenceBadge';
 import { ScreenReaderAnnouncer } from '../atoms/ScreenReaderAnnouncer';
 import { MicrophoneToggle } from '../molecules/MicrophoneToggle';
-import { StatusBanner, STATUS_SLOT } from '../molecules/StatusBanner';
+import { StatusBanner, statusSlotHeight } from '../molecules/StatusBanner';
 import { TuningLine } from '../molecules/TuningLine';
 import { SettingsScreen } from '../screens/SettingsScreen';
 
@@ -38,6 +38,11 @@ export function TunerDisplay({ capturing, onToggleCapture }: TunerDisplayProps) 
   const { a4Hz, isNonStandardReference } = usePreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // Reactive rather than read once: `useWindowDimensions` re-renders when the
+  // reader changes their text size, so the reserved slot follows it instead of
+  // being whatever the scale happened to be at module load.
+  const { fontScale } = useWindowDimensions();
+
   // `capturing` is what the user asked for, not what the microphone did — the
   // two part company on a failure screen, where the banner is already offering
   // the only action there is.
@@ -58,7 +63,7 @@ export function TunerDisplay({ capturing, onToggleCapture }: TunerDisplayProps) 
       <TuningLine state={tuningState} subscribeToCents={subscribeToCents} />
       <DirectionCue direction={direction} state={tuningState} />
 
-      <View style={styles.statusSlot}>
+      <View style={[styles.statusSlot, { minHeight: statusSlotHeight(fontScale) }]}>
         <StatusBanner status={status} onRetry={retry} captureStopped={!capturing} />
       </View>
 
@@ -85,7 +90,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   statusSlot: {
-    minHeight: STATUS_SLOT,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'flex-start',

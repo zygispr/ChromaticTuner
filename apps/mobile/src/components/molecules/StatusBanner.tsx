@@ -57,8 +57,24 @@ export const STATUS_LINE_HEIGHT = typeTokens.labelSize * 1.5;
  *
  * The rare failure banners still grow past this, which remains the right trade —
  * those are terminal states where nothing is being tuned.
+ *
+ * **A function of the font scale, not a constant.** React Native scales both
+ * `fontSize` and `lineHeight` by the reader's Dynamic Type setting, so a slot
+ * fixed in points stops matching its contents the moment anyone leaves the
+ * default. Measured on a 393pt device: no movement at `medium` or `large`, 3pt
+ * at `extra-large`, 5.7pt at `extra-extra-large` — which is the "slight jump"
+ * reported from a physical phone after the simulator, sitting at the default,
+ * had shown none.
  */
-export const STATUS_SLOT = STATUS_LINE_HEIGHT * 2 + space.sm;
+export function statusSlotHeight(fontScale: number): number {
+  // Only the text scales. The gap between title and steps is layout, and React
+  // Native leaves it alone.
+  //
+  // NOT rounded. `Math.ceil` here was tried and measured: it moved which text
+  // sizes show a 1px (0.3pt) residual rather than removing any, so it bought a
+  // line of code and nothing else.
+  return STATUS_LINE_HEIGHT * 2 * fontScale + space.sm;
+}
 
 /** Where the microphone permission actually lives on this OS. */
 const SETTINGS_PATH =
