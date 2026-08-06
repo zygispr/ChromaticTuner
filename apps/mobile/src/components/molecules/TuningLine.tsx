@@ -23,7 +23,18 @@ export interface TuningLineProps {
 
 const TICKS = [-40, -30, -20, -10, 10, 20, 30, 40];
 const MAJOR_TICKS = [-50, 0, 50];
-const LINE_WIDTH = 320;
+
+/**
+ * Mirrors the web block's `maxWidth: 720`. The rule is fluid below this and
+ * capped above it, so a tablet or a landscape phone does not stretch it past
+ * the distance an eye can track in one glance.
+ *
+ * It used to be a flat `LINE_WIDTH = 320`, which is a 2016 phone: an iPhone 15
+ * gives this component 361pt and the ruler left 20pt of it unused on each side
+ * on top of the screen's own 16pt gutters. Every unused point is resolution the
+ * player loses, since half the rule is DISPLAY_RANGE_CENTS however wide it is.
+ */
+const MAX_LINE_WIDTH = 720;
 
 /**
  * The product's signature element: one horizontal line, flat left, sharp right.
@@ -36,7 +47,12 @@ const LINE_WIDTH = 320;
 export function TuningLine({ state, subscribeToCents }: TuningLineProps) {
   const colors = useThemeColors();
   const appearance = useAppearance();
+  // A FRACTION of half the rule, -1..1 — not points. The rule's width is not
+  // known until it has been laid out, and it changes with rotation and with
+  // Dynamic Type; a fraction is the one form of the position that stays correct
+  // across both, and it is the same quantity web translates the track by.
   const offset = useSharedValue(0);
+  const [halfWidth, setHalfWidth] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
 
   // FR-016: drop the animation entirely under reduced motion, rather than
@@ -66,7 +82,7 @@ export function TuningLine({ state, subscribeToCents }: TuningLineProps) {
         // not correct.
         const requested = cents === null ? 0 : cents;
         const clamped = Math.max(-DISPLAY_RANGE_CENTS, Math.min(DISPLAY_RANGE_CENTS, requested));
-        const target = (clamped / DISPLAY_RANGE_CENTS) * (LINE_WIDTH / 2);
+        const target = clamped / DISPLAY_RANGE_CENTS;
         offset.value = reduceMotion
           ? target
           : withTiming(target, { duration: motion.markerMs, easing: Easing.out(Easing.quad) });
@@ -74,11 +90,21 @@ export function TuningLine({ state, subscribeToCents }: TuningLineProps) {
     [subscribeToCents, offset, reduceMotion]
   );
 
-  const markerStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: offset.value }],
-  }));
+  // `halfWidth` is captured from React state rather than kept in a shared value
+  // because it changes on rotation and on a text-size change — a handful of
+  // times in a session — and never at reading rate. Reanimated rebuilds this
+  // worklet on each render, so the new width is in effect on the next frame.
+  const markerStyle = useAnimatedStyle(
+    () => ({ transform: [{ translateX: offset.value * halfWidth }] }),
+    [halfWidth]
+  );
 
-  const inTuneWidth = (IN_TUNE_TOLERANCE_CENTS / DISPLAY_RANGE_CENTS) * LINE_WIDTH;
+  // A percentage, not points: the zone means ±IN_TUNE_TOLERANCE_CENTS, which is
+  // a proportion of the rule rather than a distance. Sized in points it would
+  // say "in tune" over the wrong span the moment the rule changed width. The
+  // negative margin is a percentage too — React Native resolves percentage
+  // margins against the PARENT's width, which is exactly this rule's width.
+  const inTuneWidthPercent = (IN_TUNE_TOLERANCE_CENTS / DISPLAY_RANGE_CENTS) * 100;
 
   return (
     <View
@@ -87,15 +113,19 @@ export function TuningLine({ state, subscribeToCents }: TuningLineProps) {
       // and it moves ~43 times a second. Announcing it too would be noise.
       importantForAccessibility="no-hide-descendants"
       accessibilityElementsHidden
-      style={[styles.container, { width: LINE_WIDTH }]}
+      style={styles.container}
+      // The component's only source of truth for its own width, and so for how
+      // far full deflection is. Nothing else can supply it: the rule is fluid,
+      // and the parent's padding is not this component's business to know.
+      onLayout={(event) => setHalfWidth(event.nativeEvent.layout.width / 2)}
     >
       <View
         testID="in-tune-zone"
         style={[
           styles.inTuneZone,
           {
-            width: inTuneWidth,
-            marginLeft: -inTuneWidth / 2,
+            width: `${inTuneWidthPercent}%`,
+            marginLeft: `${-inTuneWidthPercent / 2}%`,
             backgroundColor: stateColor('in-tune', appearance),
             opacity: state === 'in-tune' ? 0.28 : 0.12,
           },
@@ -133,6 +163,8 @@ export function TuningLine({ state, subscribeToCents }: TuningLineProps) {
 
 const styles = StyleSheet.create({
   container: {
+    width: '100%',
+    maxWidth: MAX_LINE_WIDTH,
     height: 96,
     justifyContent: 'center',
   },

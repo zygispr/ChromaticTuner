@@ -89,7 +89,12 @@ describe('marker rest on lapse (FR-043, FR-044)', () => {
     emit(-30);
     const displaced = timingTargets[timingTargets.length - 1];
     expect(displaced).toBeDefined();
-    expect(Math.abs(displaced!)).toBeGreaterThan(5);
+    // Displaced to the flat side, asserted by SIGN rather than by magnitude:
+    // the shared value carries a fraction of half the rule since the ruler
+    // became fluid, so any threshold in points measures the unit, not the
+    // behaviour. What FR-044 is about is that rest is a position the marker
+    // travels away from and back to.
+    expect(displaced!).toBeLessThan(0);
 
     emit(null);
 
@@ -120,7 +125,8 @@ describe('marker rest on lapse (FR-043, FR-044)', () => {
 
     const last = timingTargets[timingTargets.length - 1];
     expect(last).toBeDefined();
-    expect(last!).toBeGreaterThan(5);
+    // Sharp side this time, again by sign — see above.
+    expect(last!).toBeGreaterThan(0);
   });
 });
 
