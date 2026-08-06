@@ -1,8 +1,8 @@
 import { PREFERENCES_STORAGE_KEY } from '@chromatic-tuner/core';
 import { color } from '@chromatic-tuner/tokens';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-import { audioArgs, waitForNote } from './helpers';
+import { activeTestId, audioArgs, openSettings, waitForNote } from './helpers';
 
 test.use(audioArgs('e2-in-tune.wav'));
 
@@ -323,4 +323,118 @@ test('a failed write leaves the appearance applied and says it will not be remem
   // And the EXISTING surface says so — no new warning was introduced for this.
   await expect(page.getByTestId('persistence-warning')).toBeVisible();
   await expect(page.getByTestId('persistence-warning')).toContainText(/not be remembered/i);
+});
+
+/**
+ * V49–V51 (006, US1) — changing a preference must not move focus (K2, K3).
+ *
+ * Reported defects 3 and 4. The effect at `SettingsSheet.tsx:80` is keyed on
+ * `[open, onClose]`; `onClose` is the inline arrow at `TunerDisplay.tsx:96`, in
+ * a component that destructures `usePreferences()` at `:41` — so every
+ * preference change mints a new arrow, re-runs an effect whose only real
+ * trigger is opening, and calls `focus()` on Done. The next keystroke goes to a
+ * button that ignores it.
+ *
+ * **These must press keys, never `fill()`.** Every existing test in this file
+ * drives the reference pitch with `fill('432')`, which assigns the value and
+ * dispatches `input` without a keystroke — so the entire keyboard path has
+ * never been exercised here, which is why the defect shipped under 145 green
+ * tests.
+ *
+ * **And they must press through `page.keyboard`, never `locator.press()`.**
+ * `locator.press()` FOCUSES the element and then presses it. Against this
+ * defect that is not a test at all: it re-focuses the slider before each of
+ * V51's eight presses, silently repairing the exact behaviour under test, and
+ * passes green on the broken build. `page.keyboard.press` sends the key to
+ * whatever actually holds focus, which is the only question being asked.
+ */
+test('V49 — an arrow key on the reference pitch leaves focus on it (FR-132, K2)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+  await openSettings(page);
+
+  await page.getByTestId('a4-slider').focus();
+  await page.keyboard.press('ArrowRight');
+
+  await expect(page.getByTestId('a4-value')).toHaveText('441');
+  // The value moving is NOT the assertion. It moves today; the defect is
+  // entirely in where focus went afterwards.
+  expect(await activeTestId(page)).toBe('a4-slider');
+});
+
+/**
+ * Each case restores its precondition first, because pressing a control that is
+ * already chosen applies nothing and would assert nothing. `reset` needs the
+ * opposite setup — something non-default to return from.
+ */
+const ACTIVATIONS = [
+  {
+    testId: 'accidental-flat',
+    prepare: async (page: Page) => {
+      await page.getByTestId('accidental-sharp').click();
+      await expect(page.getByTestId('accidental-flat')).toHaveAttribute('aria-pressed', 'false');
+    },
+    expectApplied: async (page: Page) =>
+      expect(page.getByTestId('accidental-flat')).toHaveAttribute('aria-pressed', 'true'),
+  },
+  {
+    testId: 'appearance-dark',
+    prepare: async (page: Page) => {
+      await page.getByTestId('appearance-system').click();
+      await expect(page.getByTestId('appearance-dark')).toHaveAttribute('aria-pressed', 'false');
+    },
+    expectApplied: async (page: Page) =>
+      expect(page.getByTestId('appearance-dark')).toHaveAttribute('aria-pressed', 'true'),
+  },
+  {
+    testId: 'settings-reset',
+    prepare: async (page: Page) => {
+      await page.getByTestId('a4-slider').fill('432');
+      await expect(page.getByTestId('a4-value')).toHaveText('432');
+    },
+    expectApplied: async (page: Page) => expect(page.getByTestId('a4-value')).toHaveText('440'),
+  },
+] as const;
+
+for (const key of ['Enter', ' '] as const) {
+  const keyName = key === ' ' ? 'Space' : key;
+
+  test(`V50 — ${keyName} on a settings button leaves focus on that button (FR-132, K2)`, async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await waitForNote(page, 'E');
+    await openSettings(page);
+
+    for (const { testId, prepare, expectApplied } of ACTIVATIONS) {
+      await prepare(page);
+
+      // Focus, then press through the keyboard — not `locator.press()`, which
+      // would re-focus the control and hide the defect.
+      await page.getByTestId(testId).focus();
+      await page.keyboard.press(key);
+
+      await expectApplied(page);
+      expect(await activeTestId(page), `${keyName} on ${testId} moved focus`).toBe(testId);
+    }
+  });
+}
+
+test('V51 — eight presses move eight hertz (FR-134, K3, SC-056)', async ({ page }) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+  await openSettings(page);
+
+  await expect(page.getByTestId('a4-value')).toHaveText('440');
+  await page.getByTestId('a4-slider').focus();
+
+  // Focused ONCE, outside the loop. This is SC-056 executed literally: eight
+  // presses with no other input, which is what a user does to reach 432.
+  for (let press = 0; press < 8; press += 1) {
+    await page.keyboard.press('ArrowDown');
+  }
+
+  await expect(page.getByTestId('a4-value')).toHaveText('432');
 });

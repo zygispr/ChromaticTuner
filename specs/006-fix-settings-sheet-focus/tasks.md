@@ -29,7 +29,8 @@ first row below is the reason — it is worth understanding before writing a sin
 | Tempting assertion | Why it passes on a broken build |
 | --- | --- |
 | `page.getByTestId('a4-slider').fill('432')` then assert the value | **This is what the existing suite already does** (`settings.spec.ts:28`, `:44`, `:52`) and it is precisely why the defect shipped. `fill()` sets the value directly and never presses a key, so it exercises none of the keyboard path. V49–V51 must use `press()`. |
-| "the reference pitch changed after `ArrowRight`" | Passes **today**. The value does change; defect 3 is entirely about where focus went afterwards. Assert the active element, not the value. |
+| `locator.press('ArrowDown')` in a loop, instead of `fill()` | **Found at T006, and it would have been fatal.** `locator.press()` FOCUSES the element and then presses it, so V51 written this way re-focuses the slider before each of its eight presses — silently repairing the behaviour under test and passing green on the broken build. Focus once, then press through `page.keyboard.press`, which goes to whatever actually holds focus. |
+| "the reference pitch changed after `ArrowRight`" | Passes **today**. The value does change; defect 3 is entirely about where focus went afterwards. Assert the active element, not the value. **Confirmed at T009**: V49's `a4-value` assertion read `441` and passed; only the focus assertion failed. |
 | "after `Tab` from the last control, `reference-badge` is not focused" | Passes when focus lands on `<body>` — which is what a native `<dialog>` does (**D2**, measured) and what a half-written trap does. K6 requires landing on the **first control**, named. |
 | "after N tabs nothing outside the sheet is focused", N = the control count | Passes if the cycle happens to land back inside on the Nth press. Use 2× the control count and assert **every** intermediate element, not just the last. |
 | "the sheet still closes on Escape" (as the guard against an over-eager trap) | Passes for a `Tab` handler that `preventDefault`s unconditionally, because Escape is handled on a different branch. The assertion that catches that is `Tab` in the **middle** of the sheet still advancing one control. |
@@ -217,17 +218,80 @@ user can work around; this one silently discards input.
 
 > All three land in `apps/web/e2e/settings.spec.ts`, so they are sequential, not parallel.
 
-- [ ] T006 [US1] Write V49 in `apps/web/e2e/settings.spec.ts` — open the settings, focus `a4-slider`, `press('ArrowRight')`; assert `a4-value` reads `441` **and** `activeTestId(page)` is `a4-slider` (K2, FR-132)
-- [ ] T007 [US1] Write V50 in `apps/web/e2e/settings.spec.ts` — for each of `accidental-flat`, `appearance-dark`, `settings-reset`, focus it and `press('Enter')`, then assert the preference applied **and** `activeTestId(page)` is still that control; repeat the three with `press(' ')`. Six assertions (K2, FR-132)
-- [ ] T008 [US1] Write V51 in `apps/web/e2e/settings.spec.ts` — focus `a4-slider` at 440, `press('ArrowDown')` eight times with no other input, assert `a4-value` reads `432` (K3, FR-134, SC-056)
-- [ ] T009 [US1] Run `apps/web/e2e/settings.spec.ts`, **observe V49–V51 fail**, and record the actual failure output in this file — the expected failure is `settings-close` where the control should be, and `439` for V51
+- [X] T006 [US1] Write V49 in `apps/web/e2e/settings.spec.ts` — open the settings, focus `a4-slider`, `press('ArrowRight')`; assert `a4-value` reads `441` **and** `activeTestId(page)` is `a4-slider` (K2, FR-132)
+- [X] T007 [US1] Write V50 in `apps/web/e2e/settings.spec.ts` — for each of `accidental-flat`, `appearance-dark`, `settings-reset`, focus it and `press('Enter')`, then assert the preference applied **and** `activeTestId(page)` is still that control; repeat the three with `press(' ')`. Six assertions (K2, FR-132)
+- [X] T008 [US1] Write V51 in `apps/web/e2e/settings.spec.ts` — focus `a4-slider` at 440, `press('ArrowDown')` eight times with no other input, assert `a4-value` reads `432` (K3, FR-134, SC-056)
+- [X] T009 [US1] Run `apps/web/e2e/settings.spec.ts`, **observe V49–V51 fail**, and record the actual failure output in this file — the expected failure is `settings-close` where the control should be, and `439` for V51
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Split the effect in `apps/web/src/components/organisms/SettingsSheet.tsx:80–92` (**D1**) — one effect keyed on `[open]` alone that calls `closeRef.current?.focus()`, one keyed on `[open, onClose]` that registers the `keydown` listener. Comment it by cause, citing K1/K2 and naming `TunerDisplay.tsx:96` as the unstable dependency, so the next reader does not "simplify" them back together. Do **not** wrap `onClose` in `useCallback` at the call site — **D1** records why that is the wrong file to fix it in
-- [ ] T011 [US1] Re-run V49–V51 green, then re-run `settings.spec.ts`, `appearance.spec.ts` and `press-affordance.spec.ts` in full and record the counts — the suites from T002 that drive these same controls
+- [X] T010 [US1] Split the effect in `apps/web/src/components/organisms/SettingsSheet.tsx:80–92` (**D1**) — one effect keyed on `[open]` alone that calls `closeRef.current?.focus()`, one keyed on `[open, onClose]` that registers the `keydown` listener. Comment it by cause, citing K1/K2 and naming `TunerDisplay.tsx:96` as the unstable dependency, so the next reader does not "simplify" them back together. Do **not** wrap `onClose` in `useCallback` at the call site — **D1** records why that is the wrong file to fix it in
+- [X] T011 [US1] Re-run V49–V51 green, then re-run `settings.spec.ts`, `appearance.spec.ts` and `press-affordance.spec.ts` in full and record the counts — the suites from T002 that drive these same controls
 
-**Checkpoint**: the settings are keyboard-operable. US1 is independently shippable here.
+**Checkpoint**: the settings are keyboard-operable. US1 is independently shippable here. ✅
+
+### T006–T008 — one hazard the plan did not have, and it would have been fatal
+
+The hazard table says V49–V51 must use `press()` rather than `fill()`. That is necessary and not
+sufficient. **`locator.press()` focuses the element and then presses it**, so V51 written the obvious
+way — `slider.press('ArrowDown')` eight times — re-focuses the slider before every press, silently
+repairing the exact behaviour under test, and passes green on the broken build.
+
+The three tests therefore focus once and press through **`page.keyboard.press`**, which sends the key
+to whatever actually holds focus. That is the only form of the question worth asking, and it is now
+commented in the spec file so the next reader does not tidy it back. This belongs in the hazard table's
+first row alongside `fill()`: same defect, one layer further in.
+
+`ACTIVATIONS` restores each control's precondition before pressing it, because activating a control
+that is *already* chosen applies nothing and asserts nothing. `settings-reset` needs the mirror setup —
+something non-default to return from — and it is the interesting case the task named: reset changes
+which options are selected *underneath* the focused control.
+
+### T009 — observed red
+
+Four tests, four failures, exactly as predicted:
+
+```text
+V49  — an arrow key on the reference pitch leaves focus on it
+       Expected: "a4-slider"      Received: "settings-close"
+V50  — Enter on a settings button leaves focus on that button
+       Error: Enter on accidental-flat moved focus
+       Expected: "accidental-flat"   Received: "settings-close"
+V50  — Space on a settings button leaves focus on that button
+       Error: Space on accidental-flat moved focus
+       Expected: "accidental-flat"   Received: "settings-close"
+V51  — eight presses move eight hertz
+       Expected: "432"            Received: "439"   (14 × resolved to 439)
+```
+
+**V49's value assertion passed.** `a4-value` read `441`; only the focus assertion failed. That is the
+hazard table's second row demonstrated on the real build rather than argued — a V49 that asserted "the
+reference pitch changed after ArrowRight" would have been green on unfixed code.
+
+`439` is defect 3 stated as arithmetic: the first press lands on the slider, the effect then moves focus
+to Done, and the remaining seven presses are discarded by a button that ignores them.
+
+### T010 — the fix
+
+Six lines of behaviour change in `SettingsSheet.tsx`: the single `[open, onClose]` effect becomes an
+autofocus effect keyed on `[open]` alone, plus the untouched Escape listener still keyed on
+`[open, onClose]`. No `useCallback` in `TunerDisplay` — **D1**'s reasoning stands, and the comment names
+`TunerDisplay.tsx:96` and `:41` so the causal chain survives the next reader.
+
+`exhaustive-deps` is satisfied without a suppression comment, which is the check that the two dependency
+arrays are now honest rather than merely convenient.
+
+### T011 — green, and nothing else moved
+
+| Run | Result |
+| --- | --- |
+| V49–V51 alone | **4 passed** (V50 is two tests, one per key) |
+| `settings.spec.ts` + `appearance.spec.ts` + `press-affordance.spec.ts` | **58 passed** |
+| Full `pnpm test:e2e` | **149 passed** — T001's 145 plus these 4, nothing regressed |
+
+`pnpm lint`, `format:check` and `typecheck` all clean. The full suite was run rather than only the three
+T011 names: it is 47 seconds and it is the only thing that can show the effect split disturbing a suite
+nobody predicted.
 
 ---
 

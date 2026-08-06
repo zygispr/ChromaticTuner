@@ -77,12 +77,38 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
    */
   const gestureStayedOnBackdrop = useRef(false);
 
+  /**
+   * Opening is the only thing that may move focus (K1).
+   *
+   * Keyed on `open` ALONE, and it must stay that way. This lived in the effect
+   * below until `006`, sharing its `[open, onClose]` — and `onClose` is the
+   * inline arrow at `TunerDisplay.tsx:96`, in a component that destructures
+   * `usePreferences()` at `:41`. So every preference change re-rendered it,
+   * minted a new arrow, re-ran the effect, and called `focus()` on Done:
+   * reported defects 3 and 4, and a violation of K2.
+   *
+   * What the user felt was worse than a lost ring. The NEXT arrow key went to a
+   * button that ignores it, so the reference pitch accepted one step and
+   * appeared to stop responding — eight presses moved it one hertz (K3).
+   *
+   * The two halves have genuinely different triggers, which is why splitting
+   * them is the fix rather than a tidy-up: moving focus answers "did it just
+   * open", listening for Escape answers "is it open", and only the second needs
+   * the current `onClose`. Do not merge them back together, and do not "fix"
+   * this from `TunerDisplay` with a `useCallback` — that repairs the defect in a
+   * different file from the one that is wrong, and leaves this component still
+   * asserting through its dependency array that it wants to re-focus whenever
+   * its close handler changes identity (research D1).
+   */
   useEffect(() => {
     if (!open) return;
-
-    // Focus lands on a real control rather than nowhere, and Escape closes —
-    // the minimum for a dialog to be operable by keyboard (FR-020, SC-013).
+    // A real control rather than nowhere, so the dialog is operable by keyboard
+    // from the first keystroke (FR-020, FR-133, SC-013).
     closeRef.current?.focus();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
