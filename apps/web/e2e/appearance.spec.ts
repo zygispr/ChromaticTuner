@@ -309,6 +309,101 @@ test('nothing stored at all still leaves the media query in charge (V44)', async
   expect(await backgroundOf(page)).toBe(toRgb(color.background.dark));
 });
 
+/**
+ * User Story 3 (T042, T043) — following the device, and provably not following.
+ *
+ * The pair is the point. "The app follows the device" passes for an app that
+ * follows it *always*, which is FR-116's failure; "the app ignores the device"
+ * passes for one that never follows it, which is FR-115's. Neither test means
+ * anything without the other.
+ */
+test('a stored system preference follows the device live, with no reload (V47, FR-115)', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await seedPreference(page, record('system'));
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  expect(await backgroundOf(page)).toBe(toRgb(color.background.light));
+
+  // Changed AFTER load, with no navigation. The page is still the one that
+  // rendered a moment ago.
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect.poll(() => backgroundOf(page)).toBe(toRgb(color.background.dark));
+
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect.poll(() => backgroundOf(page)).toBe(toRgb(color.background.light));
+});
+
+test('a stored explicit preference never follows the device (V47, FR-116)', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await seedPreference(page, record('dark'));
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  expect(await backgroundOf(page)).toBe(toRgb(color.background.dark));
+
+  // Both directions, after load. Without this, the live-follow test above is
+  // satisfied by an app that ignores the stored preference entirely.
+  for (const colorScheme of ['dark', 'light', 'dark', 'light'] as const) {
+    await page.emulateMedia({ colorScheme });
+    expect(
+      await backgroundOf(page),
+      `the app moved when the device became ${colorScheme}, against an explicit choice`
+    ).toBe(toRgb(color.background.dark));
+  }
+});
+
+/**
+ * The browser's own widgets follow the choice too (FR-118, FR-129).
+ *
+ * `index.html` declares `<meta name="color-scheme" content="light dark">`, which
+ * tells the UA to style its built-in controls from the OS preference. That was
+ * exactly right while the OS was the only thing with an opinion. With an in-app
+ * override it is no longer enough: the settings sheet contains a real
+ * `<input type="range">`, and on a light OS with Dark chosen the slider renders
+ * in light UA chrome on a dark sheet.
+ *
+ * Asserted on the computed `color-scheme` of the root rather than on the
+ * slider's pixels, because that property IS the mechanism — the UA decides its
+ * widget rendering from it, and no component style can override that.
+ */
+for (const [stored, device] of [
+  ['dark', 'light'],
+  ['light', 'dark'],
+] as const) {
+  test(`an explicit ${stored} choice sets color-scheme for UA widgets too (FR-118)`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: device });
+    await seedPreference(page, record(stored));
+    await page.goto('/');
+    await waitForNote(page, 'E');
+
+    expect(
+      await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme),
+      'the UA still styles its own controls from the device, not the choice'
+    ).toBe(stored);
+  });
+}
+
+test('a system preference leaves both schemes on offer, as the meta tag intends', async ({
+  page,
+}) => {
+  // Not `light` or `dark`: under "Match device" the UA should keep deciding for
+  // itself, which is what `light dark` means. Pinning either one here would be
+  // the same mistake as pinning `data-theme`.
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await seedPreference(page, record('system'));
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe(
+    'light dark'
+  );
+});
+
 test('the tuning state is legible without colour at all (V10, SC-009)', async ({ page }) => {
   await page.goto('/');
   await waitForNote(page, 'E');

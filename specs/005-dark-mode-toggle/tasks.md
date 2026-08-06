@@ -634,22 +634,137 @@ confirm the app follows without being reopened.
 
 ### Checks for User Story 3 ⚠️ Write these first and observe them failing
 
-- [ ] T042 [P] [US3] Add the live-follow test to `apps/web/e2e/appearance.spec.ts` (V47, FR-115) — with `'system'` stored, call `page.emulateMedia({ colorScheme })` **after** load and assert the background changes with no reload
-- [ ] T043 [P] [US3] Add the does-**not**-follow test to `apps/web/e2e/appearance.spec.ts` (V47, FR-116) — with `'dark'` stored, change the emulated media both ways and assert the background never moves. Without this, T042 passes for an app that ignores the stored preference entirely
-- [ ] T044 [P] [US3] Add the mobile equivalents to `apps/mobile/__tests__/` (FR-115, FR-116) — re-rendering with a changed `useColorScheme()` value moves the appearance under `'system'` and does not move it under `'dark'`
+- [X] T042 [P] [US3] Add the live-follow test to `apps/web/e2e/appearance.spec.ts` (V47, FR-115) — with `'system'` stored, call `page.emulateMedia({ colorScheme })` **after** load and assert the background changes with no reload
+- [X] T043 [P] [US3] Add the does-**not**-follow test to `apps/web/e2e/appearance.spec.ts` (V47, FR-116) — with `'dark'` stored, change the emulated media both ways and assert the background never moves. Without this, T042 passes for an app that ignores the stored preference entirely
+- [X] T044 [P] [US3] Add the mobile equivalents to `apps/mobile/__tests__/` (FR-115, FR-116) — re-rendering with a changed `useColorScheme()` value moves the appearance under `'system'` and does not move it under `'dark'`
 
 ### Implementation for User Story 3
 
-- [ ] T045 [US3] Confirm `apps/web/src/useDeviceAppearance.ts` (T023) actually subscribes rather than sampling once — a `matchMedia` read taken at mount satisfies every test in Phase 3 and fails T042
-- [ ] T046 [US3] **Break it and watch the gate fail**: temporarily make `useDeviceAppearance` sample once at mount instead of subscribing, confirm T042 fails while Phase 3's tests still pass, and record that in this file — it demonstrates exactly what US3 adds over US1 (SC-051)
-- [ ] T047 [US3] Verify the mobile background-return path by hand — background the app, change the OS appearance, foreground it, and confirm it is already correct with no visible correction (V47, spec Edge Cases)
-- [ ] T048 [US3] Confirm `userInterfaceStyle: 'automatic'` is unchanged in `apps/mobile/app.config.ts` and record the accepted launch-screen seam from research **D9** in this file (FR-120 governs frames the app renders)
+- [X] T045 [US3] Confirm `apps/web/src/useDeviceAppearance.ts` (T023) actually subscribes rather than sampling once — a `matchMedia` read taken at mount satisfies every test in Phase 3 and fails T042
+- [X] T046 [US3] **Break it and watch the gate fail**: temporarily make `useDeviceAppearance` sample once at mount instead of subscribing, confirm T042 fails while Phase 3's tests still pass, and record that in this file — it demonstrates exactly what US3 adds over US1 (SC-051)
+- [X] T047 [US3] Verify the mobile background-return path by hand — background the app, change the OS appearance, foreground it, and confirm it is already correct with no visible correction (V47, spec Edge Cases)
+- [X] T048 [US3] Confirm `userInterfaceStyle: 'automatic'` is unchanged in `apps/mobile/app.config.ts` and record the accepted launch-screen seam from research **D9** in this file (FR-120 governs frames the app renders)
 
 **Checkpoint**: all three options behave correctly and independently. The feature is functionally complete.
 
 ---
 
-## Phase 6: Polish & Cross-Cutting Concerns
+## Phase 5 build log (2026-08-06)
+
+### Test-first, observed
+
+| Check | First run |
+| --- | --- |
+| T042 live-follow under `'system'` | **passed** — see below; this is the phase's main finding |
+| T043 explicit choice never follows | **passed** — same reason |
+| T044 mobile follow / do-not-follow | **passed** once the harness was fixed; the behaviour landed in Phase 3 |
+| `color-scheme` for UA widgets (new, not in the task list) | **3 failed** — computed `normal`, expected `dark`/`light`/`light dark` |
+
+After: `pnpm test:e2e` **132 passed** (was 127), mobile jest **90** (was 88), `pnpm test` 462,
+typecheck green across 5 projects, lint, format and build green.
+
+### T046 — the specified break does not fail the specified gate, and the reason matters
+
+T046 says to make `useDeviceAppearance` sample once at mount, "confirm T042 fails while Phase 3's tests
+still pass". Done, and **the entire e2e suite passed — all 132 tests**.
+
+This is not a gap in T042. It is that **on the web, nothing observes the resolved appearance at all**:
+
+- `ThemeSync` keys off `appearancePreference` — the stored choice — not the resolved value.
+- Under `'system'` no `data-theme` is written (M12), so the page follows the OS through the
+  `prefers-color-scheme` media query, in CSS, with **no JavaScript involved**. That is the design, and
+  T042 is really a test of the stylesheet.
+- Under an explicit choice the attribute is pinned once, and the device is irrelevant by definition.
+- No component in `apps/web/src` reads `appearance` from context; every colour arrives as
+  `var(--ct-*)`.
+
+So `useDeviceAppearance` currently has **no observable consumer on the web**, and FR-115's live-follow
+is delivered entirely by CSS. That is the better mechanism — it survives with JavaScript disabled and
+costs no frame — but it means US3 adds nothing to the web that US1 did not already have, which is the
+opposite of what T046's premise assumes.
+
+**The hook was kept rather than deleted.** The tempting reading of Principle I is that unread code is
+dead code. But it is not unread: it feeds `deviceAppearance`, which is what makes
+`usePreferences().appearance` *correct* on the web. Removing it would leave that value permanently
+`'light'` — a silently wrong answer waiting for the first web consumer that needs the appearance in
+JavaScript (a canvas, an SVG, an icon choice). A right-but-unread value is cheap; a wrong one is a trap.
+**Flagged for a decision rather than settled unilaterally** — the alternative is to delete the hook and
+the prop on web and accept that `appearance` is meaningless there.
+
+The hook does subscribe (T045, confirmed by inspection): `addEventListener('change', …)` with a matching
+`removeEventListener` in the teardown, via `useSyncExternalStore`. The file was restored exactly
+(`git diff` clean) after the break.
+
+### A real defect this feature introduced: `color-scheme` (not in any task)
+
+Found while looking for something the resolved appearance could legitimately drive. `index.html`
+declares `<meta name="color-scheme" content="light dark">`, telling the browser to style **its own**
+widgets from the OS preference. Correct while the OS was the only opinion; wrong the moment there is an
+in-app override.
+
+The settings sheet contains a real `<input type="range">`. With Dark chosen on a light OS, everything
+this app draws repainted and the slider stayed in **light UA chrome on a dark sheet** — along with
+scrollbars and default form colours.
+
+Fixed in CSS rather than JavaScript, in the same generated block as the tokens, so it lands with the
+same first paint:
+
+```css
+:root                    { color-scheme: light dark; }
+:root[data-theme='light']{ color-scheme: light; }
+:root[data-theme='dark'] { color-scheme: dark; }
+```
+
+`:root` keeps `light dark` — the "Match device" case, where the UA is told both are available and
+decides for itself. Pinning either there would be the same mistake as pinning `data-theme` for a
+`'system'` user.
+
+Worth noting the first run reported `normal`, not `light dark`: the **meta tag does not set the CSS
+property**. It influences the used value, but `getComputedStyle(...).colorScheme` reads the property,
+which was unset. The three assertions now cover both explicit appearances and the system case.
+
+### T047 — the background-return path, verified on the simulator
+
+Not by eye: the app was foregrounded again while a screen recording ran, and every frame checked.
+
+Preference `'system'`, device **light**, app launched, then backgrounded (by foregrounding Settings),
+the OS switched to **dark**, and the app brought forward again.
+
+- On return the app is **already dark** — screenshot confirms the tuner and its explainer in the dark
+  palette.
+- **Zero frames** in the light-app brightness range (`YAVG > 150`) after the app reappears. The bright
+  values during the transition belong to the app-switch zoom, whose `YAVG` never rises above 83 — an
+  actual light app frame measures ~232.
+
+No visible correction, which is what the spec's Edge Cases ask for.
+
+### T048 — `userInterfaceStyle: 'automatic'` unchanged, and the seam it leaves
+
+`apps/mobile/app.config.ts:60` still reads `userInterfaceStyle: 'automatic'`, last touched by `be9c6da`
+(004) and untouched by this feature.
+
+**The accepted seam (research D9), now observed rather than predicted.** The native launch screen
+follows the OS and cannot read AsyncStorage, so for a user who chose Dark on a light device the launch
+storyboard is light and the first app frame is dark. Phase 4's frame-by-frame recording shows exactly
+that: `YAVG 232.5 → 37.4` in one frame. FR-120 governs the frames the **app** renders, and there is no
+frame of the wrong appearance among those. Changing `userInterfaceStyle` to a fixed value would trade
+this seam for a worse one — the launch screen would then contradict the OS for every user who had made
+no choice at all.
+
+### Deviations, stated rather than hidden
+
+**1. Three assertions were added that no task asked for** — the `color-scheme` checks. They cover a real
+defect this feature introduced, described above. Without them the browser's own controls keep following
+the OS after the user has explicitly overridden it.
+
+**2. T044's harness seeds through `initialPreferences` rather than pressing the control.** The first
+attempt set the preference from inside a render, which is a side effect in render and fragile. Seeding
+synchronously keeps the test to its one variable: what the provider does with a stored choice when the
+**device** moves.
+
+**3. Jest's `expect` takes no message argument.** The first version of T044 used Vitest's two-argument
+form (`expect(x, 'why').toBe(y)`) and failed with "Expect takes at most one argument" — a real failure,
+but of the test rather than the code. Worth remembering: the two runners in this repo differ here.
 
 **Purpose**: The obligations that apply to the whole feature — accessibility, contrast, measurement, and
 the gates FR-130 requires to stay green.

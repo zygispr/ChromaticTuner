@@ -1,8 +1,15 @@
+import type { Appearance, AppearancePreference } from '@chromatic-tuner/core';
+import { NoopWakeLock, ScriptedAudioSource } from '@chromatic-tuner/core/testing';
+import { TunerProvider } from '@chromatic-tuner/react';
 import { color } from '@chromatic-tuner/tokens';
-import { render, screen } from '@testing-library/react-native';
+import { act, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import App from '../src/App';
+import { TunerScreen } from '../src/components/screens/TunerScreen';
+
+/** Built once: new port identities would rebuild the session on every rerender. */
+const ports = { audioSource: new ScriptedAudioSource(), wakeLock: new NoopWakeLock() };
 
 /**
  * V45 / M11 / M12 — the first frame the user ever sees is already correct.
@@ -29,6 +36,68 @@ const DARK_RECORD = {
   appearance: 'dark',
   schemaVersion: 1,
 } as const;
+
+/**
+ * User Story 3 on mobile (T044, FR-115, FR-116).
+ *
+ * `useColorScheme()` is mocked at module scope above, so the device value is
+ * varied here by re-rendering the provider with a different `deviceAppearance` —
+ * which is exactly what `App` does when the real hook's value changes. The pair
+ * of tests is the point: either alone is satisfied by a broken implementation.
+ */
+function backgroundOf(): string | undefined {
+  return (
+    StyleSheet.flatten(screen.getByTestId('tuner-screen').props.style) as {
+      backgroundColor?: string;
+    }
+  ).backgroundColor;
+}
+
+/**
+ * Seeded through `initialPreferences` rather than by pressing the control: this
+ * is about what the provider does with a stored choice when the DEVICE moves,
+ * and seeding it synchronously keeps the test to that one variable.
+ */
+function Harness({ device, appearance }: { device: Appearance; appearance: AppearancePreference }) {
+  return (
+    <TunerProvider
+      audioSource={ports.audioSource}
+      wakeLock={ports.wakeLock}
+      deviceAppearance={device}
+      initialPreferences={{ ...DARK_RECORD, appearance }}
+      autoStart={false}
+    >
+      <TunerScreen />
+    </TunerProvider>
+  );
+}
+
+describe('following the device, and not following it (T044)', () => {
+  it('moves with the device while the preference is system (FR-115)', async () => {
+    const view = await render(<Harness device="light" appearance="system" />);
+    expect(backgroundOf()).toBe(color.background.light);
+
+    await act(async () => {
+      view.rerender(<Harness device="dark" appearance="system" />);
+    });
+
+    expect(backgroundOf()).toBe(color.background.dark);
+  });
+
+  it('does not move with the device once a choice is explicit (FR-116)', async () => {
+    const view = await render(<Harness device="light" appearance="dark" />);
+    expect(backgroundOf()).toBe(color.background.dark);
+
+    // The device swings both ways; neither move may be visible. Without this,
+    // the follow test above passes for an app that ignores the stored choice.
+    for (const device of ['dark', 'light'] as const) {
+      await act(async () => {
+        view.rerender(<Harness device={device} appearance="dark" />);
+      });
+      expect(backgroundOf()).toBe(color.background.dark);
+    }
+  });
+});
 
 describe('the first rendered frame (V45, M11)', () => {
   it('is dark when the seeded preference is dark and the device is light', async () => {

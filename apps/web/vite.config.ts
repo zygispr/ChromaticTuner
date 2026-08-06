@@ -121,8 +121,30 @@ function themeBlock(theme: keyof ThemedColor): string {
     .join('\n');
 }
 
+/*
+ * `color-scheme` accompanies every one of these blocks, and it is not
+ * decoration (FR-118, added by 005).
+ *
+ * It governs the widgets the BROWSER draws rather than the ones this app does —
+ * most visibly the settings sheet's `<input type="range">`, plus scrollbars and
+ * default form colours. `index.html` declares `<meta name="color-scheme"
+ * content="light dark">`, which was exactly right while the OS was the only
+ * thing with an opinion: it tells the UA to follow `prefers-color-scheme`.
+ *
+ * An in-app override breaks that. `[data-theme='dark']` repaints everything
+ * this app draws, and leaves the UA still following a light OS — so the slider
+ * renders in light chrome on a dark sheet. Pinning `color-scheme` alongside the
+ * override is what keeps the two in step, and it is CSS rather than JavaScript
+ * so it lands with the same first paint as the tokens themselves.
+ *
+ * `:root` keeps `light dark` rather than a fixed value, which is the "Match
+ * device" case: the UA is told both are available and picks for itself, exactly
+ * as the meta tag intends. Pinning either one there would be the same mistake
+ * as pinning `data-theme` for a `'system'` user.
+ */
 const themeCss = `
 :root {
+  color-scheme: light dark;
 ${themeBlock('light')}
 }
 
@@ -133,10 +155,12 @@ ${themeBlock('dark')}
 }
 
 :root[data-theme='light'] {
+  color-scheme: light;
 ${themeBlock('light')}
 }
 
 :root[data-theme='dark'] {
+  color-scheme: dark;
 ${themeBlock('dark')}
 }
 `;
