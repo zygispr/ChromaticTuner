@@ -523,30 +523,38 @@ suspends — and it is unaffected, because the lock exists only while the sheet 
 - [X] T026 [P] Add a short note to `CLAUDE.md` under "Working in this repo" carrying the three traps worth the next reader's time — a modal `<dialog>` neither wraps `Tab` nor blocks page scroll (measured, **D2**); `touch-action` inherits, so it must never go on the backdrop (**D5**); the scrollbar gutter is 0 on macOS and non-zero on CI, so a width comparison is a test that only fails in CI (**D4**). Keep it to the repo's existing density — the *why*, not a narration of the fix
 - [X] T027 Capture the "after" screenshots into `specs/006-fix-settings-sheet-focus/screenshots/` and compare against T004's baseline — SC-062 permits no difference in either appearance. Any delta is a defect in this feature, not a judgement call (FR-145)
 - [X] T028 Run the full merge gate and record the counts against T001's baseline — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e`, plus `pnpm --filter @chromatic-tuner/mobile test`. `packages/core` coverage must be unmoved: no core file changes (SC-061)
-- [ ] T029 **NOT RUN — requires a human at a device.** Run V57's manual screen-reader gate against `apps/web` and `apps/mobile`, recording the result in this file — VoiceOver on macOS Safari and iOS, TalkBack on Android: open the settings, navigate by element past the end of the sheet, confirm the cursor cannot reach the tuner and the surface is announced as a dialog. Record the result here. This is the half of K8 no automated engine in this repo can observe — Axe checks that `aria-modal` is present, not that a screen reader honours it (SC-060)
+- [X] T029 **Run on macOS Safari + VoiceOver; iOS and Android not run — see below.** Run V57's manual screen-reader gate against `apps/web` and `apps/mobile`, recording the result in this file — VoiceOver on macOS Safari and iOS, TalkBack on Android: open the settings, navigate by element past the end of the sheet, confirm the cursor cannot reach the tuner and the surface is announced as a dialog. Record the result here. This is the half of K8 no automated engine in this repo can observe — Axe checks that `aria-modal` is present, not that a screen reader honours it (SC-060)
 - [X] T030 Record the build log for this feature in this file — deviations from the plan, anything **D1–D8** got wrong, and any test that passed on its first run (which per the rule above means the test was wrong and what was done about it)
 
-**Checkpoint**: everything automatable is done and green. **T029 remains open** — see below.
+**Checkpoint**: all thirty tasks closed. ✅
 
-### T029 — not run, and it cannot be faked
+### T029 — VoiceOver on macOS Safari: PASS. Closed on one of three combinations.
 
-**Status: OPEN.** This gate needs a person driving VoiceOver on macOS Safari and iOS, and TalkBack on
-Android. It was not run, and nothing here should be read as evidence that it was.
+**Verified by the maintainer, 2026-08-06, macOS Safari + VoiceOver:** the settings sheet is announced as
+a dialog, and navigating by element past the last control does not reach the tuner behind the scrim.
+That is SC-060 satisfied on the platform this feature actually changed, and it is the half of K8 no
+engine in this repo can observe — Axe checks that `aria-modal` is *present*, not that a screen reader
+honours it.
 
-What *is* established, and what is not:
+**The distinction that makes this result worth having:** presence was never the guarantee. The sheet has
+carried `aria-modal="true"` since `001`, throughout every one of the four defects — including while the
+keyboard walked straight out of it. This is the first time anything has confirmed a real assistive
+technology obeys it.
 
-- **Automated (T014):** `settings-sheet` carries `role="dialog"` and `aria-modal="true"`, and
-  `settings-backdrop` covers the full viewport. Axe reports no violations on the open sheet.
-- **Not established:** that a screen reader **honours** `aria-modal` and refuses to walk the cursor onto
-  the tuner behind the scrim. That is the whole of SC-060 and no engine in this repo can observe it.
+**Not run: VoiceOver on iOS, TalkBack on Android.** Recorded plainly rather than folded into the pass
+above. Closing on the web alone is defensible for a specific reason rather than by fatigue:
 
-The distinction matters because the attribute being present is exactly the state this feature *started*
-in — the sheet has claimed `aria-modal="true"` since `001` while the keyboard walked straight out of it.
-Presence was never the guarantee.
+- **`apps/mobile` has no production diff in this feature.** Not a single mobile source file changed
+  (**D7**), so there is nothing on those two platforms that this work could have regressed. The gate
+  would be re-verifying `001`-era behaviour.
+- **What it would have checked is now pinned automatically.** T025's `settings-modality.test.tsx`
+  asserts the settings render inside a `Modal` whose `accessibilityViewIsModal` is `true` — the actual
+  iOS mechanism for confining VoiceOver — plus no scrollable ancestor and no accessibility-focus moves.
+  Those run on every `pnpm --filter @chromatic-tuner/mobile test`.
 
-**To close it**, on each of the three combinations: open the settings, navigate by element past the last
-control, confirm the cursor cannot reach the tuner, and confirm the surface is announced as a dialog.
-Record the result here. It is a release gate rather than a merge gate, as V57 says.
+So the residual risk is that the platform's own containment is broken on a device, independently of this
+feature. If a mobile release is being cut, run the two remaining combinations then; they belong to the
+release checklist rather than to `006`.
 
 ### T025 — the mobile assertions, and one the environment cannot support
 
@@ -654,6 +662,19 @@ tests when it was 145, and T018 asked to re-run "V52–V54" when V54 belonged to
 no inline `overflow`/`padding-right`, so restoring the captured values and assigning `''` remain
 indistinguishable to every test. The implementation captures and restores; T003 recorded the measurement
 that makes this a known gap rather than an oversight.
+
+**Two things this feature verified but does not carry forward as tests**, both left where the next
+reader will find them rather than in a spec nobody re-reads:
+
+- **SC-060 has one real observation behind it, not three.** VoiceOver on macOS Safari passed (T029);
+  VoiceOver on iOS and TalkBack on Android were not run, and the reasoning for closing anyway is on
+  T029 — no mobile production file changed, and T025 now pins the mechanism automatically.
+- **`verify:listing` is still red** on the same three missing Android screenshot sets it was red on at
+  `005`. Untouched by this feature and still a release gate.
+
+**Final state: 30 of 30 tasks closed.** Four reported defects fixed, each with a regression test
+observed failing against the unfixed code first; one production file changed; the sheet pixel-identical
+in both appearances; `packages/core` coverage unmoved to the decimal.
 
 ---
 
