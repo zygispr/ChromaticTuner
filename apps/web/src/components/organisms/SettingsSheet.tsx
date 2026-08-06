@@ -144,7 +144,69 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
     return () => {
       // A restore that targets a removed node moves focus nowhere and loses it
       // silently, which is worse than not restoring at all.
-      if (opener && document.contains(opener)) opener.focus();
+      //
+      // `preventScroll` so restoring focus cannot move the page (FR-140).
+      // Today it is belt and braces — this cleanup runs before the scroll
+      // lock's, so the document is still `overflow: hidden` and `focus()` could
+      // not scroll it anyway — but that is an accident of the order these two
+      // effects are declared in. This holds if they are ever reordered.
+      if (opener && document.contains(opener)) opener.focus({ preventScroll: true });
+    };
+  }, [open]);
+
+  /**
+   * The page behind the sheet does not move (K9–K11).
+   *
+   * Reported defect 2. `TunerLayout` is `100dvh` with its own `overflow:
+   * hidden`, but `003` put supporting content after `#root` in `index.html`, so
+   * the SCROLLER is the document element — and nothing was stopping it.
+   *
+   * `overflow: hidden` here rather than `position: fixed` on the body, which is
+   * the other standard recipe. Fixing the body discards the scroll offset, so
+   * FR-140 would then need the position saved and re-applied on close, with a
+   * visible jump whenever the bookkeeping is wrong. `overflow: hidden` does not
+   * reset `scrollTop`, so the position is preserved BY CONSTRUCTION (D4).
+   *
+   * A native modal `<dialog>` would not have helped: measured, the page scrolled
+   * on both wheel and `End` in Chromium and WebKit alike (D2).
+   */
+  useEffect(() => {
+    if (!open) return;
+
+    const root = document.documentElement;
+
+    // Captured rather than assumed empty. There is no inline style on this
+    // element today, so restoring these and assigning `''` are the same thing
+    // and no test can tell them apart — which is exactly why this must be
+    // written the correct way now, while someone is looking (K11).
+    const previousOverflow = root.style.overflow;
+    const previousPaddingRight = root.style.paddingRight;
+    const previousOverscrollBehavior = root.style.overscrollBehavior;
+
+    // Measured BEFORE the lock: removing the scrollbar is what frees the gutter,
+    // so once `overflow: hidden` lands this reads 0 everywhere. It is 0 on
+    // macOS overlay scrollbars and non-zero on CI's Ubuntu runners, so paying
+    // it back is a no-op on one and load-bearing on the other (FR-141, D4).
+    const gutter = window.innerWidth - root.clientWidth;
+
+    root.style.overflow = 'hidden';
+
+    // Scroll chaining, not the document scroll — `overflow: hidden` already
+    // stops that. This is the rubber-band on a drag that begins on the scrim.
+    //
+    // NOT `touch-action: none` on the backdrop. `touch-action` INHERITS, and
+    // the backdrop is this sheet's parent, so it would also apply to the
+    // reference pitch `<input type="range">` — whose thumb is dragged with
+    // precisely the gesture that property cancels. That fixes a rubber-band by
+    // breaking the reference pitch on every phone (D5, pinned by V55).
+    root.style.overscrollBehavior = 'none';
+
+    if (gutter > 0) root.style.paddingRight = `${gutter}px`;
+
+    return () => {
+      root.style.overflow = previousOverflow;
+      root.style.paddingRight = previousPaddingRight;
+      root.style.overscrollBehavior = previousOverscrollBehavior;
     };
   }, [open]);
 

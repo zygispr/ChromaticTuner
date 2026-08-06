@@ -721,3 +721,135 @@ test('the sheet declares itself modal and the scrim covers the viewport (FR-136,
   expect(backdrop!.width).toBeGreaterThanOrEqual(viewport.width);
   expect(backdrop!.height).toBeGreaterThanOrEqual(viewport.height);
 });
+
+/**
+ * V54–V55 (006, US3) — the page behind the sheet does not move (K9–K11).
+ *
+ * Reported defect 2. Nothing locked the document, and there has been content
+ * below the fold since `003` — so the tuner and the sheet scrolled away
+ * together while the user was reading the settings.
+ *
+ * A native modal `<dialog>` does not provide this either: measured, the page
+ * scrolled on both wheel and `End` in Chromium and WebKit (**D2**).
+ */
+async function documentScrollState(page: Page) {
+  return page.evaluate(() => {
+    const style = getComputedStyle(document.documentElement);
+    return {
+      scrollTop: document.documentElement.scrollTop,
+      overflow: style.overflow,
+      paddingRight: parseFloat(style.paddingRight),
+      overscrollBehavior: style.overscrollBehavior,
+    };
+  });
+}
+
+test('V54 — the document does not scroll behind the open sheet (FR-139, K9, SC-059)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  // FIRST, before anything else: a page with nothing to scroll would pass every
+  // assertion below without the lock existing at all.
+  const scrollable = await page.evaluate(
+    () => document.documentElement.scrollHeight > document.documentElement.clientHeight
+  );
+  expect(scrollable, 'the document is not scrollable at this viewport, so V54 proves nothing').toBe(
+    true
+  );
+
+  await openSettings(page);
+  const before = (await documentScrollState(page)).scrollTop;
+
+  // Focus is on Done — inside the sheet, and not the slider, whose own arrow
+  // handling would mask what ArrowDown does to the page.
+  const attempts: Array<[string, () => Promise<void>]> = [
+    [
+      'a wheel over the scrim',
+      async () => {
+        await page.mouse.move(20, 20);
+        await page.mouse.wheel(0, 600);
+      },
+    ],
+    ['End', async () => page.keyboard.press('End')],
+    ['PageDown', async () => page.keyboard.press('PageDown')],
+    ['ArrowDown', async () => page.keyboard.press('ArrowDown')],
+  ];
+
+  for (const [name, attempt] of attempts) {
+    await attempt();
+    // A settled read, not a raced one: scrolling is asynchronous, so asserting
+    // immediately could pass against a page that is still moving.
+    await page.waitForTimeout(150);
+    const { scrollTop } = await documentScrollState(page);
+    expect(scrollTop, `${name} scrolled the page behind the sheet`).toBe(before);
+  }
+});
+
+test('V55 — the lock costs no width and unlocks exactly (FR-140, FR-141, K10, K11)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  // The gutter is 0 on macOS overlay scrollbars and non-zero on CI's Ubuntu
+  // runners, so this is asserted as ARITHMETIC and never as an observed width —
+  // a before/after width comparison passes locally against an implementation
+  // with no compensation at all, and fails only in CI (D4, measured at T003).
+  const gutter = await page.evaluate(
+    () => window.innerWidth - document.documentElement.clientWidth
+  );
+
+  // A non-zero offset, so "the position was preserved" is a claim with
+  // something behind it — but a SMALL one, and that is not a detail.
+  // `openSettings` clicks the reference badge, and Playwright scrolls a click
+  // target into view; the badge sits at the top of the tuner, so a large offset
+  // scrolls the page back to 0 before the sheet has even opened. That is a
+  // property of the fixture, not of the lock, and it cost an hour of blaming
+  // the implementation for it.
+  await page.evaluate(() => window.scrollTo(0, 50));
+  await page.waitForTimeout(100);
+  const closed = await documentScrollState(page);
+
+  await openSettings(page);
+  const open = await documentScrollState(page);
+
+  // Read the offset AT OPEN rather than trusting the pre-open number: K11 is
+  // about the position the page had when the sheet OPENED. Asserting it is
+  // non-zero is what stops this whole test passing vacuously if the opener ever
+  // moves below the fold and opening scrolls the page to the top again.
+  expect(open.scrollTop, 'the page was at the top when the sheet opened').toBeGreaterThan(0);
+
+  // The lock is REAL. Without this the restore assertions below are vacuous:
+  // an implementation that never locked anything restores perfectly.
+  expect(open.overflow, 'the document element was never locked').toBe('hidden');
+  expect(open.overscrollBehavior, 'scroll chaining was never disabled').toBe('none');
+
+  // Exactly the freed gutter is given back — including when it is 0, where the
+  // assertion is that nothing was added.
+  expect(
+    open.paddingRight - closed.paddingRight,
+    `padding-right moved by ${open.paddingRight - closed.paddingRight}px against a ${gutter}px gutter`
+  ).toBe(gutter);
+
+  // D5, pinned so it cannot be "simplified" later: `touch-action: none` on the
+  // backdrop would stop a rubber-band and INHERIT onto the range input, whose
+  // thumb is dragged with exactly the gesture that property cancels. Fixing
+  // scroll chaining by breaking the reference pitch on every phone is the trap.
+  const touchAction = await page
+    .getByTestId('a4-slider')
+    .evaluate((el) => getComputedStyle(el).touchAction);
+  expect(touchAction, 'the slider can no longer be dragged on a touch screen').not.toBe('none');
+
+  await page.getByTestId('settings-close').click();
+  await expect(page.getByTestId('settings-sheet')).toHaveCount(0);
+
+  const after = await documentScrollState(page);
+  // `overflow: hidden` preserves scrollTop by construction, which is why the
+  // document element was locked rather than the body being fixed (D4).
+  expect(after.scrollTop, 'the page moved while the sheet was open').toBe(open.scrollTop);
+  expect(after.overflow).toBe(closed.overflow);
+  expect(after.paddingRight).toBe(closed.paddingRight);
+  expect(after.overscrollBehavior).toBe(closed.overscrollBehavior);
+});

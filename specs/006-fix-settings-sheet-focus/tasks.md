@@ -37,6 +37,8 @@ first row below is the reason — it is worth understanding before writing a sin
 | "focus returns to `reference-badge` after close" | Passes for an implementation that hard-codes `reference-badge`. There is only one opener today, so no test can distinguish the two. Read `document.activeElement` *before* opening and assert against that value. |
 | "the content is the same width before and after locking" | The scrollbar gutter is **0 on macOS** (overlay scrollbars) and non-zero on CI's Ubuntu runners, so this passes locally against zero compensation and fails only in CI. Assert the arithmetic (**D4**, T003). |
 | "`scrollTop` is unchanged after scrolling with the sheet open" | Passes when the page was never scrollable at that viewport. Assert `scrollHeight > clientHeight` first, so the test cannot succeed by having nothing to scroll. |
+| "`overflow`, `padding-right` and `overscroll-behavior` are back to their pre-open values after close" | **Passes on an implementation that never locked anything** — untouched properties are trivially "restored". Assert the lock is REAL while the sheet is open (`overflow` is `hidden`) before asserting it is undone. Found at T020. |
+| "scroll to 300, open the sheet, assert the offset survives" | **Found at T022, after an hour spent blaming the implementation.** Playwright scrolls a click target into view, and `reference-badge` sits at the top of the tuner — so opening from `scrollTop` 300 scrolls the page to 0 *before* the lock runs, and the test asserts about a precondition its own fixture destroyed. Use a small offset that keeps the opener on screen, and read the offset **at open** rather than trusting the pre-open number. |
 | "the mobile settings render a `Modal`" | Passes without asserting `accessibilityViewIsModal` at all, which is the prop that actually confines VoiceOver. Assert the prop's **value**. |
 
 **One guarantee no test can currently distinguish.** K11 requires restoring the document element's
@@ -414,17 +416,104 @@ confirm the position is unchanged — and unchanged again, at the same offset, a
 
 ### Tests for User Story 3 ⚠️ write first, observe failing
 
-- [ ] T019 [US3] Write V54 in `apps/web/e2e/a11y.spec.ts` — assert `scrollHeight > clientHeight` **first** so the test cannot pass by having nothing to scroll; record `scrollTop`, open the settings, then wheel over the scrim, `End`, `PageDown`, and `ArrowDown` with focus in the sheet but not on the slider; assert `scrollTop` is unchanged after each (K9, FR-139, SC-059)
-- [ ] T020 [US3] Write V55 in `apps/web/e2e/a11y.spec.ts` — measure `gutter = window.innerWidth - document.documentElement.clientWidth` before opening and assert the applied `padding-right` **equals that measured gutter**, including when it is `0`; assert `scrollTop` returns to a known pre-open offset after close; assert `overflow`, `padding-right` and `overscroll-behavior` are back to their pre-open values. Also pin **D5**: the computed `touch-action` on `a4-slider` is not `none`, so the rubber-band fix can never be "simplified" into one that cancels the slider drag (K10, K11, FR-140, FR-141)
-- [ ] T021 [US3] Run `apps/web/e2e/a11y.spec.ts`, **observe V54 and V55 fail**, and record the output in this file — the expected failure matches the `<dialog>` probe in **D2**: the page scrolls on both wheel and `End`
+- [X] T019 [US3] Write V54 in `apps/web/e2e/a11y.spec.ts` — assert `scrollHeight > clientHeight` **first** so the test cannot pass by having nothing to scroll; record `scrollTop`, open the settings, then wheel over the scrim, `End`, `PageDown`, and `ArrowDown` with focus in the sheet but not on the slider; assert `scrollTop` is unchanged after each (K9, FR-139, SC-059)
+- [X] T020 [US3] Write V55 in `apps/web/e2e/a11y.spec.ts` — measure `gutter = window.innerWidth - document.documentElement.clientWidth` before opening and assert the applied `padding-right` **equals that measured gutter**, including when it is `0`; assert `scrollTop` returns to a known pre-open offset after close; assert `overflow`, `padding-right` and `overscroll-behavior` are back to their pre-open values. Also pin **D5**: the computed `touch-action` on `a4-slider` is not `none`, so the rubber-band fix can never be "simplified" into one that cancels the slider drag (K10, K11, FR-140, FR-141)
+- [X] T021 [US3] Run `apps/web/e2e/a11y.spec.ts`, **observe V54 and V55 fail**, and record the output in this file — the expected failure matches the `<dialog>` probe in **D2**: the page scrolls on both wheel and `End`
 
 ### Implementation for User Story 3
 
-- [ ] T022 [US3] Add the scroll lock to `apps/web/src/components/organisms/SettingsSheet.tsx` (**D4**, K9–K11) — an effect keyed on `[open]` that captures the document element's prior inline `overflow` and `paddingRight`, sets `overflow: hidden`, adds the measured gutter back as `paddingRight` when it is non-zero, and writes both **captured values** back in cleanup (not `''` — see the code-review obligation above). Comment why the document element and not `position: fixed` on the body: `overflow: hidden` preserves `scrollTop` by construction, so FR-140 holds without bookkeeping
-- [ ] T023 [US3] Add `overscroll-behavior: none` alongside the lock in `apps/web/src/components/organisms/SettingsSheet.tsx` (**D5**), captured and restored in the same place. Comment the trap by name: `touch-action: none` on the backdrop **inherits** onto `<input type="range">` and would fix a rubber-band by breaking the reference pitch drag on every phone
-- [ ] T024 [US3] Re-run V54, V55 green, then re-run `fold.spec.ts` and `layout-stability.spec.ts` in full and record the counts — the two suites from T002 that measure scrolling and in-sheet geometry
+- [X] T022 [US3] Add the scroll lock to `apps/web/src/components/organisms/SettingsSheet.tsx` (**D4**, K9–K11) — an effect keyed on `[open]` that captures the document element's prior inline `overflow` and `paddingRight`, sets `overflow: hidden`, adds the measured gutter back as `paddingRight` when it is non-zero, and writes both **captured values** back in cleanup (not `''` — see the code-review obligation above). Comment why the document element and not `position: fixed` on the body: `overflow: hidden` preserves `scrollTop` by construction, so FR-140 holds without bookkeeping
+- [X] T023 [US3] Add `overscroll-behavior: none` alongside the lock in `apps/web/src/components/organisms/SettingsSheet.tsx` (**D5**), captured and restored in the same place. Comment the trap by name: `touch-action: none` on the backdrop **inherits** onto `<input type="range">` and would fix a rubber-band by breaking the reference pitch drag on every phone
+- [X] T024 [US3] Re-run V54, V55 green, then re-run `fold.spec.ts` and `layout-stability.spec.ts` in full and record the counts — the two suites from T002 that measure scrolling and in-sheet geometry
 
-**Checkpoint**: all four reported defects are fixed and all three stories are shippable.
+**Checkpoint**: all four reported defects are fixed and all three stories are shippable. ✅
+
+### T019–T020 — one assertion that stops V55 being vacuous
+
+The task lists V55's assertions as the applied `padding-right`, the restored `scrollTop`, and the three
+restored properties. **Written only that way, V55 passes on an implementation that never locks
+anything**: if `overflow`, `padding-right` and `overscroll-behavior` are never touched, they are
+trivially "back to their pre-open values", and `padding-right` moves by 0 against a gutter of 0.
+
+So V55 first asserts the lock is *real* — `overflow` is `hidden` and `overscroll-behavior` is `none`
+while the sheet is open — and only then that closing puts them back. This is the same shape as the
+hazard table's "nothing to scroll" row: a restore assertion is meaningless without evidence that
+something was applied. It is what caught the implementation at T024 rather than a green vacuum.
+
+The `padding-right` check is the arithmetic `open − closed === gutter`, never an observed width (**D4**).
+With the gutter at 0 locally it asserts that nothing was added; on CI's Ubuntu runners it asserts the
+freed pixels came back. Both meaningful, neither environment-specific.
+
+### T021 — observed red
+
+```text
+V54 — the document does not scroll behind the open sheet
+      Error: a wheel over the scrim scrolled the page behind the sheet
+      Expected: 0    Received: 600
+V55 — the lock costs no width and unlocks exactly
+      Error: the document element was never locked
+      Expected: "hidden"   Received: "visible"
+```
+
+V54's failure is **D2**'s probe reproduced on our own sheet, at the same magnitude: the wheel scrolls
+the page straight through the scrim, exactly as it does through a native modal `<dialog>` in both
+Chromium and WebKit.
+
+### T022–T023 — and an hour spent blaming the implementation for a defect in the test
+
+The lock went in as **D4** describes and V54 went green immediately. **V55 did not**: `scrollTop` came
+back `0` after close instead of the `300` the test had scrolled to.
+
+Two hypotheses were wrong before the right one, and both are worth recording because each is a
+plausible thing to believe:
+
+1. **"`focus()` scrolls its target into view, so the restore is undoing the position."** Plausible —
+   the opener sits in the first viewport. Adding `preventScroll: true` changed nothing.
+2. **"`overflow: hidden` resets `scrollTop`, and D4's measurement was wrong."** Also plausible, and it
+   would have meant abandoning the mechanism for `position: fixed` plus bookkeeping.
+
+A throwaway probe settled it in one run, and the answer was neither:
+
+```text
+isolated (no React):  scrollTo 300 → 300 · overflow hidden → 300 · released → 300
+through the sheet:    before open 300 · WHILE OPEN 0 · after close 0
+badge geometry:       top 73, bottom 117, in a 720 viewport
+```
+
+`overflow: hidden` preserves the position exactly as **D4** measured. The page was **already at 0 while
+the sheet was open** — so nothing in the lock or the restore was responsible. `openSettings` clicks
+`reference-badge`, **Playwright scrolls a click target into view**, and the badge sits at the top of the
+tuner: from `scrollTop` 300 it is above the fold, so opening the sheet scrolled the page to 0 before the
+lock ever ran. The fixture destroyed the very precondition the test was asserting about.
+
+The fix is in the test, not the code. V55 now scrolls to a **small** offset that keeps the badge on
+screen, and — more importantly — reads the offset **at open** rather than trusting the pre-open number,
+because K11 is about the position the page had when the sheet *opened*. An `expect(open.scrollTop > 0)`
+guard fails loudly if the opener ever moves below the fold and this happens again.
+
+**The red run was repeated after the test was rewritten.** V54 and V55 were edited *after* being
+observed failing, so the original red no longer covered the final assertions. The implementation was
+stashed and both were re-run against the unfixed component: same two failures, same messages. Principle
+III wants the final test seen failing, not an earlier draft of it.
+
+`preventScroll: true` was kept even though it fixed nothing. It is not speculative: this cleanup runs
+before the scroll lock's, so the document is still `overflow: hidden` and `focus()` could not scroll it
+anyway — but that is an accident of the order the two effects are declared in, and `preventScroll`
+removes the dependency on it. The comment says exactly that rather than claiming a measurement it does
+not have.
+
+### T024 — green, and the two scroll-sensitive suites survived
+
+| Run | Result |
+| --- | --- |
+| V54, V55 | **2 passed** |
+| V52–V55 together | **6 passed** |
+| `fold.spec.ts` + `layout-stability.spec.ts` | **13 passed** |
+| Full `pnpm test:e2e` | **156 passed** — Phase 4's 154 plus 2 |
+
+`fold.spec.ts` is the one suite that asserts the document **is** scrollable — the property T022
+suspends — and it is unaffected, because the lock exists only while the sheet is open. Lint,
+`format:check` and `typecheck` clean.
 
 ---
 
