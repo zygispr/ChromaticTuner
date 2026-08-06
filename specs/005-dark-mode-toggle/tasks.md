@@ -781,7 +781,7 @@ the gates FR-130 requires to stay green.
 - [X] T054 Simulate a failed write on both platforms (V48, FR-123, SC-054) — private browsing on web, a mocked rejecting store on mobile — and confirm the appearance still changes and the existing `persistence-warning` surface says it will not be remembered. **No new warning surface**
 - [X] T055 Record before/after cold-start numbers for **both** platforms in this file against the T002/T003 baselines (SC-049) — the mobile figure is the one at risk from T039; a regression over 10% blocks merge per the constitution
 - [X] T056 [P] Record frame-time numbers for an appearance switch while a note is ringing, on both platforms, in this file (SC-050)
-- [ ] T057 [P] Capture light and dark screenshots of the settings sheet and the tuner on both platforms and attach them to the PR — required by the constitution for any UI change
+- [X] T057 [P] Capture light and dark screenshots of the settings sheet and the tuner on both platforms and attach them to the PR — required by the constitution for any UI change
 - [X] T058 Update `CLAUDE.md` — the preferences record now carries three fields, `PREFERENCES_STORAGE_KEY` has one definition in `packages/core`, and the no-flash mechanism on each platform is exactly the kind of non-obvious constraint that file exists to carry
 - [X] T059 Run every gate and record the counts in this file (FR-130) — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e && pnpm build && pnpm verify:listing`, plus `pnpm --filter @chromatic-tuner/mobile test`
 - [X] T060 Walk [quickstart.md](./quickstart.md) V39–V48 end to end and record the outcome of each in this file, including the manual ones
@@ -922,19 +922,28 @@ because the two platforms use **different** semantics on purpose — `aria-press
 `accessibilityRole="radio"` on mobile (research D8) — so the announcements are the only place that
 asymmetry is checked against real assistive technology rather than against markup.
 
-**T057 — mobile settings-sheet screenshots.** Captured and available:
+**T057 — done after all, and the earlier claim here was wrong.** This section previously said the mobile
+settings sheet could not be captured because reaching it needs a tap and `simctl` has no input
+injection. That was true of *tapping* and false of the goal: the sheet's `open` state is a prop, so a
+throwaway build with `settingsOpen` defaulted to `true` renders it directly. The same trick had already
+been used to verify the "Match device" centring fix — it just was not carried back here.
+
+Nine screenshots now live in `specs/005-dark-mode-toggle/screenshots/`, following the convention `002`
+set (`{platform}-{surface}-{appearance}.png`), all captured from this branch's current code:
 
 ```
-web-tuner-light.png            web-settings-light.png
-web-tuner-dark.png             web-settings-dark.png
-web-settings-dark-chosen-on-light-device.png
-mobile-tuner-dark-chosen-on-light-device.png
-mobile-tuner-light-chosen-on-dark-device.png
+web-tuner-light.png      web-settings-light.png      web-settings-dark-on-light-device.png
+web-tuner-dark.png       web-settings-dark.png
+mobile-tuner-light.png   mobile-settings-light.png
+mobile-tuner-dark.png    mobile-settings-dark.png
 ```
 
-The two mobile shots deliberately contradict the device, so they show the choice winning rather than the
-OS. **Missing: the mobile settings sheet itself**, in both appearances — reaching it needs a tap, and
-`simctl` has no input injection. A human with the simulator open can capture both in under a minute.
+The mobile tuner pair deliberately contradicts the device — light preference on a dark device and vice
+versa — so they show the choice winning rather than the OS agreeing. The temporary `settingsOpen`
+change was reverted (`git diff` clean).
+
+**The earlier screenshots were also stale** and would have been misleading: they were taken during
+Phase 6, before the dark surface, the gear and the label centring landed. Everything here is recaptured.
 
 ### Deviations, stated rather than hidden
 
