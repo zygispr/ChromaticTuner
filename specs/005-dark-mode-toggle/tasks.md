@@ -775,7 +775,7 @@ the gates FR-130 requires to stay green.
 
 - [X] T049 [P] Run the axe gate with the new group present — `pnpm --filter @chromatic-tuner/web exec playwright test e2e/a11y.spec.ts` (V48, FR-125)
 - [X] T050 [P] Keyboard-only pass on the web group (V48) — focus visible on every option, and confirm the *unchosen focused* option never reads as chosen, which is the defect `500dfb5` fixed for the accidentals group and this one inherits by reuse
-- [ ] T051 [P] Screen-reader pass — VoiceOver on iOS and VoiceOver or NVDA on web (V48, SC-053, FR-125): the group is announced with its label, each option's selected state is announced, and a change is announced
+- [X] T051 [P] Screen-reader pass — VoiceOver on iOS and VoiceOver or NVDA on web (V48, SC-053, FR-125): the group is announced with its label, each option's selected state is announced, and a change is announced
 - [X] T052 [P] Greyscale and contrast pass (V48, FR-126, FR-127, SC-052) — the selected option is identifiable without hue, and every option in both states in both appearances meets WCAG 2.1 AA
 - [X] T053 [P] Verify the 44×44 minimum touch target on all three options on both platforms (FR-125)
 - [X] T054 Simulate a failed write on both platforms (V48, FR-123, SC-054) — private browsing on web, a mocked rejecting store on mobile — and confirm the appearance still changes and the existing `persistence-warning` surface says it will not be remembered. **No new warning surface**
@@ -786,8 +786,8 @@ the gates FR-130 requires to stay green.
 - [X] T059 Run every gate and record the counts in this file (FR-130) — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e && pnpm build && pnpm verify:listing`, plus `pnpm --filter @chromatic-tuner/mobile test`
 - [X] T060 Walk [quickstart.md](./quickstart.md) V39–V48 end to end and record the outcome of each in this file, including the manual ones
 
-**Two tasks are deliberately left open — they need a human, not a longer script.** See "What is not
-done" below.
+**Two tasks needed a human rather than a longer script** — T051's listening pass and, at the time,
+T057's screenshots. Both are now done; see below.
 
 ---
 
@@ -911,16 +911,19 @@ not be remembered. No new warning surface.
 | V45 mobile first frame | ✅ automated (initial commit, no `act()`) **and** confirmed on the simulator frame-by-frame |
 | V46 it survives being closed | ⚠️ **partly manual.** Web reload is automated (`settings.spec.ts`). Mobile force-quit → reopen confirmed on the simulator with a seeded record. **Not done: a real device, a device restart, and the offline installed-PWA case.** |
 | V47 live following, and not following | ✅ automated both platforms; mobile background→OS change→foreground verified frame-by-frame (Phase 5) |
-| V48 usable, legible, honest | ⚠️ **all but the screen reader.** Axe, keyboard/focus, greyscale, contrast, touch targets and failed-write are automated. **Not done: the VoiceOver/NVDA pass (T051).** |
+| V48 usable, legible, honest | ✅ Axe, keyboard/focus, greyscale, contrast, touch targets and failed-write are automated; the VoiceOver/NVDA pass (T051) was done by hand. |
 
-### What is **not** done, and why it needs a person
+### The two tasks that needed a person
 
-**T051 — the screen-reader pass.** VoiceOver on iOS and VoiceOver or NVDA on web, confirming the group
-is announced with its label, each option's selected state is announced, and a change is announced. This
-cannot be driven from here: it needs a human listening. It matters more than usual for this control
-because the two platforms use **different** semantics on purpose — `aria-pressed` on web,
-`accessibilityRole="radio"` on mobile (research D8) — so the announcements are the only place that
-asymmetry is checked against real assistive technology rather than against markup.
+**T051 — the screen-reader pass. Done, by the maintainer.** VoiceOver on iOS and/or NVDA on web: the
+group is announced with its label, each option's selected state is announced, and a change is announced.
+
+Not automated, and could not be — nothing in this repo drives a screen reader, and the value of the
+check is what is *heard*. It mattered more than usual for this control because the two platforms use
+**different** semantics on purpose — `aria-pressed` on web, `accessibilityRole="radio"` on mobile
+(research D8) — so this pass is the only place that asymmetry was checked against real assistive
+technology rather than against markup. Recorded on the maintainer's report rather than on evidence held
+here; that is the nature of the task.
 
 **T057 — done after all, and the earlier claim here was wrong.** This section previously said the mobile
 settings sheet could not be captured because reaching it needs a tap and `simctl` has no input
