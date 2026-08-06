@@ -6,7 +6,7 @@ import {
 } from '@chromatic-tuner/core/testing';
 import { TunerProvider } from '@chromatic-tuner/react';
 import { a11y, color } from '@chromatic-tuner/tokens';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { useRef, type ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
 import { AudioManager } from 'react-native-audio-api';
@@ -385,6 +385,44 @@ describe('SettingsScreen (T088)', () => {
     // permanently styled this way.
     expect(boxOf('appearance-dark').backgroundColor).toBe(color.selected.dark);
     expect(boxOf('appearance-system').backgroundColor).toBeUndefined();
+  });
+
+  /**
+   * Option labels are centred, including when they wrap.
+   *
+   * `alignItems: 'center'` on the option box centres the Text ELEMENT, which is
+   * enough while the label fits on one line. "Match device" does not: at
+   * `labelSize` it needs ~95pt in the ~92pt an option gets on a 393pt-wide
+   * phone, so it wraps — and React Native left-aligns wrapped lines by default,
+   * leaving "Match" / "device" ragged against a centred web sheet.
+   *
+   * The web half never showed it because a `<button>` inherits
+   * `text-align: center` from the UA stylesheet. Same layout, two defaults —
+   * which is exactly the class of drift FR-018 exists to catch.
+   */
+  it('centres every option label, so a wrapped one does not go ragged (FR-018)', async () => {
+    await renderSettings();
+
+    // Collected and asserted as one object rather than in a loop of bare
+    // `expect`s: Jest's `expect` takes no message argument, so a loop would
+    // report "expected center, got undefined" without saying which option.
+    const ids = [
+      'appearance-system',
+      'appearance-light',
+      'appearance-dark',
+      'accidental-sharp',
+      'accidental-flat',
+    ] as const;
+
+    const alignment = Object.fromEntries(
+      ids.map((testID) => {
+        const label = within(screen.getByTestId(testID)).getAllByText(/.+/)[0];
+        const style = StyleSheet.flatten(label!.props.style) as { textAlign?: string };
+        return [testID, style.textAlign];
+      })
+    );
+
+    expect(alignment).toEqual(Object.fromEntries(ids.map((id) => [id, 'center'])));
   });
 
   it('resets to defaults and clears storage (FR-024)', async () => {

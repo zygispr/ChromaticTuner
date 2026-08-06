@@ -485,12 +485,30 @@ const styles = StyleSheet.create({
   },
   optionLabel: {
     fontSize: typeTokens.labelSize,
+    /*
+     * `alignItems: 'center'` on the option box is not enough on its own.
+     *
+     * That centres the Text ELEMENT, which is all that is needed while a label
+     * fits on one line. "Match device" does not: at `labelSize` it needs ~95pt
+     * in the ~92pt an option gets on a 393pt-wide phone, so it wraps — and React
+     * Native left-aligns wrapped lines by default, leaving "Match" / "device"
+     * ragged.
+     *
+     * The web half never showed this, because a `<button>` inherits
+     * `text-align: center` from the UA stylesheet. Same layout, two different
+     * defaults, which is the drift FR-018 exists to catch — and it took a human
+     * looking at both apps side by side to see it.
+     */
+    textAlign: 'center',
   },
   optionExample: {
     fontSize: 12,
     // The `selected` tint sits close enough to this text that a heavier fade
     // drops it under AA; the token carries the measurement.
     opacity: a11y.mutedOpacity,
+    // Same reason as the label above: this one is short today, but it is the
+    // second line of the same box and must not go ragged if it ever wraps.
+    textAlign: 'center',
   },
   warning: {
     fontSize: typeTokens.labelSize,

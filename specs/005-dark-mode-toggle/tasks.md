@@ -1095,6 +1095,53 @@ platforms.
 
 ---
 
+## Defect — "Match device" was ragged on mobile (2026-08-06, reported after Phase 6)
+
+**Reported**: the label is centred on web and left-aligned on mobile.
+
+Correct, and the cause is a platform default rather than a mistake in either file.
+
+The option box carries `alignItems: 'center'`, which centres the Text **element** — enough while a
+label fits on one line. "Match device" does not. On a 393 pt phone the arithmetic is:
+
+```
+393  screen
+-48  sheet padding (space.lg each side)
+-16  two space.sm gaps between three options
+---
+329 / 3 = 109.7 pt per option
+-16  the option's own space.sm padding
+ -2  1 pt border each side
+---
+ 91.7 pt for the label, against ~95 pt that "Match device" needs at labelSize 16
+```
+
+So it wraps — and **React Native left-aligns wrapped lines by default**, giving "Match" / "device"
+ragged left. The web half never showed it because a `<button>` inherits `text-align: center` from the
+UA stylesheet.
+
+**Fixed** with `textAlign: 'center'` on `optionLabel` and `optionExample`. The example line is short
+today and gets it anyway: it is the second line of the same box and must not go ragged if it ever wraps.
+
+**Verified by eye, not only by assertion.** The mobile settings sheet cannot be opened on a simulator —
+`simctl` has no input injection, which is what left T057 open — so `TunerDisplay`'s `settingsOpen` was
+temporarily defaulted to `true`, a Release build installed on an iPhone 17 simulator (393 pt, matching
+the reporter's iPhone 15), and the sheet photographed. The label wraps to two lines and both are centred.
+The temporary change was reverted (`git diff` clean). That screenshot is also the first look anyone has
+had at the mobile sheet since the surface change — it confirms the raised surface and hairline edge too.
+
+**This is the third defect in this feature that only a human looking at the app could have found**, after
+the invisible sheet and the missing gear. All three were invisible to a green test suite. Worth stating
+plainly: the automated gates here are good at catching regressions and poor at catching "it looks wrong".
+
+`expect` in Jest takes **one argument** — the first version of the new check used Vitest's two-argument
+form and failed with "Expect takes at most one argument", exactly as Phase 5 recorded. It now collects
+the five labels into one object and asserts that, so a failure still names which option is wrong.
+
+Mobile jest **94** (was 93); lint, format, typecheck green.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
