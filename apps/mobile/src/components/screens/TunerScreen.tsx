@@ -13,7 +13,10 @@ export function TunerScreen() {
   const appearance = useAppearance();
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      testID="tuner-screen"
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <StatusBar barStyle={appearance === 'dark' ? 'light-content' : 'dark-content'} />
       <TunerGate />
     </SafeAreaView>

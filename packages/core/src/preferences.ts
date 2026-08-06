@@ -4,18 +4,10 @@ import type { AccidentalStyle, AppearancePreference } from './types';
 
 export { A4_DEFAULT_HZ, A4_MAX_HZ, A4_MIN_HZ };
 
-/**
- * The one definition of the storage key (guarantee M8, research D4).
- *
- * It lived as a private constant in each adapter until 005, which was correct
- * while there were two: Principle I extracts on the third occurrence, not the
- * second. The third is the web's no-flash script, and it is the one that makes
- * the duplication dangerous rather than merely untidy — a copy of the string
- * inside a generated `<script>` body is outside the type checker's reach, so it
- * would drift silently and the only symptom would be a flash of the wrong
- * appearance in production builds.
- */
-export const PREFERENCES_STORAGE_KEY = 'chromatic-tuner:preferences';
+// Defined in a module of its own so `apps/web/vite.config.ts` can import it by
+// relative path; see that file's own comment and preferences-key.ts for why a
+// zero-import module is the only shape that works there (M8).
+export { PREFERENCES_STORAGE_KEY } from './preferences-key';
 
 /**
  * Bumped only when the stored shape changes incompatibly.

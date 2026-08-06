@@ -1,4 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
+import { PREFERENCES_STORAGE_KEY } from '@chromatic-tuner/core';
 import { color } from '@chromatic-tuner/tokens';
 import { expect, test, type Page } from '@playwright/test';
 
@@ -187,6 +188,125 @@ test('changing appearance does not interrupt the reading or re-ask for the micro
     await page.evaluate(() => (window as unknown as { __gumCalls: number }).__gumCalls),
     'the microphone was re-requested when the appearance changed'
   ).toBe(callsBefore);
+});
+
+/**
+ * User Story 2 (T031–T034) — the appearance is right BEFORE React exists.
+ *
+ * V43 is the scenario that catches the naive implementation. Every other
+ * appearance assertion in this file runs after `waitForNote`, by which time a
+ * build that flashed white for 400 ms looks identical to one that never did.
+ * FR-120's binding word is **before**, so these navigate with
+ * `waitUntil: 'commit'` and read the DOM while the app bundle has provably not
+ * executed yet.
+ *
+ * The device is always emulated as the OPPOSITE of what is stored, so nothing
+ * but the stored preference can produce the asserted result.
+ */
+async function seedPreference(page: Page, raw: string): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => {
+      try {
+        window.localStorage.setItem(key!, value!);
+      } catch {
+        // Matches the app's own posture: storage may be unavailable, and that
+        // must never stop the page loading.
+      }
+    },
+    [PREFERENCES_STORAGE_KEY, raw]
+  );
+}
+
+function record(appearance: string): string {
+  return JSON.stringify({ a4Hz: 440, accidentalStyle: 'sharp', appearance, schemaVersion: 1 });
+}
+
+/** The attribute as it stands with the bundle not yet run. */
+async function themeAttributeAtCommit(page: Page): Promise<string | null> {
+  await page.goto('/', { waitUntil: 'commit' });
+  return page.evaluate(() => document.documentElement.getAttribute('data-theme'));
+}
+
+for (const [stored, device] of [
+  ['dark', 'light'],
+  ['light', 'dark'],
+] as const) {
+  test(`a stored ${stored} preference is in effect before the bundle runs (V43, M12, FR-120)`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: device });
+    await seedPreference(page, record(stored));
+
+    // Read at `commit`: the document has arrived, the inline script in <head>
+    // has run, and nothing else has. React setting this later would fail here
+    // and pass everywhere else — which is precisely the flash.
+    expect(
+      await themeAttributeAtCommit(page),
+      'data-theme was not set before the app bundle executed'
+    ).toBe(stored);
+
+    // T032: still correct once React has mounted and settled. A provider that
+    // writes from its DEFAULT state on mount would revert the attribute here.
+    await waitForNote(page, 'E');
+    expect(await page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe(
+      stored
+    );
+    expect(await backgroundOf(page)).toBe(toRgb(color.background[stored]));
+  });
+}
+
+test('a stored system preference sets no attribute at all (V43, M12)', async ({ page }) => {
+  // The absence is the requirement, not an implementation detail. The tokens
+  // emit a `prefers-color-scheme` media query as well as a `[data-theme]`
+  // override; leaving the override off is what lets a "Match device" user
+  // follow the OS with no JavaScript running at all.
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await seedPreference(page, record('system'));
+
+  expect(await themeAttributeAtCommit(page)).toBeNull();
+
+  await waitForNote(page, 'E');
+  expect(
+    await page.evaluate(() => document.documentElement.getAttribute('data-theme')),
+    'React pinned the override on for a user who asked to match the device'
+  ).toBeNull();
+  // The media query is still in charge, so the page is dark because the device is.
+  expect(await backgroundOf(page)).toBe(toRgb(color.background.dark));
+});
+
+for (const [name, raw] of [
+  ['unparseable JSON', 'not json'],
+  ['a value outside the union', '{"appearance":"chartreuse"}'],
+  ['a record with no appearance at all', '{"a4Hz":440}'],
+] as const) {
+  test(`${name} leaves the media query in charge, with no console error (V44, M12)`, async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') errors.push(message.text());
+    });
+    page.on('pageerror', (error) => errors.push(error.message));
+
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await seedPreference(page, raw);
+
+    // Degrades to today's behaviour, never to the wrong appearance.
+    expect(await themeAttributeAtCommit(page)).toBeNull();
+
+    await waitForNote(page, 'E');
+    expect(await backgroundOf(page)).toBe(toRgb(color.background.dark));
+    expect(errors, `the fail-safe path logged: ${errors.join(' | ')}`).toEqual([]);
+  });
+}
+
+test('nothing stored at all still leaves the media query in charge (V44)', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.goto('/', { waitUntil: 'commit' });
+
+  expect(await page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBeNull();
+  await waitForNote(page, 'E');
+  expect(await backgroundOf(page)).toBe(toRgb(color.background.dark));
 });
 
 test('the tuning state is legible without colour at all (V10, SC-009)', async ({ page }) => {

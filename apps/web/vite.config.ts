@@ -23,6 +23,10 @@ import { defineConfig, type IndexHtmlTransformResult, type Plugin } from 'vite';
 // fails typecheck with TS5097, which wants `allowImportingTsExtensions` — an
 // option that conflicts with the `declaration: true` in tsconfig.base.json.
 // `.js` is the one spelling both tools accept.
+// Same three constraints as the token imports below, which is why this is a
+// module that imports nothing: `preferences.ts` pulls in the note math and two
+// port types, and Node would reject their extensionless specifiers here.
+import { PREFERENCES_STORAGE_KEY } from '../../packages/core/src/preferences-key.js';
 import { color, type ThemedColor } from '../../packages/tokens/src/colors.js';
 import { space } from '../../packages/tokens/src/space.js';
 import { type as typeScale } from '../../packages/tokens/src/type.js';
@@ -136,6 +140,58 @@ ${themeBlock('light')}
 ${themeBlock('dark')}
 }
 `;
+
+/**
+ * The no-flash script (M12, research D3, FR-120).
+ *
+ * The only synchronous route to a correct first paint on the web. Since `003`
+ * the served document contains real content, so the browser paints **before**
+ * the module graph executes — which means React cannot be the thing that sets
+ * the appearance. Anything React does happens after a frame the user has
+ * already seen, and for someone who chose Dark that frame is a white flash, in
+ * exactly the conditions that made them choose Dark.
+ *
+ * Four properties, each of which is a way this can go wrong:
+ *
+ * - **Inline and blocking — specifically, not `type="module"`.** A module script
+ *   is implicitly deferred, so it runs after the document is parsed, which is
+ *   after first paint. It is also the likely mistake, being what one adds in
+ *   order to write modern JavaScript in here. `defer` is NOT the hazard despite
+ *   what M12's prose implies: the attribute is defined only for scripts with a
+ *   `src`, so `<script defer>` around inline code does nothing at all. T038
+ *   established that by trying both and watching only the module form fail.
+ * - **Sets nothing for `'system'`.** The token stylesheet emits a
+ *   `prefers-color-scheme` media query as well as the `[data-theme]` override,
+ *   so leaving the attribute off is what keeps the media query in charge — a
+ *   "Match device" user then follows the OS with no JavaScript at all. Writing
+ *   the resolved value here would work and would quietly disable that.
+ * - **Swallows everything.** Private browsing, a full quota, a hand-edited
+ *   record, storage disabled entirely: every failure degrades to today's
+ *   behaviour, never to the wrong appearance. The empty `catch` is the one
+ *   place in this repo where silence is correct, so it says so.
+ * - **The key is imported, never typed.** This string ends up inside generated
+ *   HTML where no type checker can see it; M8 exists precisely so it cannot
+ *   drift from the two adapters that read the same record.
+ *
+ * Written as ES5-compatible source on purpose. It runs before anything else on
+ * the page, so it must not be the thing that fails on an old engine — and the
+ * app's own bundle is free to target ES2022 because by then this has run.
+ */
+const noFlashScript = `
+try {
+  var raw = localStorage.getItem(${JSON.stringify(PREFERENCES_STORAGE_KEY)});
+  if (raw) {
+    var appearance = JSON.parse(raw).appearance;
+    if (appearance === 'light' || appearance === 'dark') {
+      document.documentElement.setAttribute('data-theme', appearance);
+    }
+  }
+} catch (e) {
+  /* Intentionally empty: doing nothing leaves the media query in charge, which
+     is the correct default. Reporting a failure here would mean touching the
+     console before the app exists, for a condition the user cannot act on. */
+}
+`.trim();
 
 /**
  * Styling for the supporting content and the scroll cue.
@@ -432,6 +488,16 @@ function privacyDocument(html: string): IndexHtmlTransformResult {
         children: themeCss + contentCss + privacyCss,
         injectTo: 'head-prepend' as const,
       },
+      // The policy page gets it too. It runs no React at all, so without this
+      // it is the one surface that would ignore an in-app choice entirely and
+      // keep following the device — and it is the page a store reviewer opens
+      // (FR-118, "every surface").
+      {
+        tag: 'script',
+        attrs: { 'data-chromatic-tuner': 'no-flash' },
+        children: noFlashScript,
+        injectTo: 'head' as const,
+      },
       { tag: 'title', children: privacyTitle, injectTo: 'head' as const },
       {
         tag: 'meta',
@@ -505,6 +571,14 @@ function siteIdentity(): Plugin {
           attrs: { 'data-chromatic-tuner': 'tokens' },
           children: themeCss + contentCss,
           injectTo: 'head-prepend' as const,
+        },
+        // Synchronous and blocking, in <head>, so it runs before the document
+        // body is parsed and therefore before the first paint (M12, D3).
+        {
+          tag: 'script',
+          attrs: { 'data-chromatic-tuner': 'no-flash' },
+          children: noFlashScript,
+          injectTo: 'head' as const,
         },
         { tag: 'title', children: title, injectTo: 'head' as const },
         {

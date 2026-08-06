@@ -478,22 +478,149 @@ asynchronous on both platforms, so each needs a synchronous route to first paint
 
 ### Checks for User Story 2 ⚠️ Write these first and observe them failing
 
-- [ ] T031 [P] [US2] Add the pre-React assertion to `apps/web/e2e/appearance.spec.ts` (V43, M12) — seed `localStorage` with `appearance: 'dark'`, emulate the device as **light**, navigate with `waitUntil: 'commit'`, and read `document.documentElement.dataset.theme` immediately. **This is the check the naive implementation fails**: at this point the app bundle has not executed, so a pass proves the inline script did it and not React
-- [ ] T032 [P] [US2] Add the painted-and-still-correct assertion to `apps/web/e2e/appearance.spec.ts` (V43) — read the computed background of `main` both immediately and again after `waitForNote`, so a late React write that reverts the attribute is caught
-- [ ] T033 [P] [US2] Add the `'system'` case to `apps/web/e2e/appearance.spec.ts` (V43, M12) — with `appearance: 'system'` stored, `data-theme` must be **absent**, leaving the media query in charge so a later OS change is followed with no JavaScript
-- [ ] T034 [P] [US2] Add the fail-safe cases to `apps/web/e2e/appearance.spec.ts` (V44, M12) — `localStorage` holding `'not json'`, then `{"appearance":"chartreuse"}`, then nothing: the page loads, no console error, and the emulated media query decides
-- [ ] T035 [P] [US2] Add the first-frame test to `apps/mobile/__tests__/settings.test.tsx` or a new `apps/mobile/__tests__/first-frame.test.tsx` (V45, M11) — `App` with `initialPreferences` of `'dark'` and `useColorScheme()` mocked to `'light'` renders dark on its **initial** commit, asserted before any `act()` flush
+- [X] T031 [P] [US2] Add the pre-React assertion to `apps/web/e2e/appearance.spec.ts` (V43, M12) — seed `localStorage` with `appearance: 'dark'`, emulate the device as **light**, navigate with `waitUntil: 'commit'`, and read `document.documentElement.dataset.theme` immediately. **This is the check the naive implementation fails**: at this point the app bundle has not executed, so a pass proves the inline script did it and not React
+- [X] T032 [P] [US2] Add the painted-and-still-correct assertion to `apps/web/e2e/appearance.spec.ts` (V43) — read the computed background of `main` both immediately and again after `waitForNote`, so a late React write that reverts the attribute is caught
+- [X] T033 [P] [US2] Add the `'system'` case to `apps/web/e2e/appearance.spec.ts` (V43, M12) — with `appearance: 'system'` stored, `data-theme` must be **absent**, leaving the media query in charge so a later OS change is followed with no JavaScript
+- [X] T034 [P] [US2] Add the fail-safe cases to `apps/web/e2e/appearance.spec.ts` (V44, M12) — `localStorage` holding `'not json'`, then `{"appearance":"chartreuse"}`, then nothing: the page loads, no console error, and the emulated media query decides
+- [X] T035 [P] [US2] Add the first-frame test to `apps/mobile/__tests__/settings.test.tsx` or a new `apps/mobile/__tests__/first-frame.test.tsx` (V45, M11) — `App` with `initialPreferences` of `'dark'` and `useColorScheme()` mocked to `'light'` renders dark on its **initial** commit, asserted before any `act()` flush
 
 ### Implementation for User Story 2
 
-- [ ] T036 [US2] Emit the no-flash inline script from `siteIdentity()` in `apps/web/vite.config.ts` into `<head>` of `apps/web/index.html` (M12, research **D3**) — synchronous and blocking, not deferred and not a module; imports `PREFERENCES_STORAGE_KEY` from `@chromatic-tuner/core` (T013); wrapped in `try/catch` that does nothing on failure; sets **no attribute at all** when the preference is `'system'`
-- [ ] T037 [US2] Confirm the generated script survives the production build and the service worker — run `pnpm build` and inspect `dist/index.html`, then `pnpm --filter @chromatic-tuner/web preview` and re-run T031's assertion against the built output, not just the dev server
-- [ ] T038 [US2] **Break it and watch the gate fail**: temporarily make the inline script a `defer`red script, confirm T031 fails, and record the failure output in this file — a gate never observed failing is not known to work (SC-048)
-- [ ] T039 [US2] Make `apps/mobile/index.js` async: load and normalise preferences via `loadPreferences` before calling `registerRootComponent` (M12, research **D5**) — the native launch screen stays up until the first RN view renders
-- [ ] T040 [US2] Accept and forward `initialPreferences` to `TunerProvider` in `apps/mobile/src/App.tsx` — depends on T039
-- [ ] T041 [US2] Confirm the web app needs no `initialPreferences` and record why in this file — D3 owns the paint there, and adding it would be a second mechanism for a problem already solved (Principle II)
+- [X] T036 [US2] Emit the no-flash inline script from `siteIdentity()` in `apps/web/vite.config.ts` into `<head>` of `apps/web/index.html` (M12, research **D3**) — synchronous and blocking, not deferred and not a module; imports `PREFERENCES_STORAGE_KEY` from `@chromatic-tuner/core` (T013); wrapped in `try/catch` that does nothing on failure; sets **no attribute at all** when the preference is `'system'`
+- [X] T037 [US2] Confirm the generated script survives the production build and the service worker — run `pnpm build` and inspect `dist/index.html`, then `pnpm --filter @chromatic-tuner/web preview` and re-run T031's assertion against the built output, not just the dev server
+- [X] T038 [US2] **Break it and watch the gate fail**: temporarily make the inline script a `defer`red script, confirm T031 fails, and record the failure output in this file — a gate never observed failing is not known to work (SC-048)
+- [X] T039 [US2] Make `apps/mobile/index.js` async: load and normalise preferences via `loadPreferences` before calling `registerRootComponent` (M12, research **D5**) — the native launch screen stays up until the first RN view renders
+- [X] T040 [US2] Accept and forward `initialPreferences` to `TunerProvider` in `apps/mobile/src/App.tsx` — depends on T039
+- [X] T041 [US2] Confirm the web app needs no `initialPreferences` and record why in this file — D3 owns the paint there, and adding it would be a second mechanism for a problem already solved (Principle II)
 
 **Checkpoint**: choose Dark, force-quit, reopen — dark from the first frame, on both platforms. V46 is runnable by hand.
+
+---
+
+## Phase 4 build log (2026-08-06)
+
+### Test-first, observed
+
+| Check | First run |
+| --- | --- |
+| T031/T032 pre-React assertion, both directions | **2 failed** — `data-theme was not set before the app bundle executed`, received `null` |
+| T033 `'system'` sets no attribute | **passed** — an absence, trivially true with no script; proved separately below |
+| T034 fail-safe cases | **passed** — same category |
+| T035 mobile first frame, seeded dark vs light device | **1 failed** of 2; the `'system'` half passed trivially |
+
+After implementation: `pnpm test:e2e` **127 passed** (was 120), mobile jest **88** (was 86),
+`pnpm test` 462, typecheck green across 5 projects, lint, format, build and `verify:offline` green.
+
+### T038 — the break the task asked for is a no-op, and that is the finding
+
+T038 says to "temporarily make the inline script a `defer`red script". Done, and **the gate stayed
+green**:
+
+```
+✓ a stored dark preference is in effect before the bundle runs (V43, M12, FR-120)
+✓ a stored light preference is in effect before the bundle runs (V43, M12, FR-120)
+```
+
+That is not a hole in the gate. **`defer` has no effect on an inline script** — the attribute is
+defined only for scripts with a `src`, so `<script defer>foo()</script>` runs synchronously exactly as
+if the attribute were absent. The naive mistake T038 names cannot actually happen.
+
+The attribute that *does* defer an inline script is `type="module"`, which is implicitly deferred. That
+is also the more plausible mistake, because it is what someone adds in order to write modern JavaScript.
+Breaking it that way fails the gate properly:
+
+```
+✘ a stored dark preference is in effect before the bundle runs (V43, M12, FR-120)
+✘ a stored light preference is in effect before the bundle runs (V43, M12, FR-120)
+  Error: data-theme was not set before the app bundle executed
+  Expected: "dark"    Received: null
+```
+
+**M12's wording should say `type="module"` rather than `defer`.** Both are listed there ("not deferred,
+not a module"), so the contract is not wrong — but the one that matters is the second, and T038 named
+the first.
+
+### The absence assertions were proved too, because they passed on their first run
+
+T033 and T034 assert that **no** attribute is set. With no script at all that is trivially true, so by
+this file's own rule they had not been shown to work. Broken the other way — making the script resolve
+`'system'` eagerly against `matchMedia`, which is the obvious-looking implementation M12 forbids:
+
+```
+✘ a stored system preference sets no attribute at all (V43, M12)
+  Error: expect(received).toBeNull()
+  Received: "dark"
+```
+
+**A stale dev server nearly hid this.** The first attempt at that check reported 7 passed, because
+Playwright's `reuseExistingServer` had attached to a Vite dev server started before the edit, and
+`curl`ing it showed the *original* script still being served. The result above is from the production
+preview, and the whole e2e suite was afterwards re-run against a **freshly started** dev server (127
+passed). Worth recording as a hazard for the remaining phases: `pnpm test:e2e` silently reuses whatever
+is already on 5173.
+
+### T039 — the risk the plan flagged did not materialise
+
+Async `registerRootComponent` was the open question: React Native's `AppRegistry.runApplication` is
+called from native after the bundle evaluates, so registering inside a `.then()` could plausibly have
+produced "Application has not been registered". **It does not.** A Release build from this commit,
+launched with Metro killed and the embedded Hermes bundle in use, starts normally.
+
+Verified on the real thing rather than in Jest, which never loads `index.js`:
+
+- Preference seeded to `'dark'` in AsyncStorage, simulator set to **light** → the app renders dark.
+- Frame-by-frame from a screen recording, the transition is **a single frame**: `YAVG 232.5 → 37.4`,
+  `YHIGH 235 → 29`. The white launch storyboard is followed directly by the dark app, with no
+  intermediate light *app* frame. That storyboard is the accepted D9 seam — it follows the OS via
+  `userInterfaceStyle: 'automatic'` and cannot read AsyncStorage.
+
+Preliminary cold start under the T003 conditions (same simulator, dark appearance, no stored
+preference), 8 runs — **T055 records this formally**, but the flagged risk is resolved:
+
+| Metric | Baseline (T003) | After T039 | Change |
+| --- | --- | --- | --- |
+| storyboard → first RN frame | 254 ms | **252 ms** | −0.8% |
+| launch → first RN frame | 432 ms | 424 ms | −1.9% |
+
+Both inside measurement noise; nothing approaching the 10% that would block merge. **T055 must keep the
+simulator in dark appearance with no stored preference**, or it is not comparing like with like — the
+storyboard's own colour follows the device and changes which frames the analyser sees.
+
+### T041 — the web needs no `initialPreferences`, confirmed
+
+`grep` over source (excluding `dist/` and tests) finds it in exactly three places: the prop's definition
+in `TunerProvider`, and the two mobile files that supply it. `apps/web/src/main.tsx` has none.
+
+D3 owns first paint on the web: the inline script has already set `data-theme` before React exists, so
+seeding the provider would change nothing a user can see while adding a second mechanism for a solved
+problem (Principle II). The one thing the web *does* need from Phase 2 is `preferencesLoaded`, so
+`ThemeSync` does not overwrite the script's work — which is a gate, not a seed.
+
+### Deviations, stated rather than hidden
+
+**1. `PREFERENCES_STORAGE_KEY` moved to `packages/core/src/preferences-key.ts`.** T013 put it in
+`preferences.ts`, and T036 requires `vite.config.ts` to import it — but that file is loaded by Node
+outside the app's module graph and can only import a source module that imports **nothing** itself.
+`preferences.ts` pulls in the note math and two port types. This is the same constraint, with the same
+resolution, that the config's existing comment documents for `packages/tokens/src/colors.ts`. Re-exported
+from `preferences.ts`, so M8 still holds and no consumer changed.
+
+**2. The privacy page gets the script too**, which T036 does not mention. It runs no React at all, so
+without it `/privacy.html` would be the one surface that ignores an in-app choice entirely and keeps
+following the device — and it is the page a store reviewer is certain to open. FR-118 says every
+surface.
+
+**3. `apps/mobile/src/App.tsx` now exports its `preferences` store**, so `index.js` reads through the
+same instance the provider writes through. Two instances would also work, being stateless wrappers over
+one key; one makes them provably the same consumer rather than two that happen to agree.
+
+**4. `TunerScreen` gained `testID="tuner-screen"`.** A test affordance, not behaviour: V45 asserts on
+the root surface's background at the initial commit and had no handle on it.
+
+**5. The script does not call `matchMedia` at all**, though M12's prose says it "resolves against"
+it. The two are only reconcilable one way: M12 also requires **no attribute at all** for `'system'`, and
+once that holds there is nothing left for `matchMedia` to decide. Calling it would be dead code whose
+only possible effect is the bug the third bullet forbids.
 
 ---
 
