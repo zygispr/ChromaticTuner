@@ -1,10 +1,11 @@
-import type { TunerStatus } from '@chromatic-tuner/core';
+import type { AudioSource, TunerStatus } from '@chromatic-tuner/core';
 import { frequencyOf } from '@chromatic-tuner/core';
 import { NoopWakeLock, ScriptedAudioSource } from '@chromatic-tuner/core/testing';
 import { TunerProvider } from '@chromatic-tuner/react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { AudioManager } from 'react-native-audio-api';
 
+import { RNAudioSource } from '../src/adapters/rn-audio-source';
 import { PermissionPrompt } from '../src/components/molecules/PermissionPrompt';
 import { StatusBanner } from '../src/components/molecules/StatusBanner';
 import { TunerScreen } from '../src/components/screens/TunerScreen';
@@ -154,7 +155,7 @@ describe('StatusBanner recovery copy (SC-014)', () => {
 });
 
 describe('the gate decides whether to explain first', () => {
-  async function renderScreen(source: ScriptedAudioSource) {
+  async function renderScreen(source: AudioSource) {
     // RNTL 14 made `render` asynchronous; an un-awaited call leaves every
     // subsequent query resolving against a stale tree.
     const result = await render(
@@ -191,5 +192,37 @@ describe('the gate decides whether to explain first', () => {
     expect(screen.queryByTestId('permission-prompt')).toBeNull();
     expect(screen.getByTestId('tuner-display')).toBeTruthy();
     expect(source.isRunning).toBe(true);
+  });
+
+  /**
+   * Regression, reported from a phone: the microphone was turned off for the app
+   * in Settings, and the tuner claimed to be listening.
+   *
+   * Runs the REAL mobile adapter rather than the test double, because the defect
+   * was the adapter reading the library's resolved `{ status: 'error' }` as
+   * success — a failure the double cannot reproduce and the gate cannot see. The
+   * gate's decision to fall through to the tuner with a denied permission is
+   * only correct if the banner there tells the truth (SC-014).
+   */
+  it('says the microphone is blocked instead of claiming to listen', async () => {
+    (AudioManager.checkRecordingPermissions as jest.Mock).mockResolvedValue('Denied');
+    const audioApi = jest.requireMock('react-native-audio-api') as {
+      __setRecorderStartResult: (result: { status: 'error'; message: string } | null) => void;
+    };
+    audioApi.__setRecorderStartResult({
+      status: 'error',
+      message: 'Microphone permissions are not granted',
+    });
+
+    try {
+      await renderScreen(new RNAudioSource());
+
+      expect(screen.getByTestId('tuner-status')).toHaveTextContent(/blocked/i);
+      expect(screen.getByTestId('recovery-steps')).toHaveTextContent(/Settings ›/);
+      expect(screen.getByTestId('tuner-status')).not.toHaveTextContent(/play a string/i);
+    } finally {
+      audioApi.__setRecorderStartResult(null);
+      (AudioManager.checkRecordingPermissions as jest.Mock).mockResolvedValue('Granted');
+    }
   });
 });

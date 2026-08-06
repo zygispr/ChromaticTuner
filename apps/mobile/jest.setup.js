@@ -3,34 +3,64 @@
 // (T044) is the only code that touches it, and the shared port contract suite
 // (T028) verifies the adapter's behaviour against this mock.
 jest.mock('react-native-audio-api', () => {
+  /**
+   * The recorder REPORTS failure rather than throwing it.
+   *
+   * Every method resolves with the library's `Result<T>` union —
+   * `{ status: 'success' } & T` or `{ status: 'error', message }`, declared in
+   * `react-native-audio-api/src/types.ts` and assembled in
+   * `AudioRecorderHostObject.cpp`. A refused microphone comes back that way:
+   * `IOSAudioRecorder::start` returns `Err("Microphone permissions are not
+   * granted")` before it touches the engine.
+   *
+   * This mock used to resolve with a bare `{ sampleRate: 48000 }`, a shape the
+   * native module has never produced, and that fiction hid a real defect for as
+   * long as it stood: the adapter read any resolved value as success, so a user
+   * who had turned the microphone off in Settings got a tuner sitting on
+   * "Listening — play a string" forever.
+   */
   class MockAudioRecorder {
+    /** Scripted by `__setRecorderStartResult`, so a test can refuse a start. */
+    static startResult = { status: 'success' };
+    /** The most recently constructed recorder, for tests that drive frames in. */
+    static last = null;
+
     constructor() {
       this.onAudioReadyCallback = null;
+      this.callbackOptions = null;
       this.started = false;
+      MockAudioRecorder.last = this;
     }
 
-    onAudioReady(_options, callback) {
+    onAudioReady(options, callback) {
+      this.callbackOptions = options;
       this.onAudioReadyCallback = callback;
     }
 
     async start() {
+      if (MockAudioRecorder.startResult.status === 'error') {
+        return MockAudioRecorder.startResult;
+      }
       this.started = true;
-      // Deliberately NOT the rate the caller asked for. iOS substitutes 48 kHz
-      // on some routes, and an adapter that echoes the requested rate back
-      // would skew every reading by a fixed ratio (obligation A5).
-      return { sampleRate: 48000 };
+      return { status: 'success' };
     }
 
     async stop() {
       this.started = false;
-      return {};
+      return { status: 'success' };
     }
 
     /** Test helper: push a frame through as if the microphone produced it. */
     __emit(frames) {
       if (!this.onAudioReadyCallback) return;
       this.onAudioReadyCallback({
-        buffer: { getChannelData: () => frames },
+        // The library resamples the hardware input to the rate the callback was
+        // configured with and builds the delivered buffer at that rate, so this
+        // is the rate the frames genuinely arrive at (obligation A5).
+        buffer: {
+          sampleRate: this.callbackOptions?.sampleRate,
+          getChannelData: () => frames,
+        },
         numFrames: frames.length,
         when: 0,
       });
@@ -40,6 +70,11 @@ jest.mock('react-native-audio-api', () => {
   return {
     AudioRecorder: MockAudioRecorder,
     AudioContext: class {},
+    /** Refuse (or stop refusing) the next `start()`. `null` restores success. */
+    __setRecorderStartResult: (result) => {
+      MockAudioRecorder.startResult = result ?? { status: 'success' };
+    },
+    __lastRecorder: () => MockAudioRecorder.last,
     // Permission state drives whether the explainer is shown before the OS
     // prompt (FR-028). Granted by default so tests exercise the tuner itself;
     // the permission-gate test overrides it.

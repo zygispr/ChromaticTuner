@@ -14,6 +14,17 @@ interface OnAudioReadyEvent {
 }
 
 /**
+ * What every `AudioRecorder` method resolves with — the library's `Result<T>`
+ * (`react-native-audio-api/src/types.ts`), NOT a rejected promise.
+ *
+ * Declared here because the library's own types describe `start()` as
+ * `Promise<Result<{}>>`, and `{}` accepts any object: a call site that never
+ * looks at `status` type-checks perfectly while ignoring every failure the
+ * platform reports.
+ */
+type RecorderResult = { status: 'success' } | { status: 'error'; message?: string };
+
+/**
  * Mobile adapter for the {@link AudioSource} port, backed by
  * react-native-audio-api's AudioRecorder.
  *
@@ -39,6 +50,17 @@ export class RNAudioSource implements AudioSource {
     }
 
     try {
+      // Refuse a blocked microphone before opening anything. `TunerSession`
+      // retries this once a second for as long as the banner is up (FR-029), and
+      // activating the `record` category interrupts whatever else the device is
+      // playing — a tuner that cannot hear must not stop the user's music every
+      // second to find that out again. Only an explicit 'Denied' short-circuits:
+      // 'Undetermined' is what raises the iOS prompt when the recorder starts,
+      // and blocking on it would mean the prompt could never appear.
+      if ((await this.permissionStatus()) === 'Denied') {
+        throw { kind: 'permission-denied', canRetry: true } satisfies AudioSourceError;
+      }
+
       await this.openSession();
 
       const recorder = new AudioRecorder();
@@ -57,16 +79,33 @@ export class RNAudioSource implements AudioSource {
         }
       );
 
-      const result = (await recorder.start()) as { sampleRate?: number } | undefined;
+      const result = (await recorder.start()) as RecorderResult | undefined;
+
+      // `start()` does not REJECT when the platform refuses it — it resolves
+      // with `{ status: 'error', message }`, and iOS returns exactly that for a
+      // microphone turned off in Settings, before it touches the engine
+      // (`IOSAudioRecorder::start`). Reading the resolved value as success left
+      // nothing for `TunerSession` to fail on, so it went to `listening`, took
+      // the wake lock, and waited for frames that could never arrive: a tuner
+      // that says "Listening — play a string" and cannot hear a thing. Reported
+      // from a phone (obligation A3, guarantee S1).
+      if (result?.status === 'error') {
+        throw new Error(result.message ?? 'The recorder did not start.');
+      }
+
       this.running = true;
 
-      // Obligation A5: prefer the rate the platform actually gave us. iOS in
-      // particular substitutes 48 kHz on some routes, and trusting the request
-      // would put every reading off by a fixed ratio.
-      return { sampleRate: result?.sampleRate ?? config.sampleRate };
+      // Obligation A5. Unlike a browser, this library does not substitute a
+      // rate: it resamples the hardware input to the rate requested for the
+      // callback — AVAudioConverter on iOS, Oboe's converter on Android — and
+      // builds the delivered buffer at that rate. So the requested rate IS the
+      // rate the frames arrive at, and there is nothing to prefer over it.
+      // `start()` reports no rate of its own; the `sampleRate` this used to read
+      // off the result has never existed in the native payload.
+      return { sampleRate: config.sampleRate };
     } catch (error) {
       await this.stop();
-      throw this.toAudioSourceError(error);
+      throw await this.toAudioSourceError(error);
     }
   }
 
@@ -130,18 +169,48 @@ export class RNAudioSource implements AudioSource {
     return () => this.interruptHandlers.delete(handler);
   }
 
+  /**
+   * The platform's own answer, or `null` when it cannot be read.
+   *
+   * `null` rather than a guess, because the two callers want opposite defaults:
+   * one must not refuse to start on a state it could not read, and the other
+   * must not claim the microphone is blocked on one.
+   *
+   * Wrapped in `Promise.resolve` for the same reason `useMicrophonePermission`
+   * does it: a native module returning something other than a promise would
+   * throw synchronously, past the catch.
+   */
+  private async permissionStatus(): Promise<string | null> {
+    try {
+      return await Promise.resolve(AudioManager.checkRecordingPermissions());
+    } catch {
+      return null;
+    }
+  }
+
   /** Called by the app's AppState/audio-focus wiring in US3 (T075). */
   notifyInterrupted(error: AudioSourceError): void {
     for (const handler of this.interruptHandlers) handler(error);
   }
 
-  private toAudioSourceError(error: unknown): AudioSourceError {
+  private async toAudioSourceError(error: unknown): Promise<AudioSourceError> {
     if (typeof error === 'object' && error !== null && 'kind' in error) {
       return error as AudioSourceError;
     }
 
     const message = error instanceof Error ? error.message : String(error);
     const lower = message.toLowerCase();
+
+    // Ask the platform before reading the message. iOS says "Microphone
+    // permissions are not granted", but Android checks nothing before opening
+    // the stream, so the same cause arrives from Oboe as "Failed to open audio
+    // stream: ErrorInternal" — no word a string match can recognise. The
+    // permission state is that question asked where it has an answer, and it
+    // decides the one banner that names Settings (SC-014).
+    const permission = await this.permissionStatus();
+    if (permission !== null && permission !== 'Granted') {
+      return { kind: 'permission-denied', canRetry: true };
+    }
 
     if (lower.includes('permission') || lower.includes('denied')) {
       return { kind: 'permission-denied', canRetry: true };
