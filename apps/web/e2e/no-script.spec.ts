@@ -151,3 +151,42 @@ test('renders at least 150 words of supporting content (SC-023)', async ({ page 
     `the rendered content section holds ${words} words, below the 150-word floor`
   ).toBeGreaterThanOrEqual(150);
 });
+
+/**
+ * FR-069: the fold is reserved by the DOCUMENT, before any script runs.
+ *
+ * `#root` is empty until React mounts, and the rules that give it the fold —
+ * `height: 100%` on `html, body, #root` — used to be appended to `<head>` by
+ * `main.tsx` at runtime. So the first painted frame had a zero-height `#root`
+ * and drew the supporting content at the top of the viewport: a reader watched
+ * the heading and its prose flash by and then get replaced by the tuner. The
+ * page ended up correct, which is why every other test here passed.
+ *
+ * Scripting off is the honest way to assert this. It IS the pre-mount document,
+ * held still: no waiting on a race, no arbitrary timeout, and the assertion
+ * fails for the same reason the flash happened rather than for a related one.
+ *
+ * The content is not hidden and must not be — a consumer that runs no scripts
+ * has to receive it (FR-060, P1), and the tests above check exactly that. It is
+ * placed below the fold, which is where it lives once the app has mounted too.
+ */
+test('reserves the fold for the tuner before any script runs (FR-069)', async ({ page }) => {
+  await page.goto('/');
+
+  const { contentTop, cueTop, viewportHeight } = await page.evaluate(() => ({
+    contentTop: document.getElementById('site-content')!.getBoundingClientRect().top,
+    cueTop: document.getElementById('scroll-cue')!.getBoundingClientRect().top,
+    viewportHeight: window.innerHeight,
+  }));
+
+  // At or below the fold. Rounded for the same sub-pixel reason as fold.spec.ts.
+  expect(
+    Math.round(contentTop),
+    `the supporting content starts ${Math.round(contentTop)}px down a ${viewportHeight}px viewport, so it paints over the tuner's screenful before React mounts`
+  ).toBeGreaterThanOrEqual(viewportHeight);
+
+  // The cue rides the fold's bottom edge by a negative margin (see contentCss).
+  // Asserting it here keeps the reservation from being satisfied by pushing the
+  // content down some other way that leaves the cue stranded at the top.
+  expect(Math.round(cueTop)).toBeGreaterThan(viewportHeight - 100);
+});

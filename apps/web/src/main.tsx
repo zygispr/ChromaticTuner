@@ -26,7 +26,7 @@ if ('scrollRestoration' in history) {
 }
 
 /**
- * Layout rules only.
+ * Interaction rules only.
  *
  * The `--ct-*` token block used to be built here and appended to `<head>` at
  * runtime. It now ships in the document itself, emitted at build time by
@@ -34,11 +34,17 @@ if ('scrollRestoration' in history) {
  * still reference `var(--ct-*)` and never a literal colour (Principle IV,
  * FR-018); only the moment of definition moved, from module evaluation to the
  * served bytes.
+ *
+ * The box-sizing and margin/height reset went the same way, and for the same
+ * reason one step later: `#root` is empty until React mounts, so a reset that
+ * arrives with React means the first painted frame does not reserve the fold
+ * and the supporting content flashes across the top of the viewport. It lives
+ * in `layoutCss` there now. What is left here is styling for states that cannot
+ * exist before the app does — focus, hover, press — for which arriving with the
+ * app is not late.
  */
 const style = document.createElement('style');
 style.textContent = `
-  *, *::before, *::after { box-sizing: border-box; }
-  html, body, #root { margin: 0; padding: 0; height: 100%; }
   body { -webkit-font-smoothing: antialiased; }
 
   /*
