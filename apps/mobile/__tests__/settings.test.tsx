@@ -5,7 +5,7 @@ import {
   ScriptedAudioSource,
 } from '@chromatic-tuner/core/testing';
 import { TunerProvider } from '@chromatic-tuner/react';
-import { color } from '@chromatic-tuner/tokens';
+import { a11y, color } from '@chromatic-tuner/tokens';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react-native';
 import { useRef, type ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
@@ -392,6 +392,52 @@ describe('SettingsScreen (T088)', () => {
     expect(screen.getByTestId('a4-value')).toHaveTextContent('439 Hz');
     // ...and the user is told it will not survive.
     expect(screen.getByTestId('persistence-warning')).toBeTruthy();
+  });
+
+  /**
+   * T054 / FR-123 / SC-054 — the appearance is no different.
+   *
+   * Separate from the reference-pitch case above because the failure mode is
+   * specific: an appearance that reverted on a failed write would be visible
+   * instantly and would look like the control being broken, where a reverted
+   * reference pitch merely looks like a slow slider. The choice applies, the
+   * EXISTING warning surface says it will not be remembered, and no new surface
+   * is introduced.
+   */
+  it('still changes the appearance when the write fails, and says so (FR-123)', async () => {
+    const store = new InMemoryPreferencesStore();
+    store.saveError = new Error('storage full');
+    const { store: seeded } = await renderSettings(store, jest.fn(), 'light');
+
+    expect(screen.queryByTestId('persistence-warning')).toBeNull();
+
+    await press('appearance-dark');
+
+    // Applied, and visibly so — the sheet actually repainted.
+    expect(screen.getByTestId('appearance-dark').props.accessibilityState.selected).toBe(true);
+    expect(
+      (
+        StyleSheet.flatten(screen.getByTestId('settings-sheet').props.style) as {
+          backgroundColor?: string;
+        }
+      ).backgroundColor
+    ).toBe(color.background.dark);
+
+    // ...and the user is told it will not survive, through the surface that
+    // already existed.
+    expect(screen.getByTestId('persistence-warning')).toBeTruthy();
+    expect(await seeded.load()).toBeNull();
+  });
+
+  it('verifies every appearance option meets the 44pt touch target (T053, FR-125)', async () => {
+    await renderSettings();
+
+    for (const value of ['system', 'light', 'dark'] as const) {
+      const style = StyleSheet.flatten(screen.getByTestId(`appearance-${value}`).props.style) as {
+        minHeight?: number;
+      };
+      expect(style.minHeight).toBe(a11y.minTouchTarget);
+    }
   });
 });
 

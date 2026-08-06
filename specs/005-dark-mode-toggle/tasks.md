@@ -766,21 +766,190 @@ synchronously keeps the test to its one variable: what the provider does with a 
 form (`expect(x, 'why').toBe(y)`) and failed with "Expect takes at most one argument" — a real failure,
 but of the test rather than the code. Worth remembering: the two runners in this repo differ here.
 
+---
+
+## Phase 6: Polish & Cross-Cutting Concerns
+
 **Purpose**: The obligations that apply to the whole feature — accessibility, contrast, measurement, and
 the gates FR-130 requires to stay green.
 
-- [ ] T049 [P] Run the axe gate with the new group present — `pnpm --filter @chromatic-tuner/web exec playwright test e2e/a11y.spec.ts` (V48, FR-125)
-- [ ] T050 [P] Keyboard-only pass on the web group (V48) — focus visible on every option, and confirm the *unchosen focused* option never reads as chosen, which is the defect `500dfb5` fixed for the accidentals group and this one inherits by reuse
+- [X] T049 [P] Run the axe gate with the new group present — `pnpm --filter @chromatic-tuner/web exec playwright test e2e/a11y.spec.ts` (V48, FR-125)
+- [X] T050 [P] Keyboard-only pass on the web group (V48) — focus visible on every option, and confirm the *unchosen focused* option never reads as chosen, which is the defect `500dfb5` fixed for the accidentals group and this one inherits by reuse
 - [ ] T051 [P] Screen-reader pass — VoiceOver on iOS and VoiceOver or NVDA on web (V48, SC-053, FR-125): the group is announced with its label, each option's selected state is announced, and a change is announced
-- [ ] T052 [P] Greyscale and contrast pass (V48, FR-126, FR-127, SC-052) — the selected option is identifiable without hue, and every option in both states in both appearances meets WCAG 2.1 AA
-- [ ] T053 [P] Verify the 44×44 minimum touch target on all three options on both platforms (FR-125)
-- [ ] T054 Simulate a failed write on both platforms (V48, FR-123, SC-054) — private browsing on web, a mocked rejecting store on mobile — and confirm the appearance still changes and the existing `persistence-warning` surface says it will not be remembered. **No new warning surface**
-- [ ] T055 Record before/after cold-start numbers for **both** platforms in this file against the T002/T003 baselines (SC-049) — the mobile figure is the one at risk from T039; a regression over 10% blocks merge per the constitution
-- [ ] T056 [P] Record frame-time numbers for an appearance switch while a note is ringing, on both platforms, in this file (SC-050)
+- [X] T052 [P] Greyscale and contrast pass (V48, FR-126, FR-127, SC-052) — the selected option is identifiable without hue, and every option in both states in both appearances meets WCAG 2.1 AA
+- [X] T053 [P] Verify the 44×44 minimum touch target on all three options on both platforms (FR-125)
+- [X] T054 Simulate a failed write on both platforms (V48, FR-123, SC-054) — private browsing on web, a mocked rejecting store on mobile — and confirm the appearance still changes and the existing `persistence-warning` surface says it will not be remembered. **No new warning surface**
+- [X] T055 Record before/after cold-start numbers for **both** platforms in this file against the T002/T003 baselines (SC-049) — the mobile figure is the one at risk from T039; a regression over 10% blocks merge per the constitution
+- [X] T056 [P] Record frame-time numbers for an appearance switch while a note is ringing, on both platforms, in this file (SC-050)
 - [ ] T057 [P] Capture light and dark screenshots of the settings sheet and the tuner on both platforms and attach them to the PR — required by the constitution for any UI change
-- [ ] T058 Update `CLAUDE.md` — the preferences record now carries three fields, `PREFERENCES_STORAGE_KEY` has one definition in `packages/core`, and the no-flash mechanism on each platform is exactly the kind of non-obvious constraint that file exists to carry
-- [ ] T059 Run every gate and record the counts in this file (FR-130) — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e && pnpm build && pnpm verify:listing`, plus `pnpm --filter @chromatic-tuner/mobile test`
-- [ ] T060 Walk [quickstart.md](./quickstart.md) V39–V48 end to end and record the outcome of each in this file, including the manual ones
+- [X] T058 Update `CLAUDE.md` — the preferences record now carries three fields, `PREFERENCES_STORAGE_KEY` has one definition in `packages/core`, and the no-flash mechanism on each platform is exactly the kind of non-obvious constraint that file exists to carry
+- [X] T059 Run every gate and record the counts in this file (FR-130) — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e && pnpm build && pnpm verify:listing`, plus `pnpm --filter @chromatic-tuner/mobile test`
+- [X] T060 Walk [quickstart.md](./quickstart.md) V39–V48 end to end and record the outcome of each in this file, including the manual ones
+
+**Two tasks are deliberately left open — they need a human, not a longer script.** See "What is not
+done" below.
+
+---
+
+## Phase 6 build log (2026-08-06)
+
+### T059 — every gate, against the T001 baseline
+
+| Gate | T001 baseline | Now |
+| --- | --- | --- |
+| `pnpm lint` | green | green |
+| `pnpm format:check` | green | green |
+| `pnpm typecheck` | green — 5 projects | green — 5 projects |
+| `pnpm test` | 19 files, **437** | 20 files, **462** |
+| `pnpm test:coverage` | 98.5 / 94.81 / 97.29 / **100** | 98.51 / **95** / 97.36 / **100** |
+| `pnpm test:e2e` | **115** | **139** |
+| `pnpm build` | green | green |
+| `pnpm verify:listing` | **RED**, 3 problems | **RED, the same 3 problems** |
+| `pnpm --filter @chromatic-tuner/mobile test` | 11 suites, **81** | 12 suites, **92** |
+
+`verify:listing` fails on exactly the three problems T001 recorded — the two missing Android screenshot
+directories and the missing Android light screenshot. Nothing in `005` touches `listing/`, and Android
+capture is a release gate needing an SDK and an emulator. Coverage is above the 90/90/85 floor on every
+axis and branches improved.
+
+### T055 — cold start, before and after (SC-049)
+
+**Web**, production preview, five runs each. `dist/` now carries the no-flash script, which the dev
+server never had — this is the comparison T002 said to make.
+
+| | Runs (ms) | Median |
+| --- | --- | --- |
+| Before (T002) | 52.9, 51.5, 52.8, 60.5, 46.2 | **52.8 ms** |
+| After | 49.5, 51.7, 53.2, 51.2, 51.8 | **51.7 ms** |
+
+−2.1%, inside noise, against a 2 s budget. The blocking script costs nothing measurable.
+
+**Mobile**, same simulator, dark appearance, no stored preference — the T003 conditions exactly.
+
+| | Median | Change |
+| --- | --- | --- |
+| Before (T003), 8 runs | **254 ms** | — |
+| After, 10 runs | **258.5 ms** | **+1.8%** |
+
+`launch → first RN frame` moved 432 → 432.5 ms. Well under the 10% that blocks merge.
+
+**The first attempt at this measurement read 286 ms (+12.8%) and was wrong.** The mobile source is
+byte-identical to the Phase 4 build that measured 252 ms — `git log 04b580e..HEAD -- apps/mobile/src
+apps/mobile/index.js` is empty — so a code regression was impossible. A `vite preview` server and a dev
+server were competing for the machine, and the first run of that batch showed a 997 ms launch against a
+typical 430. Re-run with the servers stopped and one warm-up launch discarded, it returned to 258.5 ms.
+
+**This is a property of the harness worth knowing**: `measure-cold-start.sh` reads real wall-clock frame
+timing off a simulator and has no isolation from the rest of the machine. Anyone re-running it should
+stop dev servers first and treat a single batch's median as provisional. Recorded in `CLAUDE.md` too.
+
+### T056 — frame time across an appearance switch (SC-050)
+
+**Web**, measured by a new committed test rather than a one-off probe, sampling real presented frames
+through `requestAnimationFrame` while the appearance is flipped three times against a ringing note:
+
+| | p50 | p95 | max |
+| --- | --- | --- | --- |
+| Steady tuning session (existing SC-010 gate) | 8.0 ms | 9.5 ms | 16.1 ms |
+| **Across three appearance switches** | **7.9 ms** | **9.7 ms** | **16.3 ms** |
+
+Indistinguishable. That is what D7 bought: with no transition there is nothing to animate, so the switch
+is one attribute write plus a re-render of the sheet — it never touches the continuous reading path.
+
+**Mobile is not measured automatically, and could not be.** The switch needs a tap on the settings
+control, and `simctl` has no input-injection command — there is no `tap`. What is known: the mobile
+switch is the same instant re-render with no animation (D7), and the jest tests confirm the repaint is a
+single state change. A frame-time number on a real device stays a manual release gate, consistent with
+quickstart V8's "manual, on device".
+
+### T049, T050, T052, T053, T054 — the accessibility obligations
+
+`pnpm --filter @chromatic-tuner/web exec playwright test e2e/a11y.spec.ts`: **19 passed** (was 14). The
+sheet-wide Axe analysis covers the new group without a new assertion, as T004 predicted; five tests were
+added for the two things it cannot see.
+
+**T050 and T052 were proved by breaking the treatment.** Both passed on their first run, which by this
+file's rule means nothing yet — they are regression tests for a defect `500dfb5` already fixed, inherited
+by reuse. So the appearance group was temporarily regressed to the pre-`500dfb5` form (no fill, no weight
+change, selection carried by border colour alone). All three failed, with the right messages:
+
+```
+✘ a focused but unchosen option never reads as the chosen one (T050, FR-126)
+  Error: a focused but unchosen option is filled like the chosen one
+✘ the chosen option survives greyscale in light  (T052)
+✘ the chosen option survives greyscale in dark   (T052)
+  Error: light is filled like the chosen option
+```
+
+`SettingsSheet.tsx` was restored (`git diff` clean).
+
+The contrast check analyses the sheet with **each** option chosen in turn, in both appearances, because
+the `selected` tint changes what a label is composited against — the state Axe would never see if only
+the default selection were analysed.
+
+**T053** needed nothing new on web: the existing "every interactive control meets the touch target
+floor" test opens the sheet and measures every visible button's rendered box, so the three options were
+already covered. Mobile gained an explicit assertion that each option's `minHeight` is
+`a11y.minTouchTarget` (44).
+
+**T054** is asserted on both platforms rather than simulated by hand. Web emulates private browsing by
+making `Storage.prototype.setItem` throw for this key only — reading still works, so the app starts
+normally and only the write fails, which is the awkward case. Mobile uses a rejecting store. On both: the
+appearance applies and visibly repaints, and the **existing** `persistence-warning` surface says it will
+not be remembered. No new warning surface.
+
+### T060 — quickstart V39–V48
+
+| Scenario | Status |
+| --- | --- |
+| V39 resolution table (M1–M4) | ✅ automated — `packages/core/tests/appearance.test.ts`, all six combinations |
+| V40 a bad appearance costs no reference pitch | ✅ automated — independent-repair, both directions |
+| V41 yesterday's record still loads (M7) | ✅ automated — pre-feature record + port round-trip on every adapter |
+| V42 one appearance, one source (M9) | ✅ automated — provider tests, contradicting device |
+| V43 dark before React exists (M12, FR-120) | ✅ automated — `waitUntil: 'commit'`, both directions, plus the `'system'` absence |
+| V44 the script fails safe | ✅ automated — unparseable, out-of-union, absent field, nothing stored |
+| V45 mobile first frame | ✅ automated (initial commit, no `act()`) **and** confirmed on the simulator frame-by-frame |
+| V46 it survives being closed | ⚠️ **partly manual.** Web reload is automated (`settings.spec.ts`). Mobile force-quit → reopen confirmed on the simulator with a seeded record. **Not done: a real device, a device restart, and the offline installed-PWA case.** |
+| V47 live following, and not following | ✅ automated both platforms; mobile background→OS change→foreground verified frame-by-frame (Phase 5) |
+| V48 usable, legible, honest | ⚠️ **all but the screen reader.** Axe, keyboard/focus, greyscale, contrast, touch targets and failed-write are automated. **Not done: the VoiceOver/NVDA pass (T051).** |
+
+### What is **not** done, and why it needs a person
+
+**T051 — the screen-reader pass.** VoiceOver on iOS and VoiceOver or NVDA on web, confirming the group
+is announced with its label, each option's selected state is announced, and a change is announced. This
+cannot be driven from here: it needs a human listening. It matters more than usual for this control
+because the two platforms use **different** semantics on purpose — `aria-pressed` on web,
+`accessibilityRole="radio"` on mobile (research D8) — so the announcements are the only place that
+asymmetry is checked against real assistive technology rather than against markup.
+
+**T057 — mobile settings-sheet screenshots.** Captured and available:
+
+```
+web-tuner-light.png            web-settings-light.png
+web-tuner-dark.png             web-settings-dark.png
+web-settings-dark-chosen-on-light-device.png
+mobile-tuner-dark-chosen-on-light-device.png
+mobile-tuner-light-chosen-on-dark-device.png
+```
+
+The two mobile shots deliberately contradict the device, so they show the choice winning rather than the
+OS. **Missing: the mobile settings sheet itself**, in both appearances — reaching it needs a tap, and
+`simctl` has no input injection. A human with the simulator open can capture both in under a minute.
+
+### Deviations, stated rather than hidden
+
+**1. Six assertions were added that no task asked for**, all in service of tasks that were otherwise
+"do it by eye": the T050 focus-vs-selection test, four T052 greyscale/contrast tests, and the T054
+failed-write test on web. Every one of them replaces a manual pass with something that fails on a future
+regression.
+
+**2. `apps/web/e2e/performance.spec.ts` gained a committed test**, where T056 only asked for numbers to
+be recorded. A number in this file rots; a test holds the budget. It asserts the same p50/p95 thresholds
+the steady-session gate uses.
+
+**3. My Phase 5 edit had deleted the `## Phase 6` heading** from this file, leaving its Purpose line
+attached to the end of the Phase 5 log. Restored. Noted because the build log is the deliverable here as
+much as the code is.
 
 ---
 

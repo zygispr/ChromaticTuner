@@ -324,3 +324,117 @@ test('the supporting content adds nothing to the tab order (FR-071)', async ({ p
   await page.keyboard.press('Tab');
   await expect(page.getByTestId('reference-badge')).toBeFocused();
 });
+
+/**
+ * T050 / T052 — the appearance group, at the two places option groups fail.
+ *
+ * Both are regression tests for defects this repo has already paid for once, on
+ * the accidentals group the appearance group deliberately copies (research D8).
+ * Reuse inherits the fix; it does not prove the fix still holds, which is what
+ * these do.
+ */
+const APPEARANCE_OPTIONS = ['system', 'light', 'dark'] as const;
+
+async function optionBox(page: Page, value: string) {
+  return page.getByTestId(`appearance-${value}`).evaluate((el) => {
+    const own = getComputedStyle(el);
+    return {
+      background: own.backgroundColor,
+      borderWidth: parseFloat(own.borderTopWidth),
+      fontWeight: Number(own.fontWeight),
+      outlineWidth: parseFloat(own.outlineWidth),
+    };
+  });
+}
+
+test('a focused but unchosen option never reads as the chosen one (T050, FR-126)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await waitForNote(page, 'E');
+  await page.getByTestId('reference-badge').click();
+  await expect(page.getByTestId('settings-sheet')).toBeVisible();
+
+  // 'system' is the default, so 'dark' is unchosen. Focus it with the keyboard,
+  // which is the only way to get :focus-visible.
+  await page.getByTestId('appearance-dark').focus();
+  await expect(page.getByTestId('appearance-dark')).toBeFocused();
+
+  const focusedUnchosen = await optionBox(page, 'dark');
+  const chosen = await optionBox(page, 'system');
+
+  // The exact defect `500dfb5` fixed: the focus ring WAS the selection idiom, so
+  // tabbing to an option made it look chosen. The ring may exist — it must, for
+  // Principle IV — but the two states must still be told apart by the fill.
+  expect(focusedUnchosen.outlineWidth, 'the focused option has no visible ring').toBeGreaterThan(0);
+  expect(
+    focusedUnchosen.background,
+    'a focused but unchosen option is filled like the chosen one'
+  ).not.toBe(chosen.background);
+  expect(
+    focusedUnchosen.fontWeight,
+    'a focused but unchosen option carries the chosen weight'
+  ).toBeLessThan(chosen.fontWeight);
+
+  // And the resting selection cue must sit clearly below the ring, or the two
+  // read as one signal.
+  expect(chosen.borderWidth).toBeLessThan(3);
+  expect(chosen.borderWidth).toBe(focusedUnchosen.borderWidth);
+});
+
+for (const scheme of ['light', 'dark'] as const) {
+  test(`the chosen option survives greyscale in ${scheme} (T052, FR-126, SC-052)`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto('/');
+    await waitForNote(page, 'E');
+    await page.getByTestId('reference-badge').click();
+
+    const client = await page.context().newCDPSession(page);
+    await client.send('Emulation.setEmulatedVisionDeficiency', { type: 'achromatopsia' });
+
+    // Two non-hue channels, either of which alone would be thin: a filled
+    // surface and a heavier label. Asserted under total colour loss, which is
+    // what "identifiable without hue" actually means.
+    const chosen = await optionBox(page, 'system');
+    for (const other of ['light', 'dark'] as const) {
+      const unchosen = await optionBox(page, other);
+      expect(chosen.background, `${other} is filled like the chosen option`).not.toBe(
+        unchosen.background
+      );
+      expect(chosen.fontWeight).toBeGreaterThan(unchosen.fontWeight);
+    }
+
+    await client.send('Emulation.setEmulatedVisionDeficiency', { type: 'none' });
+  });
+
+  test(`every appearance option meets AA in ${scheme}, chosen or not (T052, FR-127)`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto('/');
+    await waitForNote(page, 'E');
+    await page.getByTestId('reference-badge').click();
+
+    // Each option is checked while it is the chosen one, because the `selected`
+    // tint changes what its label is composited against — the state Axe would
+    // never see if only the default selection were analysed.
+    for (const value of APPEARANCE_OPTIONS) {
+      await page.getByTestId(`appearance-${value}`).click();
+      await expect(page.getByTestId(`appearance-${value}`)).toHaveAttribute('aria-pressed', 'true');
+
+      const results = await new AxeBuilder({ page })
+        .include('[data-testid="settings-sheet"]')
+        .withRules(['color-contrast'])
+        .analyze();
+
+      expect(
+        results.violations,
+        `${value} chosen, ${scheme}: ${results.violations
+          .flatMap((v) => v.nodes.map((n) => n.failureSummary ?? ''))
+          .join('\n')}`
+      ).toEqual([]);
+    }
+  });
+}
