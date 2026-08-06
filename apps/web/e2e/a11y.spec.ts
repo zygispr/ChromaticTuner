@@ -473,3 +473,76 @@ test('the settings entry point carries a gear, hidden from assistive technology'
   const text = (await badge.textContent()) ?? '';
   expect(text).toMatch(/A4\s*440 Hz\s*⚙/);
 });
+
+/**
+ * The ruler itself must clear the 3:1 non-text contrast floor (WCAG 2.1 1.4.11).
+ *
+ * Nothing could see this before. The tokens package asserts `line` at 3.8:1, but
+ * it checks the PALETTE — it cannot see an `opacity` multiplier applied at the
+ * call site. Axe measures the composite, but its `color-contrast` rule covers
+ * text only, so a dimmed `<div>` rule is invisible to it. The `FLAT`/`SHARP`
+ * labels a few lines away in `TuningLine.tsx` carry a comment about exactly this
+ * class of bug being found in their own opacity — and the graphics beside them
+ * kept theirs.
+ *
+ * So this composites by hand, which is the only way to check a graphic: take the
+ * element's own colour and opacity, blend it over what it actually sits on, and
+ * measure that.
+ */
+function luminanceOf([r, g, b]: number[]): number {
+  const channel = (v: number) => {
+    const c = v! / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(r!) + 0.7152 * channel(g!) + 0.0722 * channel(b!);
+}
+
+function contrastOfRgb(a: number[], b: number[]): number {
+  const [hi, lo] = [luminanceOf(a), luminanceOf(b)].sort((x, y) => y - x);
+  return (hi! + 0.05) / (lo! + 0.05);
+}
+
+for (const scheme of ['light', 'dark'] as const) {
+  test(`the tuning line and its ticks meet 3:1 in ${scheme} (FR-017, FR-021)`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto('/');
+    await waitForNote(page, 'E');
+
+    const measured = await page.evaluate(() => {
+      const parse = (c: string) => c.match(/\d+(\.\d+)?/g)!.map(Number);
+      const backdrop = parse(getComputedStyle(document.querySelector('main')!).backgroundColor);
+
+      const read = (el: Element) => {
+        const style = getComputedStyle(el);
+        const own = parse(style.backgroundColor);
+        const alpha = Number(style.opacity);
+        // What the eye receives: the element's colour blended over the surface
+        // beneath it by its own opacity.
+        return {
+          composited: own.slice(0, 3).map((c, i) => c * alpha + backdrop[i]! * (1 - alpha)),
+          backdrop,
+        };
+      };
+
+      const rule = read(document.querySelector('[data-testid="tuning-rule"]')!);
+      const ticks = [...document.querySelectorAll('[data-testid="tuning-tick"]')].map((t) => ({
+        major: t.getAttribute('data-major') === 'true',
+        ...read(t),
+      }));
+      return { rule, ticks };
+    });
+
+    expect(
+      contrastOfRgb(measured.rule.composited, measured.rule.backdrop),
+      'the horizontal rule is under the 3:1 graphic floor'
+    ).toBeGreaterThanOrEqual(3);
+
+    expect(measured.ticks.length).toBeGreaterThan(4);
+    for (const tick of measured.ticks) {
+      expect(
+        contrastOfRgb(tick.composited, tick.backdrop),
+        `a ${tick.major ? 'major' : 'minor'} tick is under the 3:1 graphic floor`
+      ).toBeGreaterThanOrEqual(3);
+    }
+  });
+}

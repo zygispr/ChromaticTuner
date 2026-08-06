@@ -129,9 +129,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     top: '50%',
-    height: 2,
-    marginTop: -1,
-    opacity: 0.6,
+    // 4, not 2, and no opacity multiplier — see the web organism, which carries
+    // the measurements. 0.6 composited `line` to 2.14:1 against a 3:1 floor.
+    height: 4,
+    marginTop: -2,
   },
   inTuneZone: {
     position: 'absolute',
