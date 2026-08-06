@@ -138,11 +138,14 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
           color: themedVar('text'),
           borderTopLeftRadius: space.md,
           borderTopRightRadius: space.md,
-          // A second channel, so the sheet's edge does not depend on the
-          // luminance step surviving a future retune of the palette — and so it
-          // survives greyscale. Top only: the sheet is anchored to the bottom
-          // and spans the full width, so the other three edges are off-screen.
-          borderTop: `1px solid ${themedVar('line')}`,
+          // No border on this edge. It was a `line` rule, added as a second
+          // separation channel — but `line` is sized for the tuning ruler's 3:1
+          // against `background`, which in dark put it at L* 48 between a
+          // dimmed tuner at 2.2 and this surface at 13.6: the brightest thing
+          // in the region, reading as a drawn rule rather than an edge. In
+          // light it was invisible anyway (ΔL* 3.7 from the scrimmed tuner
+          // above it), so it only ever cost something. The radius and the
+          // luminance step are the edge.
           // Kept for light, where it reads. In dark it is black on a lighter
           // surface and contributes nothing, which is why it was never the
           // thing holding the sheet apart from the screen behind it.

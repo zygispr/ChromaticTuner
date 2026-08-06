@@ -65,9 +65,9 @@ describe('WCAG 2.1 AA contrast (token guarantee T2)', () => {
         expect(ratio).toBeGreaterThanOrEqual(3);
       });
 
-      // The same graphic floor on the raised surface, because `line` is what
-      // draws the settings sheet's own edge — the second, non-luminance channel
-      // that keeps the sheet reading as a sheet.
+      // The same graphic floor on the raised surface, because every unchosen
+      // option's border and the reset button's are `line` drawn ON the settings
+      // sheet — the only place `line` meets `surface` rather than `background`.
       it('line meets 3:1 against the raised surface too', () => {
         const ratio = contrastRatio(color.line[theme], color.surface[theme]);
         expect(ratio).toBeGreaterThanOrEqual(3);
