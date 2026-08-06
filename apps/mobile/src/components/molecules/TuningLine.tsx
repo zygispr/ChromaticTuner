@@ -3,9 +3,9 @@ import {
   IN_TUNE_TOLERANCE_CENTS,
   type TuningState,
 } from '@chromatic-tuner/core';
-import { motion } from '@chromatic-tuner/tokens';
+import { a11y, motion, space } from '@chromatic-tuner/tokens';
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -102,7 +102,7 @@ export function TuningLine({ state, subscribeToCents }: TuningLineProps) {
         ]}
       />
 
-      <View style={[styles.line, { backgroundColor: colors.line }]} />
+      <View testID="tuning-rule" style={[styles.line, { backgroundColor: colors.line }]} />
 
       {TICKS.map((cents) => (
         <TickMark key={cents} cents={cents} />
@@ -115,6 +115,18 @@ export function TuningLine({ state, subscribeToCents }: TuningLineProps) {
         testID="tuning-marker"
         style={[styles.marker, { backgroundColor: stateColor(state, appearance) }, markerStyle]}
       />
+
+      {/*
+        Which end is which, named rather than left to be inferred (FR-007): one
+        of FR-015's redundant non-colour channels, and the only one that reads
+        before the marker has moved. Web has carried these since 001 and the
+        mobile port dropped them, so the two platforms disagreed about what the
+        signature element of the app looks like (FR-018).
+      */}
+      <View style={styles.ends}>
+        <Text style={[styles.endLabel, { color: colors.text }]}>FLAT</Text>
+        <Text style={[styles.endLabel, { color: colors.text }]}>SHARP</Text>
+      </View>
     </View>
   );
 }
@@ -151,5 +163,28 @@ const styles = StyleSheet.create({
     marginTop: -36,
     marginLeft: -3,
     borderRadius: 3,
+  },
+  ends: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: space.xs,
+  },
+  endLabel: {
+    // 12 and 1.2 mirror the web block's `fontSize: 12` and `letterSpacing:
+    // '0.1em'` — React Native measures letter spacing in points, so the em has
+    // to be resolved against the size here rather than by the layout engine.
+    fontSize: 12,
+    letterSpacing: 1.2,
+    // `mutedOpacity`, not a bare number: these started life at 0.55 on web,
+    // which composited `text` to 3.9:1 against the 4.5:1 floor for 12pt text.
+    // The token carries the ceiling and `packages/tokens/tests/contrast.test.ts`
+    // now composites and measures it, which is the only gate that can see an
+    // opacity applied at a call site — jest has no compositor and Axe never
+    // runs here.
+    opacity: a11y.mutedOpacity,
   },
 });

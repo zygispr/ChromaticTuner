@@ -3,7 +3,7 @@ import {
   IN_TUNE_TOLERANCE_CENTS,
   type TuningState,
 } from '@chromatic-tuner/core';
-import { motion, space } from '@chromatic-tuner/tokens';
+import { a11y, motion, space } from '@chromatic-tuner/tokens';
 import { useEffect, useRef } from 'react';
 
 import { stateColorVar, themedVar } from '../../theme';
@@ -14,7 +14,11 @@ export interface TuningLineProps {
   readonly subscribeToCents: (handler: (cents: number | null) => void) => () => void;
 }
 
-const TICKS = [-50, -40, -30, -20, -10, 10, 20, 30, 40, 50];
+// ±50 belongs to MAJOR_TICKS only. Listing it in both drew a 2px minor
+// underneath the 3px major at each end — invisible, since they share the `line`
+// token and the same centre, but it made the two platforms' tick counts
+// disagree and put a duplicate in front of anything counting them.
+const TICKS = [-40, -30, -20, -10, 10, 20, 30, 40];
 const MAJOR_TICKS = [-50, 0, 50];
 
 /**
@@ -173,14 +177,18 @@ export function TuningLine({ state, subscribeToCents }: TuningLineProps) {
           justifyContent: 'space-between',
           padding: `0 ${space.xs}px`,
           color: themedVar('text'),
-          // 0.7, not the 0.55 this started at: Axe measured the composited
-          // result at 3.9:1 against the background, under the 4.5:1 AA floor
-          // for 12px text. The token was correct and the opacity defeated it —
-          // which the tokens package's own contrast test cannot see, because it
-          // checks the palette rather than what lands on the page.
-          // These words are one of FR-015's redundant channels, so "decorative"
-          // is not an available excuse for them being hard to read.
-          opacity: 0.7,
+          // Not the 0.55 this started at: Axe measured the composited result at
+          // 3.9:1 against the background, under the 4.5:1 AA floor for 12px
+          // text. The token was correct and the opacity defeated it. These words
+          // are one of FR-015's redundant channels, so "decorative" is not an
+          // available excuse for them being hard to read.
+          //
+          // `mutedOpacity` rather than the bare 0.7 that replaced it, so mobile
+          // can share the value instead of hand-copying a number — and so the
+          // composited ratio is asserted rather than assumed. The tokens
+          // package now blends this over each surface and measures it, which
+          // Axe alone could never do for mobile.
+          opacity: a11y.mutedOpacity,
           fontSize: 12,
           letterSpacing: '0.1em',
         }}

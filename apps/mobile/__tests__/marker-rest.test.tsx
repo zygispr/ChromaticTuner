@@ -1,4 +1,5 @@
 import type { TuningState } from '@chromatic-tuner/core';
+import { a11y } from '@chromatic-tuner/tokens';
 import { render } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
@@ -151,10 +152,20 @@ describe('the tuning ruler carries no opacity multiplier', () => {
     };
     walk(view.toJSON());
 
-    // The in-tune band is a soft zone behind the marker and is deliberately
-    // translucent — its meaning is redundant with the marker, the cents readout
-    // and the direction cue, so 1.4.11 does not bind it. Anything ELSE dimmed
-    // is the defect this guards.
-    expect(dimmed.filter((o) => o !== 0.12 && o !== 0.28)).toEqual([]);
+    // Two exemptions, both by value so a new one cannot appear unnoticed:
+    //
+    // - 0.12 / 0.28, the in-tune band. A soft zone behind the marker, and
+    //   deliberately translucent — its meaning is redundant with the marker,
+    //   the cents readout and the direction cue, so 1.4.11 does not bind it.
+    // - `mutedOpacity`, the FLAT/SHARP labels. Those ARE bound, by the 4.5:1
+    //   text floor rather than the 3:1 graphic one, and they are checked where
+    //   the check is possible: `packages/tokens/tests/contrast.test.ts`
+    //   composites `text` at this exact token over each surface and measures
+    //   the result. Referenced rather than written as 0.65 so the two cannot
+    //   drift apart and quietly re-open the exemption.
+    //
+    // Anything ELSE dimmed is the defect this guards.
+    const exempt = [0.12, 0.28, a11y.mutedOpacity];
+    expect(dimmed.filter((o) => !exempt.includes(o))).toEqual([]);
   });
 });

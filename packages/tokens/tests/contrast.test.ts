@@ -28,7 +28,35 @@ function contrastRatio(a: string, b: string): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+/**
+ * What the eye actually receives from a colour drawn at less than full opacity:
+ * the colour blended over whatever sits beneath it. A ratio measured against the
+ * unblended token is a ratio of something nobody sees.
+ */
+function compositeOver(hex: string, alpha: number, backdrop: string): string {
+  const channels = (value: string) =>
+    [0, 2, 4].map((offset) => parseInt(value.replace('#', '').slice(offset, offset + 2), 16));
+
+  const front = channels(hex);
+  const back = channels(backdrop);
+  return `#${front
+    .map((c, i) =>
+      Math.round(c! * alpha + back[i]! * (1 - alpha))
+        .toString(16)
+        .padStart(2, '0')
+    )
+    .join('')}`;
+}
+
 describe('contrast helper', () => {
+  it('composites a colour over a backdrop by its alpha', () => {
+    // The degenerate ends first, since a compositor that ignored alpha would
+    // still pass a mid-range case that happened to land near the token.
+    expect(compositeOver('#000000', 1, '#FFFFFF')).toBe('#000000');
+    expect(compositeOver('#000000', 0, '#FFFFFF')).toBe('#ffffff');
+    expect(compositeOver('#000000', 0.5, '#FFFFFF')).toBe('#808080');
+  });
+
   it('computes the known reference ratios', () => {
     expect(contrastRatio('#000000', '#FFFFFF')).toBeCloseTo(21, 5);
     expect(contrastRatio('#FFFFFF', '#FFFFFF')).toBeCloseTo(1, 5);
@@ -88,6 +116,29 @@ describe('WCAG 2.1 AA contrast (token guarantee T2)', () => {
         const ratio = contrastRatio(color.text[theme], color.selected[theme]);
         expect(ratio).toBeGreaterThanOrEqual(4.5);
       });
+
+      // `mutedOpacity` is the one token that is a MULTIPLIER rather than a
+      // colour, so the palette checks above cannot see it: they measure `text`
+      // at full strength, which is not what lands on the page anywhere the
+      // token is used. That gap is exactly how `001` shipped the FLAT/SHARP
+      // labels at 0.55 (3.9:1) — Axe caught those only because they are text,
+      // and a dimmed graphic beside them would have gone through untouched.
+      //
+      // This is the platform-free version of that check. It has to live here
+      // rather than in either app: web verifies its composites through Axe and
+      // jest has no compositor at all, so mobile had nothing.
+      for (const surface of ['background', 'surface', 'selected'] as const) {
+        it(`muted text meets 4.5:1 over ${surface}`, () => {
+          const composited = compositeOver(
+            color.text[theme],
+            a11y.mutedOpacity,
+            color[surface][theme]
+          );
+          expect(contrastRatio(composited, color[surface][theme])).toBeGreaterThanOrEqual(
+            a11y.contrastTextAA
+          );
+        });
+      }
     });
   }
 });
