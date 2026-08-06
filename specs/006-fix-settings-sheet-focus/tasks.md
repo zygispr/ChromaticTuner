@@ -22,7 +22,8 @@ MUST add a regression test that fails on the unfixed code*. Every test task belo
 wrong. Fix the test before touching the implementation.
 
 **The hazard this feature carries: the existing suite is green against a sheet the keyboard cannot
-operate.** 115 e2e tests pass today over four reproducible defects. That is not an accident, and the
+operate.** 145 e2e tests pass today over four reproducible defects (measured at T001; this said 115
+before the baseline was taken). That is not an accident, and the
 first row below is the reason — it is worth understanding before writing a single assertion.
 
 | Tempting assertion | Why it passes on a broken build |
@@ -50,12 +51,104 @@ appears the day something else writes an inline style, which is exactly when nob
 **Purpose**: record the starting state and the two numbers that decide how tests must be written, before
 anything changes.
 
-- [ ] T001 Confirm all merge gates pass on a clean checkout of this branch and record the counts in this file — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e`, plus `pnpm --filter @chromatic-tuner/mobile test`. `pnpm verify:listing` was already red at `005` for missing Android screenshots (a release gate, not a merge gate); record whether that is still the only failure.
-- [ ] T002 [P] Audit the existing suites this feature can break and record the list in this file — `apps/web/e2e/settings.spec.ts` (drives the sheet with `fill()`/`click()`), `apps/web/e2e/a11y.spec.ts` (asserts the first `Tab` lands on `reference-badge` with the sheet **closed**, `:128`, `:321`), `apps/web/e2e/layout-stability.spec.ts` (measures inside the open sheet, so it meets the scroll lock's `padding-right`), `apps/web/e2e/fold.spec.ts` (scroll cue and document scrolling), `apps/web/e2e/appearance.spec.ts` and `apps/web/e2e/press-affordance.spec.ts` (both click sheet controls)
-- [ ] T003 [P] Measure and record the scrollbar gutter on this machine in this file — `window.innerWidth - document.documentElement.clientWidth` on the tuner page served by `apps/web`. Expected **0** (macOS overlay scrollbars, per **D4**). This number is what makes T020's assertion design a recorded fact rather than an argument in prose.
-- [ ] T004 [P] Capture "before" screenshots of the open sheet in light and dark on `apps/web` and store them under `specs/006-fix-settings-sheet-focus/screenshots/` — SC-062 requires the "after" set to be pixel-identical, which needs a baseline taken before any edit. Mobile is not captured: it has no production diff (**D7**), so its half of V57 is a release-gate formality with nothing to compare.
+- [X] T001 Confirm all merge gates pass on a clean checkout of this branch and record the counts in this file — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e`, plus `pnpm --filter @chromatic-tuner/mobile test`. `pnpm verify:listing` was already red at `005` for missing Android screenshots (a release gate, not a merge gate); record whether that is still the only failure.
+- [X] T002 [P] Audit the existing suites this feature can break and record the list in this file — `apps/web/e2e/settings.spec.ts` (drives the sheet with `fill()`/`click()`), `apps/web/e2e/a11y.spec.ts` (asserts the first `Tab` lands on `reference-badge` with the sheet **closed**, `:128`, `:321`), `apps/web/e2e/layout-stability.spec.ts` (measures inside the open sheet, so it meets the scroll lock's `padding-right`), `apps/web/e2e/fold.spec.ts` (scroll cue and document scrolling), `apps/web/e2e/appearance.spec.ts` and `apps/web/e2e/press-affordance.spec.ts` (both click sheet controls)
+- [X] T003 [P] Measure and record the scrollbar gutter on this machine in this file — `window.innerWidth - document.documentElement.clientWidth` on the tuner page served by `apps/web`. Expected **0** (macOS overlay scrollbars, per **D4**). This number is what makes T020's assertion design a recorded fact rather than an argument in prose.
+- [X] T004 [P] Capture "before" screenshots of the open sheet in light and dark on `apps/web` and store them under `specs/006-fix-settings-sheet-focus/screenshots/` — SC-062 requires the "after" set to be pixel-identical, which needs a baseline taken before any edit. Mobile is not captured: it has no production diff (**D7**), so its half of V57 is a release-gate formality with nothing to compare.
 
-**Checkpoint**: baselines recorded, blast radius known, and the gutter measured rather than assumed.
+**Checkpoint**: baselines recorded, blast radius known, and the gutter measured rather than assumed. ✅
+
+### T001 — baseline gate run (2026-08-06, clean tree at `5569a78`)
+
+| Gate | Result |
+| --- | --- |
+| `pnpm lint` | pass, 0 warnings |
+| `pnpm format:check` | pass |
+| `pnpm typecheck` | pass — 5 projects (`core`, `tokens`, `react`, `web`, `mobile`) |
+| `pnpm test` | **483 passed**, 20 files, 8.0s |
+| `pnpm test:coverage` | pass — `packages/core` 98.53% stmts / 95.23% branch / 97.4% funcs / **100% lines** |
+| `pnpm test:e2e` | **145 passed**, 47.7s |
+| `pnpm --filter @chromatic-tuner/mobile test` | **117 passed**, 16 suites, 2.3s |
+| `pnpm verify:listing` | red — **only** the `005` Android screenshots (below) |
+
+`verify:listing` fails on exactly three problems, all one missing asset set and all pre-existing:
+`listing/assets/screenshots/android/{light,dark}/` do not exist, and `appearances` reports android
+missing a light screenshot. Every other check passes (25 claim fields, 8 fields, 41 vocabulary strings,
+7 corroborations, 7 derived identity values, 5 artwork scans). **Unchanged from `005`** — nothing this
+feature does can move it, and it stays a release gate.
+
+Two deviations from what the plan assumed, both recorded rather than corrected:
+
+- **The e2e suite is 145 tests, not the 115 stated in this file's hazard table.** The prose above was
+  written from a stale count. The claim it was making — *the suite is green over four reproducible
+  defects* — is unaffected and is if anything stronger: 145 tests pass against a sheet the keyboard
+  cannot operate. T028 compares against **145**, not 115.
+- **Local Node is v24.14.0, not the 22.13+ CLAUDE.md pins.** Every gate above passes on it. CI still
+  runs Node 22, which is the number that decides `listing/scripts/*.mjs` staying JavaScript, so this is
+  a note about where these baselines were taken and not a proposal to move CI.
+
+### T002 — blast radius
+
+Seven suites touch the settings sheet, not the six this task named. `performance.spec.ts` was missed by
+the plan and is added below.
+
+| Suite | What it does to the sheet | Risk from this feature |
+| --- | --- | --- |
+| `settings.spec.ts` | 14 tests. Opens via `reference-badge` ×9; drives `a4-slider` with **`fill()`** at `:29`, `:45`, `:54`, `:99`, `:120`; closes via `settings-close` ×6, backdrop press ×3, `Escape` at `:259` | **Highest.** `fill()` sets the value without a keystroke, so US1 cannot break it — but the focus-restore of T017 lands under every `settings-close`/`Escape`/backdrop close here |
+| `a11y.spec.ts` | 13 tests. First `Tab` → `reference-badge` with the sheet **closed** at `:131` and `:324`; `.focus()` on `appearance-dark` *inside the open sheet* at `:360` | **Highest.** `:131`/`:324` are exactly what an over-eager trap breaks (T018 re-runs them by name). `:360` is a sheet-open focus assertion that the T010 effect split can only help — it fails today only by luck of timing |
+| `appearance.spec.ts` | 14 tests. Opens the sheet ×6; clicks `appearance-dark`, `accidental-*`; measures focus-ring geometry on `appearance-dark` at `:580`–`:642` | High. The ring measurements read `:focus-visible` on a control **inside** the open sheet — the exact state T010 and T016 move focus into |
+| `layout-stability.spec.ts` | 7 tests. Measures the sheet's box at `:79`–`:104` and `:114`–`:145`, across a `settings-reset` | High. Meets the scroll lock's `padding-right` (T022) directly; a gutter of 0 here means the local run cannot see a compensation bug |
+| `press-affordance.spec.ts` | 7 tests. Opens the sheet ×3, hovers/holds every control in it | Medium. Pointer-only, but runs against the open sheet |
+| `fold.spec.ts` | 7 tests. Owns document scrolling — `scrollTo(0, 500)` and the `scrollHeight > clientHeight` probe at `:70`–`:92`; `reference-badge` in the tab-order list at `:108` | Medium. The only suite that asserts the document **is** scrollable, which is the property T022 suspends |
+| `performance.spec.ts` | Opens the sheet at `:214` to switch appearance mid-reading (SC-050 frame budget) | Low, **but unnamed by the plan.** A keydown listener that did work per event would show up here first |
+
+### T003 — the gutter, measured
+
+Measured on the tuner page at the default 1280×720 Playwright viewport:
+
+```text
+innerWidth 1280 · documentElement.clientWidth 1280 · gutter 0
+scrollHeight 1450 · clientHeight 720 · scrollable true
+```
+
+**Gutter is 0**, as **D4** predicted (macOS overlay scrollbars). This is the recorded fact T020's design
+rests on: a before/after *width* comparison would pass here against an implementation with no
+compensation at all, and fail only on CI's Ubuntu runners. T020 asserts the arithmetic instead.
+
+Two by-products worth having:
+
+- **The document really is scrollable at the default viewport** — 1450 > 720 — so V54 (T019) needs no
+  special viewport, and its `scrollHeight > clientHeight` precondition will hold rather than vacuously
+  pass. The quickstart asserted this; it is now measured.
+- **`document.documentElement` carries no inline `overflow` or `paddingRight` today** (both read `''`).
+  That is the concrete form of the code-review obligation above: capture-and-restore and assigning `''`
+  are indistinguishable right now, in every test, on both appearances.
+
+### T004 — the "before" baseline
+
+`specs/006-fix-settings-sheet-focus/screenshots/before-sheet-{light,dark}.png`
+
+|  | light | dark |
+| --- | --- | --- |
+| SHA-256 | `fd02fc4cf5febf128e18e64ee01a539f72463a05cae34d4550a022b5ad0d3111` | `d3a8c0c8273a3b716437dfc930e69ecf91199fddfb8e78a6688aba04ef07feb7` |
+| sheet box | x 380, y 188, w 520, h 532 | identical |
+
+**The capture is of the `settings-sheet` element, not the viewport, and that is deliberate.** The tuner
+behind the scrim is live — the marker animates and the cents readout updates at 10 Hz — so a viewport
+screenshot is not reproducible and could never support SC-062's "pixel-identical". The sheet's own
+content is static. The bounding box is recorded alongside so that a geometric shift the eye would miss
+is still a numeric failure, and so the `padding-right` of T022 has something to be caught by.
+
+Recipe, so T027 can reproduce it byte-for-byte rather than approximately: throwaway spec in
+`apps/web/e2e/`, `audioArgs('e2-in-tune.wav')`, default 1280×720, `page.emulateMedia({ colorScheme })`
+with the appearance preference left at its `'system'` default, open via `reference-badge`, wait 600 ms
+for the entrance transition, then `sheet.screenshot({ animations: 'disabled' })`.
+
+The harness was **deleted** after the run rather than kept. Left in `e2e/` it would be picked up by
+every `pnpm test:e2e` and would silently overwrite the very baseline it produced — and it is not a test:
+it asserts nothing. T027 recreates it from the recipe and writes `after-sheet-*.png`.
+
+Mobile is not captured, per this task and **D7**.
 
 ---
 
