@@ -218,6 +218,35 @@ try {
 `.trim();
 
 /**
+ * The layout reset, and the fold reserved for the tuner (FR-066, FR-069).
+ *
+ * These rules used to be appended to `<head>` by `main.tsx` during module
+ * evaluation, which is the same mistake D2 already fixed for the token block —
+ * caught later only because its symptom was subtler. `#root` is empty until
+ * React mounts, so with the reset arriving alongside React the first painted
+ * frame had a zero-height `#root` and the supporting content sitting 8px from
+ * the top of the viewport: the heading and its prose flashed up and were then
+ * replaced by the tuner. The page settled correctly, which is exactly why it
+ * survived every test that waits for the app before looking.
+ *
+ * Reserving the space is the whole fix. The content is NOT hidden and must not
+ * be — a consumer that runs no scripts has to receive it (FR-060, P1) — it is
+ * simply below the fold from the first frame, where it ends up anyway.
+ *
+ * `min-height: 100dvh` states the same intent as `<main>` in `TunerLayout`, in
+ * the same unit, so the reservation and the thing it reserves for cannot
+ * disagree on mobile browsers whose chrome collapses on scroll.
+ *
+ * Tuner document only. `privacy.html` runs no scripts, so nothing there ever
+ * arrived late, and it has no `#root` to reserve anything for.
+ */
+const layoutCss = `
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { margin: 0; padding: 0; height: 100%; }
+#root { min-height: 100dvh; }
+`;
+
+/**
  * Styling for the supporting content and the scroll cue.
  *
  * In the document rather than in the app's stylesheet, because the content it
@@ -593,7 +622,7 @@ function siteIdentity(): Plugin {
         {
           tag: 'style',
           attrs: { 'data-chromatic-tuner': 'tokens' },
-          children: themeCss + contentCss,
+          children: themeCss + layoutCss + contentCss,
           injectTo: 'head-prepend' as const,
         },
         // Synchronous and blocking, in <head>, so it runs before the document
