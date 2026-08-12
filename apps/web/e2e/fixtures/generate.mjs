@@ -104,3 +104,43 @@ writeWav('e2-flat-20.wav', tone(detune(e2, -20)));
 writeWav('e2-sharp-20.wav', tone(detune(e2, 20)));
 writeWav('e2-to-d2-sweep.wav', sweep(e2, freq(38)));
 writeWav('e2-then-silence.wav', toneThenSilence(detune(e2, -20)));
+
+/**
+ * 007 — notes chosen for their ANGLE on the dial, not for the guitar.
+ *
+ * The existing fixtures are all E2, which is pitch class 4 and therefore 120
+ * degrees. One angle cannot distinguish a correct dial from a mirrored one, or
+ * from one that ignores pitch class altogether, so these spread four more
+ * classes around the circle: C at the top, D at 60, A at 270 (the assertion
+ * that catches a mirror, since it becomes 90), and B just below the top.
+ */
+const c4 = freq(60); // 261.63 Hz — pitch class 0, straight up
+const d3 = freq(50); // 146.83 Hz — pitch class 2, 60 degrees
+const a4 = freq(69); // 440 Hz — pitch class 9, 270 degrees
+const b3 = freq(59); // 246.94 Hz — pitch class 11, 330 degrees
+
+writeWav('c4-in-tune.wav', tone(c4));
+writeWav('d3-in-tune.wav', tone(d3));
+writeWav('d3-sharp-25.wav', tone(detune(d3, 25)));
+writeWav('d3-flat-25.wav', tone(detune(d3, -25)));
+writeWav('a4-in-tune.wav', tone(a4));
+
+/**
+ * The crossing at twelve o'clock, for G10.
+ *
+ * B3 30 cents flat up to C4 30 cents sharp: the needle travels 321 -> 345 ->
+ * 369 degrees, passing the ONE boundary where the raw angle jumps by a full
+ * turn (B +50 is 345, C -50 is -15). Every other boundary is continuous in the
+ * raw value and cannot catch a missing unwrap.
+ */
+writeWav('b3-to-c4-sweep.wav', sweep(detune(b3, -30), detune(c4, 30)));
+
+/**
+ * Nothing at all, for FR-163.
+ *
+ * "No needle before the first reading of a session" is a state with no angle
+ * rather than an angle of zero, and it is the one state the other fixtures
+ * cannot produce: every one of them starts sounding immediately, and Chromium
+ * loops them, so a reading has always already happened.
+ */
+writeWav('silence.wav', new Float32Array(Math.floor(SAMPLE_RATE * SECONDS)));

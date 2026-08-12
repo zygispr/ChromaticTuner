@@ -1,3 +1,4 @@
+import { PREFERENCES_STORAGE_KEY } from '@chromatic-tuner/core';
 import { expect, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
@@ -173,4 +174,152 @@ export async function expectMarkerAtCents(page: Page, tolerancePx = 20, samples 
     median,
     `median disagreement ${median.toFixed(1)}px over ${errors.length} samples; ${last}`
   ).toBeLessThanOrEqual(tolerancePx);
+}
+
+/**
+ * Where the needle actually points, in degrees clockwise from the top.
+ *
+ * Derived from RENDERED BOXES, not from the transform, and that distinction is
+ * the whole reason this exists (007 research D5, guarantee G21). `rotate()`
+ * turns an element about its OWN centre. A needle drawn from the dial's centre
+ * to its rim has its centre halfway along itself, so rotating the needle
+ * directly makes it orbit its own midpoint and swing clean out of the circle —
+ * while `getComputedStyle(needle).transform` reports exactly the matrix that
+ * was asked for. Every assertion phrased against the matrix passes on that
+ * build. This is the rotate-shaped twin of the `translateX` bug that
+ * {@link markerOffsetPx} exists for, and it is caught the same way: measure the
+ * geometry, not the instruction.
+ *
+ * A rectangle is centrally symmetric, so its axis-aligned bounding box stays
+ * centred on its own centre at every angle — the midpoint is therefore exact,
+ * not an approximation that degrades off the axes.
+ *
+ * Under the D5 defect the needle's midpoint never leaves twelve o'clock, so
+ * this reads ~0 whatever the tone.
+ */
+export async function needleAngleDeg(page: Page): Promise<number> {
+  const dial = await page.getByTestId('tuning-dial').boundingBox();
+  const needle = await page.getByTestId('dial-needle').boundingBox();
+
+  expect(dial, 'tuning dial has no box').not.toBeNull();
+  expect(needle, 'dial needle has no box').not.toBeNull();
+
+  const dx = needle!.x + needle!.width / 2 - (dial!.x + dial!.width / 2);
+  const dy = needle!.y + needle!.height / 2 - (dial!.y + dial!.height / 2);
+
+  // Clockwise from straight up, which is how the dial is specified. Screen y
+  // grows downwards, hence the negation.
+  const degrees = (Math.atan2(dx, -dy) * 180) / Math.PI;
+  return (degrees + 360) % 360;
+}
+
+/**
+ * The needle's ACCUMULATED angle, read from the wrapper's inline transform.
+ *
+ * Deliberately a different measurement from {@link needleAngleDeg}, because the
+ * two defects need different instruments and neither can see the other's:
+ *
+ * - The bounding box says WHERE the needle points. It is bounded to [0, 360)
+ *   and so cannot distinguish 345 from 705 — it is blind to the wrap.
+ * - This says WHICH NUMBER was handed to the animation. Both a CSS transition
+ *   and a Reanimated `withTiming` interpolate between two numbers, so feeding
+ *   345 then -15 sweeps the needle 359 degrees backwards to travel 0.6 forward
+ *   (G9, G10). The endpoint is identical either way, which is why an assertion
+ *   about where the needle came to rest cannot catch this.
+ *
+ * Returns `null` when no needle is drawn at all — before the first reading of a
+ * session (FR-163), which is a state with no angle rather than an angle of zero.
+ */
+export async function needleAccumulatedDeg(page: Page): Promise<number | null> {
+  return page.evaluate(() => {
+    const wrapper = document.querySelector('[data-testid="dial-needle-wrapper"]');
+    if (!wrapper) return null;
+    const transform = (wrapper as HTMLElement).style.transform;
+    const match = /rotate\((-?[\d.]+)deg\)/.exec(transform);
+    return match ? Number(match[1]) : null;
+  });
+}
+
+/**
+ * Start with the dial already chosen, before the first paint.
+ *
+ * Seeded into storage rather than clicked through Settings: these specs are
+ * about what the dial draws, and driving the sheet first would make every
+ * geometry failure also a possible settings failure.
+ */
+export async function useDial(page: Page, extra: Record<string, unknown> = {}): Promise<void> {
+  await page.addInitScript(
+    ([key, raw]) => {
+      window.localStorage.setItem(key!, raw!);
+    },
+    [
+      PREFERENCES_STORAGE_KEY,
+      JSON.stringify({
+        a4Hz: 440,
+        accidentalStyle: 'sharp',
+        appearance: 'system',
+        tunerDisplay: 'dial',
+        schemaVersion: 1,
+        ...extra,
+      }),
+    ]
+  );
+}
+
+/**
+ * The needle's angle, sampled across a second and reduced to the median.
+ *
+ * Same reasoning as {@link expectMarkerAtCents}: the needle animates to its
+ * target, the fixture loops, and a single sample can legitimately catch it
+ * mid-flight. A transient spoils one sample; a geometry error — the wrong pitch
+ * class, a mirrored dial, a transform on the wrong element — spoils every one.
+ */
+export async function medianNeedleAngleDeg(page: Page, samples = 9): Promise<number> {
+  const seen: number[] = [];
+  for (let i = 0; i < samples; i += 1) {
+    seen.push(await needleAngleDeg(page));
+    await page.waitForTimeout(60);
+  }
+  seen.sort((a, b) => a - b);
+  return seen[Math.floor(seen.length / 2)]!;
+}
+
+/**
+ * Assert the needle points at `expected`, comparing as DIRECTIONS.
+ *
+ * Angles are congruent mod 360, so 359 and 1 are two degrees apart and a
+ * subtraction would call them 358. Every comparison of two angles in these
+ * specs goes through here.
+ *
+ * The tolerance is deliberately loose. At 0.3 degrees per cent, 4 degrees is
+ * ~13 cents — wider than the fixture's own detection jitter, and far narrower
+ * than the 30 degrees a wrong pitch class moves the needle or the 180 a mirror
+ * does. Tightening it buys nothing and buys flakiness.
+ */
+export function expectNeedleAt(actual: number, expected: number, toleranceDeg = 4): void {
+  // Shortest angular distance, already in [0, 180]. The `+ 540` is `+ 180` plus
+  // a full turn, so a negative input still lands in the positive branch of `%`.
+  //
+  // Asserted DIRECTLY. This first read `180 - difference`, which inverted the
+  // whole comparison: a needle exactly on target reported 180 and every failure
+  // message said "needle at 60.0°, expected ~60°" while failing. The message
+  // was right and the assertion was not.
+  const difference = Math.abs(((actual - expected + 540) % 360) - 180);
+  expect(difference, `needle at ${actual.toFixed(1)}°, expected ~${expected}°`).toBeLessThan(
+    toleranceDeg
+  );
+}
+
+/** Normalise a CSS colour to a comparable `r,g,b` triple. */
+export function rgbOf(value: string): string {
+  const match = /rgba?\(([^)]+)\)/.exec(value);
+  if (match) {
+    const [r, g, b] = match[1]!.split(',').map((part) => Number(part.trim()));
+    return `${r},${g},${b}`;
+  }
+  const hex = value.trim().replace('#', '');
+  if (hex.length === 6) {
+    return `${parseInt(hex.slice(0, 2), 16)},${parseInt(hex.slice(2, 4), 16)},${parseInt(hex.slice(4, 6), 16)}`;
+  }
+  return value.trim();
 }

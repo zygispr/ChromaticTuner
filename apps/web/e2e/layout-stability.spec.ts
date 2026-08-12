@@ -122,11 +122,16 @@ test('the settings groups are labelled without fieldset/legend layout (FR-021)',
 
   // Still grouped and still labelled — the point is the layout path, not the
   // semantics, which assistive technology reads identically either way (FR-020).
+  //
+  // Four since 007. The order is asserted as well as the count, because it is
+  // the sheet's reading order: what the tuner listens for, how it names notes,
+  // how it draws them, how the app looks.
   const groups = sheet.getByRole('group');
-  await expect(groups).toHaveCount(3);
+  await expect(groups).toHaveCount(4);
   await expect(groups.nth(0)).toHaveAccessibleName('Reference pitch');
   await expect(groups.nth(1)).toHaveAccessibleName('Accidentals');
-  await expect(groups.nth(2)).toHaveAccessibleName('Appearance');
+  await expect(groups.nth(2)).toHaveAccessibleName('Tuning display');
+  await expect(groups.nth(3)).toHaveAccessibleName('Appearance');
 });
 
 /**

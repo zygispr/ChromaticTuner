@@ -4,6 +4,7 @@ import {
   A4_MIN_HZ,
   type AccidentalStyle,
   type AppearancePreference,
+  type TunerDisplay,
 } from '@chromatic-tuner/core';
 import { a11y, motion, space, type } from '@chromatic-tuner/tokens';
 import { useEffect, useRef } from 'react';
@@ -31,6 +32,24 @@ const ACCIDENTAL_OPTIONS: Array<{ value: AccidentalStyle; label: string; example
  * "Match device" leads, so the default sits first and the list reads as
  * defer / override-light / override-dark.
  */
+/**
+ * Plain, mechanism-free copy again (research D10, FR-147).
+ *
+ * "Dial", not "Circle": the everyday word for a speedometer face says what the
+ * thing DOES, where "circle" describes only its outline. "Line", not
+ * "Horizontal", because that is what the app's own design language already
+ * calls its signature element, and because a direction is not an object.
+ *
+ * Both are one short word, so the two buttons sit at equal width the way the
+ * Appearance row does. `apps/mobile/src/components/screens/SettingsScreen`
+ * carries the same list in the same order, and both are asserted — two
+ * hand-maintained copies of one vocabulary is exactly how the platforms drift.
+ */
+const DISPLAY_OPTIONS: Array<{ value: TunerDisplay; label: string }> = [
+  { value: 'line', label: 'Line' },
+  { value: 'dial', label: 'Dial' },
+];
+
 const APPEARANCE_OPTIONS: Array<{ value: AppearancePreference; label: string }> = [
   { value: 'system', label: 'Match device' },
   { value: 'light', label: 'Light' },
@@ -70,9 +89,11 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
     appearancePreference,
     isNonStandardReference,
     persistenceFailed,
+    tunerDisplay,
     setA4Hz,
     setAccidentalStyle,
     setAppearancePreference,
+    setTunerDisplay,
     reset,
   } = usePreferences();
 
@@ -508,6 +529,57 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
                   <span style={{ display: 'block', opacity: a11y.mutedOpacity, fontSize: 12 }}>
                     {option.example}
                   </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Between Accidentals and Appearance, so the sheet reads as narrowing
+            scope: what the tuner listens for, how it names notes, how it draws
+            them, how the app looks (research D10).
+
+            The group treatment is reused verbatim a third time, which by now is
+            the point — a new selection idiom here would be a fresh chance to
+            repeat the mistake `500dfb5` fixed, where a heavier `text` border
+            collided with the app's focus ring and made the UNCHOSEN option look
+            chosen while tabbing. */}
+        <div role="group" aria-labelledby="tuner-display-label">
+          <span
+            id="tuner-display-label"
+            style={{
+              display: 'block',
+              fontSize: `${type.labelSize}px`,
+              fontWeight: type.weightMedium,
+            }}
+          >
+            Tuning display
+          </span>
+
+          <div style={{ display: 'flex', gap: space.sm, marginTop: space.sm }}>
+            {DISPLAY_OPTIONS.map((option) => {
+              const selected = tunerDisplay === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  data-testid={`tuner-display-${option.value}`}
+                  aria-pressed={selected}
+                  onClick={() => setTunerDisplay(option.value)}
+                  style={{
+                    flex: 1,
+                    minHeight: a11y.minTouchTarget,
+                    padding: `${space.sm}px`,
+                    fontSize: `${type.labelSize}px`,
+                    fontWeight: selected ? type.weightBold : type.weightRegular,
+                    color: themedVar('text'),
+                    background: selected ? themedVar('selected') : 'transparent',
+                    border: `1px solid ${selected ? themedVar('text') : themedVar('line')}`,
+                    borderRadius: space.sm,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {option.label}
                 </button>
               );
             })}

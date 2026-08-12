@@ -313,19 +313,122 @@ that dropped a sibling would be invisible to any test that reads back only the f
 confirm the needle sits at the angle that offset predicts, on the right segment, reaching in-tune at
 the segment's exact centre. V60–V63.
 
-- [ ] T024 [US1] Add a `needleAngleDeg` helper to `apps/web/e2e/helpers.ts` that derives the needle's angle from its **rendered bounding box in page coordinates**, not from its computed transform — the same reason `markerOffsetPx` measures real boxes. This helper is what makes T031 able to see the D5 defect.
-- [ ] T025 [P] [US1] Write failing e2e tests in `apps/web/e2e/dial.spec.ts` for the angle table in V60 — A4 at 270°, D3 at 60°, D3 ± 25 cents at 67.5°/52.5°, C4 at 0° — using the generated WAV fixtures under `apps/web/e2e/fixtures`.
-- [ ] T026 [P] [US1] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for the boundary crossing (**G10**, V61) — sweep through twelve o'clock and assert the needle's accumulated angle moves a few degrees, never ~359 the other way. Assert the path, not the endpoint.
-- [ ] T027 [P] [US1] Write failing e2e tests in `apps/web/e2e/dial.spec.ts` for the lapsed needle (**FR-162**, **FR-163**, V62) — no needle at all before the first reading; after a reading lapses, the needle holds its exact previous angle and takes the `noReading` colour. Mirror the structure of `apps/web/e2e/marker-rest.spec.ts`, which pins the line's opposite behaviour.
-- [ ] T028 [P] [US1] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for segment labelling (**FR-155**, **FR-156**, V63) — twelve labels, C at the top, ascending clockwise, and the five accidentals respelling with the flats preference while the seven naturals and the needle do not move.
-- [ ] T029 [US1] Build `apps/web/src/components/molecules/TuningDial.tsx` — rim, twelve boundary ticks at `15° + k × 30°`, twelve labels positioned by trigonometry and drawn upright, an active-segment centre tick, and the needle inside a dial-sized concentric wrapper. The wrapper is what rotates (**G21**, research **D5**); write its transform imperatively from `subscribeToReading`, never through React state.
-- [ ] T030 [US1] Keep the unwrap accumulator in a `useRef` beside the transform write in `TuningDial.tsx`, never in React state — it is written ~43 times a second (**data-model §5**).
-- [ ] T031 [US1] Run T024–T028. Deliberately verify the suite catches the D5 defect by temporarily moving the transform onto the needle element; confirm T025 fails, then revert. Record the observed failure in this file — this is the one check that proves the geometry tests measure geometry.
-- [ ] T032 [US1] Render the dial or the line from `apps/web/src/components/organisms/TunerDisplay.tsx` with a ternary on `tunerDisplay`. Two sibling components, no shared "meter" abstraction (research **D1**). `NoteLabel`, `CentsReadout` and `DirectionCue` stay exactly where they are (**FR-168**).
-- [ ] T033 [US1] Add the **Tuning display** group to `apps/web/src/components/organisms/SettingsSheet.tsx`, between Accidentals and Appearance, with **Line** and **Dial** buttons. Reuse the existing group treatment verbatim — `role="group"` + `aria-labelledby` (never fieldset/legend; Safari mis-lays-out the first layout), `aria-pressed`, the `selected` tint **fill** rather than a heavier `text` border, `flex: 1`, and `a11y.minTouchTarget`.
-- [ ] T034 [US1] Confirm `006`'s focus trap still cycles correctly with two more focusables in the sheet. **Retargeted at T002**: the trap's tests are in `apps/web/e2e/a11y.spec.ts` (`FOCUSABLE_SELECTOR` `:561`, `sheetControls()` `:564`, V52 `:588`) — `settings.spec.ts` has no `Tab` assertions at all. `sheetControls()` already reads the list from the DOM on every use and asserts `length > 2` rather than a hard-coded 8, so this is expected to pass unchanged; run it and record that it did, rather than editing it.
+- [X] T024 [US1] Add a `needleAngleDeg` helper to `apps/web/e2e/helpers.ts` that derives the needle's angle from its **rendered bounding box in page coordinates**, not from its computed transform — the same reason `markerOffsetPx` measures real boxes. This helper is what makes T031 able to see the D5 defect.
+- [X] T025 [P] [US1] Write failing e2e tests in `apps/web/e2e/dial.spec.ts` for the angle table in V60 — A4 at 270°, D3 at 60°, D3 ± 25 cents at 67.5°/52.5°, C4 at 0° — using the generated WAV fixtures under `apps/web/e2e/fixtures`.
+- [X] T026 [P] [US1] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for the boundary crossing (**G10**, V61) — sweep through twelve o'clock and assert the needle's accumulated angle moves a few degrees, never ~359 the other way. Assert the path, not the endpoint.
+- [X] T027 [P] [US1] Write failing e2e tests in `apps/web/e2e/dial.spec.ts` for the lapsed needle (**FR-162**, **FR-163**, V62) — no needle at all before the first reading; after a reading lapses, the needle holds its exact previous angle and takes the `noReading` colour. Mirror the structure of `apps/web/e2e/marker-rest.spec.ts`, which pins the line's opposite behaviour.
+- [X] T028 [P] [US1] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for segment labelling (**FR-155**, **FR-156**, V63) — twelve labels, C at the top, ascending clockwise, and the five accidentals respelling with the flats preference while the seven naturals and the needle do not move.
+- [X] T029 [US1] Build `apps/web/src/components/molecules/TuningDial.tsx` — rim, twelve boundary ticks at `15° + k × 30°`, twelve labels positioned by trigonometry and drawn upright, an active-segment centre tick, and the needle inside a dial-sized concentric wrapper. The wrapper is what rotates (**G21**, research **D5**); write its transform imperatively from `subscribeToReading`, never through React state.
+- [X] T030 [US1] Keep the unwrap accumulator in a `useRef` beside the transform write in `TuningDial.tsx`, never in React state — it is written ~43 times a second (**data-model §5**).
+- [X] T031 [US1] Run T024–T028. Deliberately verify the suite catches the D5 defect by temporarily moving the transform onto the needle element; confirm T025 fails, then revert. Record the observed failure in this file — this is the one check that proves the geometry tests measure geometry.
+- [X] T032 [US1] Render the dial or the line from `apps/web/src/components/organisms/TunerDisplay.tsx` with a ternary on `tunerDisplay`. Two sibling components, no shared "meter" abstraction (research **D1**). `NoteLabel`, `CentsReadout` and `DirectionCue` stay exactly where they are (**FR-168**).
+- [X] T033 [US1] Add the **Tuning display** group to `apps/web/src/components/organisms/SettingsSheet.tsx`, between Accidentals and Appearance, with **Line** and **Dial** buttons. Reuse the existing group treatment verbatim — `role="group"` + `aria-labelledby` (never fieldset/legend; Safari mis-lays-out the first layout), `aria-pressed`, the `selected` tint **fill** rather than a heavier `text` border, `flex: 1`, and `a11y.minTouchTarget`.
+- [X] T034 [US1] Confirm `006`'s focus trap still cycles correctly with two more focusables in the sheet. **Retargeted at T002**: the trap's tests are in `apps/web/e2e/a11y.spec.ts` (`FOCUSABLE_SELECTOR` `:561`, `sheetControls()` `:564`, V52 `:588`) — `settings.spec.ts` has no `Tab` assertions at all. `sheetControls()` already reads the list from the DOM on every use and asserts `length > 2` rather than a hard-coded 8, so this is expected to pass unchanged; run it and record that it did, rather than editing it.
 
-**Checkpoint**: US1 is independently shippable on web. V60–V63 pass.
+**Checkpoint**: US1 is independently shippable on web. ✅ (2026-08-12)
+
+| Gate | After Phase 2 | After Phase 3 |
+| --- | --- | --- |
+| `pnpm test:e2e` | 156 | **166** (+10 dial) |
+| `pnpm test` | 517 | 517, unchanged |
+| `pnpm --filter @chromatic-tuner/mobile test` | 122 | 122, unchanged |
+| `pnpm lint`, `format:check`, `typecheck` | pass | pass |
+
+V60–V63 pass, and the dial was looked at in both appearances rather than only
+asserted: D3 +25 cents puts the needle just clockwise of D's centre tick, with the
+D label highlighted, twelve labels upright, C at the top and the boundary ticks
+between segments. The settings row sits between Accidentals and Appearance.
+
+### T024 — two instruments, not one
+
+**Deviation, and a necessary one.** The task specified a single `needleAngleDeg`.
+Two were written, because the two defects this feature can carry are invisible to
+each other's instrument:
+
+| Helper | Reads | Catches |
+| --- | --- | --- |
+| `needleAngleDeg` | the needle's rendered bounding box, in page coordinates | the transform landing on the wrong element (D5) |
+| `needleAccumulatedDeg` | the wrapper's inline `rotate(...)` value | a missing unwrap (G10) |
+
+The bounding box is bounded to `[0, 360)` and cannot distinguish 345 from 705, so
+it is blind to the wrap. The inline value says which number was handed to the
+animation but nothing about where the needle was drawn. Asserting only one of
+them leaves half the feature unmeasured.
+
+### T025–T028 — six spec files, and seven new fixtures
+
+**Deviation: one spec file became six.** `helpers.ts` already records why —
+`launchOptions` cannot be set per `describe`, because Playwright forces a new
+worker for it — so the fixture decides the file. This is the convention
+`tuning-flat` / `tuning-sharp` / `tuning-in-tune` already follow. The result is
+`dial`, `dial-mirror`, `dial-detune`, `dial-silent`, `dial-rest`, `dial-sweep`.
+
+Seven fixtures added to `generate.mjs`, chosen for their ANGLE rather than for the
+guitar. Every existing fixture is E2, which is pitch class 4 and therefore 120° —
+one angle, which cannot tell a correct dial from a mirrored one:
+
+- `c4`, `d3`, `d3-sharp-25`, `d3-flat-25`, `a4` — four pitch classes spread round
+  the circle. **`a4` is the one that matters**: A is 270°, and a mirrored dial puts
+  it at 90° while agreeing with a correct one at C, at the octave, and on every
+  assertion about label order.
+- `b3-to-c4-sweep` — the only boundary that can catch a missing unwrap. The other
+  eleven are continuous in the raw value (C +50 and C♯ −50 are both 15°).
+- `silence` — FR-163 needs a session in which nothing has *ever* been heard, and
+  every other fixture starts sounding immediately and loops.
+
+**Defect found in the test helper, for the second time this feature.**
+`expectNeedleAt` asserted `180 - difference` where `difference` was already the
+shortest angular distance, inverting the comparison. The failure read `needle at
+60.0°, expected ~60°` — the message was right and the assertion was not, and the
+implementation had been correct all along. Angle arithmetic in test helpers has
+now been wrong twice; both times the code under test was fine.
+
+### T031 — the mutations, which are the point of this phase
+
+Both defects were deliberately introduced and observed:
+
+| Mutation | Result |
+| --- | --- |
+| transform moved onto the needle instead of its wrapper (**D5**) | `needleAngleDeg` reads **0.0° for every tone** — 60, 67.5 and 270 all report 0. Three angle tests fail. The needle orbits its own midpoint, so its box centre never leaves twelve o'clock. |
+| `unwrapDegrees` removed, raw angle straight to the transform (**G10**) | `largest backwards jump was **-359.4°**` — the exact number `contracts/tuner-display.md` §2 predicts. One test fails. |
+
+Both restored; `git status` shows only the intended new files. Without these two
+runs the suite's green would mean nothing, because a correct-looking matrix and a
+correct resting angle are precisely what both defects produce.
+
+### T032–T034 — wiring, and two canaries the T002 audit missed
+
+T034 confirmed as predicted: `a11y.spec.ts` passes **unchanged** with two more
+focusables in the sheet — 29 tests green, no edit. `sheetControls()` reads the list
+from the DOM and asserts `length > 2`, which `006` wrote that way on purpose.
+
+**But two OTHER hard-coded counts did break, and T002 found neither:**
+
+| Canary | Was | Now |
+| --- | --- | --- |
+| `press-affordance.spec.ts:64` — buttons in the sheet | 7 | **9** |
+| `layout-stability.spec.ts:126` — `role="group"` elements | 3 | **4**, with `Tuning display` asserted at index 2 |
+
+Both are deliberate canaries — the first says so in its own comment — and both did
+exactly their job: they failed because the sheet grew. The audit was the thing at
+fault. It searched for line-specific **test ids** and never for hard-coded
+**counts**, which is a different query and one worth running whenever a control is
+added to a shared surface.
+
+**Process note worth keeping.** The first full `test:e2e` run appeared to show one
+failure, because the tail of the output listed only the last line of the failure
+summary. Re-running with a filter that printed the whole summary showed **two**.
+A truncated tail is not a result; the run has to be read, not glanced at.
+
+### Deviation from research D7 — no in-tune wedge
+
+D7 proposed a tinted wedge on the active segment. It is not drawn, on D6's own
+arithmetic: the in-tune band is ±1.5°, an arc of roughly seven pixels, so a wedge
+that size is invisible and a visible one would lie about the tolerance. The target
+is carried by three things instead — the twelve labels (always visible, at their
+segment centres), the active segment's centre tick in the tuning-state colour, and
+the active label taking that colour and bold weight. Tolerance stays where FR-160
+puts it: in the colour, and in the cents readout FR-168 keeps on screen.
 
 ---
 
