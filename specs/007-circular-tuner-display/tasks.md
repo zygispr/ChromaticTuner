@@ -481,15 +481,65 @@ touches the microphone.
 **Independent test**: change the setting, close and reopen the app, confirm the chosen display returns;
 press Reset to defaults and confirm the line comes back. V58, V59, V64, V65.
 
-- [ ] T035 [P] [US2] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for **FR-149** and V58 — a profile with no stored record shows the **line**, and the Settings group shows **Line** selected.
-- [ ] T036 [P] [US2] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for **FR-152**, **G20** and V59 — switch displays while a reading is live and assert capture is uninterrupted: no permission prompt, `start` called exactly once, `stop` never called, and the cents readout never blanks.
-- [ ] T037 [P] [US2] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for the upgrade path (**G18**, V64) — seed `localStorage` with a pre-007 record of `{ a4Hz: 432, accidentalStyle: 'flat', appearance: 'dark', schemaVersion: 1 }`, reload, and assert 432 Hz, flats, dark **and** the line, with every field preserved.
-- [ ] T038 [P] [US2] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for the garbage path (**G16**, **G17**) — the same record with `tunerDisplay: 'circle'` loads as the line with 432/flat/dark still intact.
-- [ ] T039 [P] [US2] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for reload persistence and reset (**FR-150**, V64) — select Dial, reload, assert the dial is present on the first painted frame with no flash of the line; then Reset to defaults and assert the line returns alongside 440/Sharps/Match device.
-- [ ] T040 [P] [US2] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for **FR-153** and V65 — with `localStorage.setItem` stubbed to throw, switching to Dial still switches the display and raises the existing `persistence-warning`.
-- [ ] T041 [US2] Make T035–T040 pass. Expect most of them to pass on the Phase 2 plumbing alone; record in this file which ones needed new code and which were inherited, because "inherited" is the claim [research D9](./research.md) makes and it should be checked rather than assumed.
+- [X] T035 [P] [US2] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for **FR-149** and V58 — a profile with no stored record shows the **line**, and the Settings group shows **Line** selected.
+- [X] T036 [P] [US2] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for **FR-152**, **G20** and V59 — switch displays while a reading is live and assert capture is uninterrupted: no permission prompt, `start` called exactly once, `stop` never called, and the cents readout never blanks.
+- [X] T037 [P] [US2] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for the upgrade path (**G18**, V64) — seed `localStorage` with a pre-007 record of `{ a4Hz: 432, accidentalStyle: 'flat', appearance: 'dark', schemaVersion: 1 }`, reload, and assert 432 Hz, flats, dark **and** the line, with every field preserved.
+- [X] T038 [P] [US2] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for the garbage path (**G16**, **G17**) — the same record with `tunerDisplay: 'circle'` loads as the line with 432/flat/dark still intact.
+- [X] T039 [P] [US2] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for reload persistence and reset (**FR-150**, V64) — select Dial, reload, assert the dial is present on the first painted frame with no flash of the line; then Reset to defaults and assert the line returns alongside 440/Sharps/Match device.
+- [X] T040 [P] [US2] Write a failing e2e test in `apps/web/e2e/dial.spec.ts` for **FR-153** and V65 — with `localStorage.setItem` stubbed to throw, switching to Dial still switches the display and raises the existing `persistence-warning`.
+- [X] T041 [US2] Make T035–T040 pass. Expect most of them to pass on the Phase 2 plumbing alone; record in this file which ones needed new code and which were inherited, because "inherited" is the claim [research D9](./research.md) makes and it should be checked rather than assumed.
 
-**Checkpoint**: US2 independently verifiable. V58, V59, V64, V65 pass.
+**Checkpoint**: US2 independently verifiable. V58, V59, V64, V65 pass. ✅ (2026-08-12)
+
+| Gate | After Phase 7 | After Phase 4 |
+| --- | --- | --- |
+| `pnpm test:e2e` | 183 | **189** (+6) |
+| `pnpm test` | 517 | 517, unchanged |
+| `pnpm lint`, `format:check`, `typecheck` | pass | pass |
+
+### T041 — every one of the six was inherited, and that is the finding
+
+**Not one line of `src/` changed in this phase.** All six passed on the Phase 2 plumbing at their first
+run, which is research **D9**'s claim — a fourth field in one JSON blob inherits repair, persistence,
+reset and the not-saved warning for free — checked rather than assumed.
+
+**Which is exactly the situation Principle III warns about.** Six tests that have never been observed
+failing are six tests that might assert nothing at all, so each was run against a deliberately broken
+build. Three mutations, all reverted with an empty `git diff`:
+
+| Mutation | Models | Result |
+| --- | --- | --- |
+| `DEFAULT_PREFERENCES.tunerDisplay = 'dial'` | the default protecting existing players is wrong | **4 failed** — T035, T037, T038 and the reset half of T039 |
+| the repair clause replaced by a pass-through (`tunerDisplay ?? default`, no `isTunerDisplay`) | **G16** never implemented | **1 failed** — T038, and only on the assertion added below |
+| `stop(); start();` in `TunerGate`'s effect, keyed on `tunerDisplay` | a display switch rebuilding the audio source | **1 failed** — T036, `getUserMedia` **8** rather than 1 |
+
+**The second mutation found a hole in T038 and it is worth keeping.** As first written, the garbage-path
+test could not see a missing validation at all: `TunerDisplay` renders the dial for the exact string
+`'dial'` and the line for *everything else*, so `'circle'` passed straight through draws precisely the
+same screen as `'circle'` repaired to `'line'`. Every assertion about the tuner passes either way. The
+two only part company in Settings, where the repaired value selects **Line** and the raw one selects
+neither — so the test now asserts `aria-pressed` there. Without that line the mutation ran green.
+
+**A test-only defect found by the first run, worth recording because it reads as a product bug.** T036
+samples the note label on an interval to prove the readout never blanks across a switch. Sampling
+starts at document start, so the buffer already held **five** placeholder samples from before the first
+reading ever arrived, and the test failed a correct build saying *"the readout blanked while the
+display was switched"*. Confirmed by probing the indexes — all five were samples 0–4, and
+`waitForNote` returned at sample 6. The window now opens after the first reading. This is the third
+time this feature has produced a test that accused correct code; all three were arithmetic or timing in
+the test, never the app.
+
+**Two assertions in T036 that are not obvious**: capture is proved by wrapping `getUserMedia` and every
+track's `stop` before any page script runs, because "uninterrupted" is a claim about the stream rather
+than the picture — a source torn down and rebuilt redraws faster than any assertion could see, and the
+only tell is a second `getUserMedia`. And the 150ms pause after each of the seven switches is not
+padding: without it the loop passes through the sampler in a handful of ticks, and "the readout never
+blanked" would be a claim about almost no observation.
+
+**T039's "no flash of the line" is asserted from a `MutationObserver` installed before any page
+script**, for the same reason FR-120 puts appearance on the first painted frame: a build that mounts the
+default and corrects itself once preferences load is indistinguishable from a correct one by the time
+any ordinary assertion could run.
 
 ---
 
