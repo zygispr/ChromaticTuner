@@ -85,6 +85,78 @@ test('draws a boundary tick between every pair of segments (FR-154)', async ({ p
 });
 
 /**
+ * The dial takes no pointer events, anywhere, ever.
+ *
+ * **Reported by the maintainer**: with the dial selected, the settings badge was
+ * clickable only at its two extreme ends.
+ *
+ * The cause is geometric and worth stating, because nothing about the dial's
+ * appearance suggests it. The ticks, the target and the needle are each drawn by
+ * an `inset: 0` wrapper — a square the full size of the dial — which is then
+ * rotated (G21: the transform must go on a dial-sized concentric element, never
+ * on the mark itself). A rotated square hit-tests over its rotated area, which
+ * pokes out of the dial's own box by up to `((√2 − 1) / 2) × size` — 101px on a
+ * 489px dial, at the 45° ticks. Those corners are transparent and paint nothing,
+ * so the overhang is invisible; it is only detectable by asking what is on top.
+ *
+ * It was latent in Phase 3 and Phase 7 exposed it: at a 320px dial the overhang
+ * was 66px and the note name and cents readout sat between the badge and the
+ * dial, absorbing all of it. Moving them into the hub (FR-168) put the badge
+ * 24px from the dial's edge.
+ *
+ * Asserted by hit-testing rather than only by clicking, so a failure says which
+ * element is on top instead of "click timed out".
+ */
+for (const control of ['reference-badge', 'microphone-toggle']) {
+  test(`the dial does not swallow clicks meant for the ${control}`, async ({ page }) => {
+    test.setTimeout(60_000);
+    await useDial(page);
+    await page.goto('/');
+    await waitForNote(page, 'D');
+
+    const blockers = await page.evaluate((testId) => {
+      const target = document.querySelector(`[data-testid="${testId}"]`);
+      if (!target) return ['the control is not on the page'];
+
+      const rect = target.getBoundingClientRect();
+      const found = new Set<string>();
+
+      // A grid across the whole control, not just its centre: the reported
+      // symptom was that the MIDDLE was dead while the ends still worked.
+      for (let i = 1; i < 10; i += 1) {
+        for (let j = 1; j < 4; j += 1) {
+          const hit = document.elementFromPoint(
+            rect.left + (rect.width * i) / 10,
+            rect.top + (rect.height * j) / 4
+          );
+          if (!hit || !target.contains(hit)) {
+            found.add(hit ? (hit.getAttribute('data-testid') ?? hit.tagName) : 'nothing');
+          }
+        }
+      }
+
+      return [...found];
+    }, control);
+
+    expect(blockers, `${control} is covered by ${blockers.join(', ')}`).toEqual([]);
+  });
+}
+
+test('the settings sheet opens from the badge with the dial selected (FR-022)', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await useDial(page);
+  await page.goto('/');
+  await waitForNote(page, 'D');
+
+  // The symptom as a player meets it. Playwright's actionability check makes
+  // this fail with an interception message rather than a silent no-op.
+  await page.getByTestId('reference-badge').click();
+  await expect(page.getByTestId('settings-sheet')).toBeVisible();
+});
+
+/**
  * V69 / FR-018 — the whole tuner fits without scrolling.
  *
  * Reported against the built dial: the microphone control was pushed off the
@@ -100,8 +172,14 @@ test('draws a boundary tick between every pair of segments (FR-154)', async ({ p
  * 622px is the height at which the LINE's column stops fitting, so it is the
  * bar the dial has to clear: whatever the viewport, choosing the dial must
  * never cost a player a control the line would have left on screen.
+ *
+ * **Re-baselined in Phase 7.** The note name and the cents readout moved into
+ * the hub, so the chrome these cases are measured against fell from 526px to
+ * 318px and the dial's cap rose. The heights are unchanged and 560 was added:
+ * the fit is the requirement, and it has to hold across a bigger dial rather
+ * than because of a smaller one.
  */
-for (const height of [900, 800, 700, 640]) {
+for (const height of [900, 800, 700, 640, 560]) {
   test(`fits the viewport at ${height}px, control and all (FR-018)`, async ({ page }) => {
     test.setTimeout(60_000);
     await page.setViewportSize({ width: 900, height });

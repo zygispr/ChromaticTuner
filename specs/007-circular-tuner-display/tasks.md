@@ -536,6 +536,164 @@ the segment labels, their order, and the needle angle match. V58/V59/V63/V64 on 
 
 ---
 
+## Phase 7: The hub, and the needle that would not go away
+
+Both items **reported by the maintainer against the running Phase 3 build**, on the same viewing. The
+first is a defect against a requirement that was written correctly and built halfway; the second is a
+design change the maintainer approved before any of it was written.
+
+### Defect 2 — the lapsed needle never faded
+
+**FR-162 has always read "hold its last angle _and visibly fade_".** The built dial holds the angle and
+takes the `noReading` colour, and there the sentence stopped being implemented. A player who damps a
+string is left with a grey needle aimed squarely at a note that is no longer sounding — indefinitely,
+because the dial deliberately has no rest position to return to.
+
+**Three things conspired to make it look finished**, and all three are worth writing down:
+
+1. `contracts/tuner-display.md` **G22** said "the lapsed needle changes colour to `noReading`; it is
+   not dimmed" — a clause written to forbid an opacity multiplier that ended up forbidding the fade
+   the FR asked for. A guarantee that rules out one failure mode must not mandate another.
+2. `dial-rest.spec.ts` pinned it: `expect(Number(opacity)).toBe(1)` after a lapse. A green test over a
+   half-built requirement.
+3. The needle's colour genuinely does change, so a screenshot pair at the lapse edge shows something
+   happening. It is only watching the app for a few seconds that shows it is the wrong something.
+
+**Fix**: on the lapse edge the wrapper's opacity goes to 0 and the next valid reading puts it back to
+1, both written imperatively from the continuous channel beside the angle — no React state on either
+path (**R1**). The angle ref is untouched, so the needle fades back in where it left rather than
+sweeping from anywhere (**FR-162b**). No new timer: the edge is the same lapse that returns the line's
+marker to rest, which is what makes "at the same time as the line" (**FR-162a**) true by construction
+rather than by two durations that happen to match.
+
+- [X] T060 Amend **FR-162** and add **FR-162a**/**FR-162b** to `spec.md`; add **SC-072**; rewrite
+      **G22** in `contracts/tuner-display.md` to permit a fade to exactly zero and record why its old
+      wording shipped a defect; add **G27**.
+- [X] T061 Rewrite the second case in `apps/web/e2e/dial-rest.spec.ts` — it asserted the defect. The
+      angle-holding case above it is unchanged and still guards **FR-162**'s first half. Add the
+      resume case (**FR-162b**) and an effective-opacity helper that multiplies wrapper by needle, so
+      "invisible" cannot be faked by moving the alpha between the two elements.
+- [X] T062 Implement the fade in `apps/web/src/components/molecules/TuningDial.tsx`.
+
+### The hub — the note name and the cents readout move inside the dial
+
+**Reported as "the dial tuner is too small".** It is: the dial is capped by `calc(100dvh - 526px)`, and
+208px of that chrome is the note label (128), the cents readout (32) and their two `space.lg` gaps.
+Those two rows are what the player looks at anyway, so they move to the centre of the circle and the
+circle takes the room back — `COLUMN_CHROME_PX` 526 → **318**, cap 320 → **464**.
+
+**464 is derived, not chosen.** It is the smallest dial whose hub holds the note name at the full
+`type.noteSize` of 128px, so the largest element on the screen never gets smaller than the horizontal
+display already draws it (**G26**). Below that the note scales with the dial via container units, and
+`27cqw` is likewise arithmetic rather than taste: the hub is a circle, so the constraint is the text
+block's **half-diagonal** against the hub radius, not its width.
+
+The needle gives up the centre and becomes an outer band, which forces the whole face onto fractions of
+the radius (**G25**) — including the label ring and the ticks, which move outward to leave the band
+contiguous. That also settles the question **Defect 1 carried forward to T053**: the labels now scale
+with the dial instead of crowding at 640px.
+
+- [X] T063 Amend **FR-157**, **FR-168**; add **FR-169**, **FR-170**, **SC-073**, the *face rings*
+      entity and two assumptions; add **G25** and **G26**, and the note on **G24** that the hub changes
+      nothing for assistive technology because both atoms are already `aria-hidden`.
+- [X] T064 Write the failing geometry cases in `apps/web/e2e/dial-hub.spec.ts` — the hub text's
+      measured box inside the hub circle, clear of the needle band, at several viewport heights; the
+      dial measurably larger than the 320 cap; the note never larger than `type.noteSize`. Measured
+      boxes, never computed styles: a `clamp()` that computes correctly and a text block that overflows
+      its circle are the same computed style.
+- [X] T065 Give `NoteLabel` and `CentsReadout` an optional size; add the `hub` prop to `TuningDial`;
+      convert the face to fractional radii with `container-type: inline-size`; re-baseline
+      `COLUMN_CHROME_PX` and the cap; route the atoms from `TunerDisplay`.
+- [X] T066 Re-baseline the four `fits the viewport` cases in `dial.spec.ts` against the new chrome, and
+      add the shortest supported viewport to them — the old numbers were computed from 526.
+- [ ] T067 **Mobile inherits this, and is unbuilt.** Phase 5 builds the dial with the hub and the fade
+      from the start; T042–T048 predate both and describe the centre-pivot needle. Read this section
+      before starting them.
+
+### Defect 3 — the dial swallowed the settings badge's clicks
+
+**Reported by the maintainer against the Phase 7 build**: with the dial selected, the settings badge
+was clickable only at its two extreme ends.
+
+Measured at a 489px dial: **25 of 27** points sampled across the badge hit a `dial-tick` rather than
+the badge. The microphone control, 152px below the dial, was clear — with 51px to spare.
+
+**Root cause is geometric, and invisible in a screenshot.** Every rotated mark — the twelve ticks, the
+target, the needle — is drawn by an `inset: 0` wrapper, a square the size of the whole dial, which is
+then rotated, because **G21** requires the transform to go on a dial-sized concentric element rather
+than on the mark itself. A rotated square hit-tests over its **rotated** area, which overhangs the
+dial's own box by up to `((√2 − 1) / 2) × size` = 101px at the 45° ticks. Those corners are
+transparent and paint nothing, so nothing on screen suggests the dial reaches a hand's width past its
+own rim.
+
+**Latent since Phase 3; Phase 7 exposed it rather than caused it.** At a 320px dial the overhang was
+66px, and the note name and the cents readout stood between the badge and the dial and absorbed all of
+it. Moving them into the hub (**FR-168**) left the badge 24px from the dial's edge. The overhang also
+grew with the dial. Note what this means for the future: it is a function of the dial's SIZE, so the
+microphone control's 51px of clearance is not a safety margin anyone should rely on.
+
+**Fix**: `pointer-events: none` on the dial's root, inherited by every mark inside it. Preferred to
+`overflow: hidden`, which would also clip the reach but would describe the dial as a viewport when what
+is true is that it is decoration — the same thing `aria-hidden` already says to a different audience.
+The `pointer-events: none` that the hub carried is removed; it was half of this rule, applied to the
+one part of the dial that was never the problem.
+
+- [X] T068 Write the failing cases in `dial.spec.ts` — hit-test a grid across the reference badge and
+      the microphone control and assert nothing outside them is on top, plus one case that clicks the
+      badge and opens the sheet. Hit-testing rather than clicking alone, so a failure names the element
+      that is covering the control instead of reporting a timeout. Both failed as reported; Playwright's
+      own message read `<div data-testid="dial-tick"> … intercepts pointer events`.
+- [X] T069 Add `pointer-events: none` to the dial root; add **G24a** to the contract.
+
+### Phase 7 results
+
+**Gates**: `lint` ✓ · `format:check` ✓ · `typecheck` ✓ (5 projects) · `test` ✓ 517 in 21 files ·
+`test:coverage` ✓ 98.56 / 95.32 / 100 · `test:e2e` ✓ **183** (was 173: +4 hub geometry, +2 fade,
++1 viewport height, +3 pointer events) · mobile `test` ✓ 122 · `build` ✓.
+
+**The defect was observed failing before the fix**, per Principle III. With the opacity write removed,
+`dial-rest.spec.ts` reports `timed out waiting for the needle to fade out after the tone stopped; last
+effective needle opacity was 1.000` — which is the reported defect, in the failure message.
+
+**Performance (Principle V)** — the dial's own render loop, which this changes twice: the dial is 1.7×
+wider, and one extra style write joins the angle on every frame. Same instrument as T003, `useDial`
+seeded, 20 s each:
+
+| | p50 | p95 | max |
+| --- | --- | --- | --- |
+| before (Phase 3 dial) | 8.3 ms | 9.1 / 9.2 ms | 9.4–9.8 ms |
+| after | 8.3 ms | 9.1 ms | 10.6–11.1 ms |
+
+No regression in p50 or p95 against budgets of 17.5 / 33.4 ms. The larger `max` is within the run-to-run
+spread T003 already recorded, which is why that baseline says to compare p50 and p95 rather than `max`.
+
+**Two test-robustness defects found by running the new specs under `--repeat-each`**, both in
+assertions that were correct on a quiet machine and wrong under load. Recorded because they are the
+same species as the ones already in this file:
+
+1. **The poll bound and the assertion bound must be the same number.** The fade case polled for
+   `opacity > 0.99` and then asserted `toBeCloseTo(1, 2)`, so it returned mid-fade at 0.9935 and
+   rejected what it had just accepted. `marker-rest.spec.ts` carries this exact lesson for the marker's
+   travel; the new file re-learned it. Both are now `=== 1` and `=== 0`.
+2. **`holds the last angle` compared two samples three seconds apart at five decimal places.** The
+   needle tracks a live signal for the whole of that stretch, so the assertion was bit-identity across
+   a window in which the needle is *supposed* to move; it passed only because the fixture is steady.
+   Under load one final reading landed between the samples and moved it 0.03°. It now samples the last
+   angle held before the readout blanks, and allows 1° — ~3 cents, against a failure mode that moves
+   the needle by tens of degrees.
+
+**One design decision taken against the screenshot rather than in advance.** Confined to the outer
+face, the needle at its old fixed 6px read as a dash rather than the dominant mark FR-021 asks for, so
+it is the one stroke on the dial with a proportional width (`max(6px, 1.7cqw)`), and it runs out to
+0.96R — into the tick ring — instead of stopping at 0.93R.
+
+**Screenshots**: `after-web-dial-{light,dark}.png`, same fixture, viewport and route as T004's
+baselines, so the states are comparable (E2, in tune). Mobile is unbuilt; see T067.
+
+**Checkpoint**: the needle disappears when the string stops, and the dial is ~1.8× the area it was.
+
+---
+
 ## Dependencies
 
 ```text

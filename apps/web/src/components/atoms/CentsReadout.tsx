@@ -7,6 +7,12 @@ export interface CentsReadoutProps {
   /** Latest discrete snapshot; null when there is no reading. */
   readonly cents: number | null;
   readonly subscribeToCents: (handler: (cents: number | null) => void) => () => void;
+  /**
+   * Any CSS length, as {@link NoteLabelProps.size}. The dial passes a
+   * container-relative expression so the readout scales with the circle it sits
+   * inside (FR-169).
+   */
+  readonly size?: string;
 }
 
 /**
@@ -39,7 +45,11 @@ function format(cents: number): string {
  * reading "-5" beside a marker parked at the far end of the line. React still
  * owns the no-reading case, which is genuinely discrete.
  */
-export function CentsReadout({ cents, subscribeToCents }: CentsReadoutProps) {
+export function CentsReadout({
+  cents,
+  subscribeToCents,
+  size = `${type.centsSize}px`,
+}: CentsReadoutProps) {
   const valueRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
@@ -78,16 +88,17 @@ export function CentsReadout({ cents, subscribeToCents }: CentsReadoutProps) {
       aria-hidden="true"
       style={{
         color: themedVar('text'),
-        fontSize: `${type.centsSize}px`,
+        fontSize: size,
         fontWeight: type.weightMedium,
         fontVariantNumeric: 'tabular-nums',
         textAlign: 'center',
       }}
     >
       <span ref={valueRef}>{cents === null ? PLACEHOLDER : format(cents)}</span>
-      {cents !== null && (
-        <span style={{ fontSize: `${type.labelSize}px`, opacity: 0.7 }}> cents</span>
-      )}
+      {/* `0.5em`, which is exactly the 16-of-32 the two tokens already stood in,
+          so the unit scales with the number instead of staying 16px inside a
+          dial that has shrunk the digits to 12. */}
+      {cents !== null && <span style={{ fontSize: '0.5em', opacity: 0.7 }}> cents</span>}
     </div>
   );
 }

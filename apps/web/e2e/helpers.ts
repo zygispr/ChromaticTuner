@@ -241,6 +241,190 @@ export async function needleAccumulatedDeg(page: Page): Promise<number | null> {
 }
 
 /**
+ * The needle's accumulated angle, once there IS one.
+ *
+ * `waitForNote` resolves on the note label, and the needle is one render plus
+ * one analysis hop behind it: the first reading sets the state that mounts the
+ * wrapper, and only the reading after that writes a transform to it. So there is
+ * a window of ~23ms in which the needle exists with no angle, and
+ * {@link needleAccumulatedDeg} correctly reports `null` throughout it.
+ *
+ * Reading the angle once, straight after `waitForNote`, lands inside that window
+ * whenever the machine is loaded enough to widen it — observed under
+ * `--repeat-each`, on code that was working perfectly. Polling is the fix; the
+ * requirement under test is that the angle is HELD, not when it first appears.
+ */
+export async function waitForNeedleAngle(page: Page, timeoutMs = 15_000): Promise<number> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const angle = await needleAccumulatedDeg(page);
+    if (angle !== null) return angle;
+    await page.waitForTimeout(50);
+  }
+
+  throw new Error('timed out waiting for the needle to be drawn with an angle');
+}
+
+/**
+ * How visible the needle actually is, in [0, 1].
+ *
+ * The PRODUCT of the wrapper's opacity and the needle's own, because either
+ * element can carry it and only their composite is what a player sees. Asserting
+ * on one alone is defeated by an implementation that puts the alpha on the
+ * other — which is not a hypothetical: the fade lives on the wrapper, beside the
+ * transform, while the colour lives on the needle, and the test that used to
+ * guard this read the needle's opacity alone.
+ *
+ * Returns `null` when no needle is drawn, so "invisible" and "absent" stay
+ * distinguishable — before the first reading of a session there is no needle at
+ * all (FR-163), which is a different state from a faded one.
+ */
+export async function needleEffectiveOpacity(page: Page): Promise<number | null> {
+  return page.evaluate(() => {
+    const wrapper = document.querySelector('[data-testid="dial-needle-wrapper"]');
+    const needle = document.querySelector('[data-testid="dial-needle"]');
+    if (!wrapper || !needle) return null;
+    return (
+      Number(getComputedStyle(wrapper).opacity) *
+      Number(getComputedStyle(needle as Element).opacity)
+    );
+  });
+}
+
+/**
+ * Poll {@link needleEffectiveOpacity} until it satisfies `predicate`.
+ *
+ * The fade runs over `motion.colorMs`, so a single read taken the instant the
+ * readout blanks legitimately catches the needle mid-fade. Polling for the bound
+ * the assertion then makes is what stops that being intermittent — the same
+ * lesson `marker-rest.spec.ts` records for the marker's travel.
+ */
+export async function waitForNeedleOpacity(
+  page: Page,
+  predicate: (opacity: number) => boolean,
+  what: string,
+  timeoutMs = 15_000
+): Promise<number> {
+  const deadline = Date.now() + timeoutMs;
+  let last: number | null = null;
+
+  while (Date.now() < deadline) {
+    last = await needleEffectiveOpacity(page);
+    if (last !== null && predicate(last)) return last;
+    await page.waitForTimeout(50);
+  }
+
+  throw new Error(
+    `timed out waiting for ${what}; last effective needle opacity was ${last === null ? 'no needle' : last.toFixed(3)}`
+  );
+}
+
+/**
+ * The dial's geometry and the hub text's box, read in ONE evaluate.
+ *
+ * One round-trip because these are compared against each other: the dial can be
+ * resized by anything between two separate reads, and a box from one layout
+ * measured against a circle from another is a comparison of nothing.
+ *
+ * Everything is returned in pixels relative to the dial's centre, which is the
+ * frame the geometry is specified in (G25).
+ */
+export async function hubGeometry(page: Page): Promise<{
+  radius: number;
+  blockHalfDiagonal: number;
+  labelInnerRadius: number;
+  labelOuterRadius: number;
+  needleInnerRadius: number;
+}> {
+  const geometry = await page.evaluate(() => {
+    const box = (testId: string) =>
+      document.querySelector(`[data-testid="${testId}"]`)?.getBoundingClientRect() ?? null;
+
+    const dial = box('tuning-dial');
+    const note = box('note-label');
+    const cents = box('cents-readout');
+    const needle = box('dial-needle');
+    if (!dial || !note || !cents) return null;
+
+    const cx = dial.x + dial.width / 2;
+    const cy = dial.y + dial.height / 2;
+
+    // The half-diagonal of a box about the dial's centre: the furthest any of
+    // its corners reaches. This is the number the hub radius has to beat,
+    // because the needle sweeps every angle and the hub is a circle — a text
+    // block can be narrower than the hub's DIAMETER and still poke out of it at
+    // the corners.
+    const halfDiagonal = (rect: DOMRect) =>
+      Math.max(
+        ...[
+          [rect.left, rect.top],
+          [rect.right, rect.top],
+          [rect.left, rect.bottom],
+          [rect.right, rect.bottom],
+        ].map(([x, y]) => Math.hypot(x! - cx, y! - cy))
+      );
+
+    /** Of a box's four corners, the one NEAREST the dial's centre. */
+    const nearestCorner = (rect: DOMRect) =>
+      Math.min(
+        ...[
+          [rect.left, rect.top],
+          [rect.right, rect.top],
+          [rect.left, rect.bottom],
+          [rect.right, rect.bottom],
+        ].map(([x, y]) => Math.hypot(x! - cx, y! - cy))
+      );
+
+    const union = new DOMRect(
+      Math.min(note.left, cents.left),
+      Math.min(note.top, cents.top),
+      Math.max(note.right, cents.right) - Math.min(note.left, cents.left),
+      Math.max(note.bottom, cents.bottom) - Math.min(note.top, cents.top)
+    );
+
+    // The labels ring the hub, so the band they occupy is the innermost corner
+    // of any of them to the outermost corner of any of them — measured across
+    // all twelve, because a single label cannot show a ring that is off centre.
+    const labels = [...document.querySelectorAll('[data-testid="dial-label"]')].map((el) =>
+      el.getBoundingClientRect()
+    );
+
+    /**
+     * The needle is the one ROTATED box here, and a rotated box cannot be
+     * measured by its corners: `getBoundingClientRect` returns an axis-aligned
+     * box that circumscribes it, whose nearest corner sits several pixels
+     * closer to the dial's centre than the needle itself ever gets. Measured, it
+     * understated the needle's inner end by 2.5px and reported an overlap with
+     * the labels that was not on the screen.
+     *
+     * Two exact quantities survive the rotation: the box's CENTRE, because a
+     * rectangle is centrally symmetric so its circumscribing box stays centred
+     * on it at every angle, and `offsetHeight`, which is a layout height and
+     * ignores transforms entirely. The needle lies along a radius, so its
+     * closest approach is the midpoint of its inner edge — the centre distance
+     * less half its length.
+     */
+    const needleElement = document.querySelector('[data-testid="dial-needle"]');
+    const needleInner = needle
+      ? Math.hypot(needle.x + needle.width / 2 - cx, needle.y + needle.height / 2 - cy) -
+        (needleElement as HTMLElement).offsetHeight / 2
+      : Number.POSITIVE_INFINITY;
+
+    return {
+      radius: dial.width / 2,
+      blockHalfDiagonal: halfDiagonal(union),
+      labelInnerRadius: labels.length ? Math.min(...labels.map(nearestCorner)) : Number.NaN,
+      labelOuterRadius: labels.length ? Math.max(...labels.map(halfDiagonal)) : Number.NaN,
+      needleInnerRadius: needleInner,
+    };
+  });
+
+  expect(geometry, 'the dial, the note label or the cents readout has no box').not.toBeNull();
+  return geometry!;
+}
+
+/**
  * Start with the dial already chosen, before the first paint.
  *
  * Seeded into storage rather than clicked through Settings: these specs are

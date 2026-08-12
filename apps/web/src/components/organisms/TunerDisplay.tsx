@@ -15,7 +15,7 @@ import { ReferenceBadge } from '../atoms/ReferenceBadge';
 import { ScreenReaderAnnouncer } from '../atoms/ScreenReaderAnnouncer';
 import { MicrophoneToggle } from '../molecules/MicrophoneToggle';
 import { StatusBanner, STATUS_SLOT_PX } from '../molecules/StatusBanner';
-import { TuningDial } from '../molecules/TuningDial';
+import { DIAL_CENTS_FONT_SIZE, DIAL_NOTE_FONT_SIZE, TuningDial } from '../molecules/TuningDial';
 import { TuningLine } from '../molecules/TuningLine';
 import { SettingsSheet } from './SettingsSheet';
 
@@ -77,13 +77,16 @@ export function TunerDisplay({ capturing, onToggleCapture }: TunerDisplayProps) 
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
-      <NoteLabel note={note} octave={octave} state={tuningState} />
-      <CentsReadout cents={cents} subscribeToCents={subscribeToCents} />
-
       {/* Two sibling displays and a ternary, not one parameterised meter: they
-          share a props shape and nothing else (research D1). Everything around
-          them is unchanged whichever is chosen, which is FR-168 — the dial adds
-          a channel rather than replacing the three that were already here. */}
+          share a props shape and nothing else (research D1). The dial adds a
+          channel rather than replacing the three that were already here, which
+          is FR-168 — but it does move two of them: the note name and the cents
+          readout are drawn in the middle of the circle, which is both where a
+          player is already looking and what leaves the circle room to be worth
+          looking at (FR-170).
+
+          The atoms are built once and placed differently rather than rendered
+          twice, so the two displays cannot drift apart in what they show. */}
       {tunerDisplay === 'dial' ? (
         <TuningDial
           state={tuningState}
@@ -94,9 +97,28 @@ export function TunerDisplay({ capturing, onToggleCapture }: TunerDisplayProps) 
           // where a frame of lag is invisible.
           activePitchClass={status.kind === 'reading' ? pitchClassOf(status.reading.midi) : null}
           subscribeToReading={subscribeToReading}
+          hub={
+            <>
+              <NoteLabel
+                note={note}
+                octave={octave}
+                state={tuningState}
+                size={DIAL_NOTE_FONT_SIZE}
+              />
+              <CentsReadout
+                cents={cents}
+                subscribeToCents={subscribeToCents}
+                size={DIAL_CENTS_FONT_SIZE}
+              />
+            </>
+          }
         />
       ) : (
-        <TuningLine state={tuningState} subscribeToCents={subscribeToCents} />
+        <>
+          <NoteLabel note={note} octave={octave} state={tuningState} />
+          <CentsReadout cents={cents} subscribeToCents={subscribeToCents} />
+          <TuningLine state={tuningState} subscribeToCents={subscribeToCents} />
+        </>
       )}
 
       <DirectionCue direction={direction} state={tuningState} />

@@ -93,24 +93,29 @@ A player who chose the dial on the web finds the phone app offers the same choic
 - **FR-154**: The circular display MUST divide a full circle into twelve segments of equal angular width, one for each note of the chromatic scale.
 - **FR-155**: The segments MUST be labelled with the note names in ascending pitch order, beginning with C centred at the top of the circle and proceeding clockwise.
 - **FR-156**: Segment labels MUST follow the user's accidental preference, so choosing flats renames the five accidental segments and leaves the seven naturals unchanged.
-- **FR-157**: A needle MUST extend from the centre of the circle outward, pointing at the pitch currently being heard.
+- **FR-157**: A needle MUST lie along a radius of the circle, pointing outward at the pitch currently being heard. It need not reach the centre: the centre carries the note name and the cents readout (FR-168), and the needle is drawn in the band between that text and the segment labels.
 - **FR-158**: The needle MUST point at the exact centre of a segment when the pitch heard is exactly that note, clockwise of centre when the pitch is sharp, and counter-clockwise of centre when it is flat, by an angle proportional to the deviation.
 - **FR-159**: The needle MUST move continuously with the pitch, including across segment boundaries, and MUST always take the shorter way around the circle between two angles.
 - **FR-160**: The circular display MUST indicate the in-tune state using the same tolerance, the same colours, and the same vocabulary as the horizontal display, so the two are one visual language.
 - **FR-161**: The circular display MUST mark the in-tune target visibly, as the horizontal display's in-tune zone does, so the player can see where the needle is aiming before it gets there.
-- **FR-162**: When a reading lapses, the needle MUST hold its last angle and visibly fade rather than move to a rest position that names a note.
+- **FR-162**: When a reading lapses, the needle MUST hold its last angle and fade out of sight entirely, rather than move to a rest position that names a note or remain visible pointing at a note that is no longer sounding.
+- **FR-162a**: The needle MUST begin to fade at the same moment the horizontal display's marker returns to rest — the single lapse edge both displays already receive — so neither display goes quiet before the other.
+- **FR-162b**: When a reading resumes, the needle MUST fade back in at the angle it faded out from, without travelling from any rest position.
 - **FR-163**: Before the first reading of a session, no needle MUST be drawn.
 - **FR-164**: The circular display MUST NOT introduce a spoken or otherwise announced channel of its own; the existing announcement of note, octave and status remains the single source for assistive technology.
 - **FR-165**: The circular display MUST honour the platform's reduced-motion preference by removing needle transition animation, not merely shortening it.
 - **FR-166**: The circular display MUST render correctly in both light and dark appearance, and MUST introduce no colour that the app does not already use.
 - **FR-167**: The needle, the segment divisions, and the in-tune marking MUST meet the 3:1 contrast floor for meaningful graphics as composited on screen, and the segment labels MUST meet the 4.5:1 floor for text.
-- **FR-168**: The large note name, the cents readout, and the direction cue MUST remain present and unchanged when the circular display is selected.
+- **FR-168**: The large note name, the cents readout, and the direction cue MUST all remain present when the circular display is selected, carrying exactly the same three redundant channels they carry beside the horizontal display. Their *placement* differs: the note name and the cents readout are drawn at the centre of the circle, and the direction cue stays below it.
+- **FR-169**: With the circular display selected, the note name and the cents readout MUST scale with the circle, so that the text block always fits clear of the needle whatever size the circle has been given, and MUST NOT exceed the size they are drawn at beside the horizontal display.
+- **FR-170**: The circle MUST be drawn as large as the space left by the rest of the screen allows, subject to FR-018's requirement that every control remains reachable without scrolling — the space freed by moving the note name and cents readout inside it belongs to the circle.
 
 ### Key Entities
 
 - **Tuner display preference**: Which of the two tuning displays the user has chosen — the horizontal line or the circle. One value per device, stored with the reference pitch, accidental style and appearance preference in the same record, defaulting to the horizontal line.
 - **Segment**: One of twelve equal angular slices of the circle, each standing for one note of the chromatic scale, with a label, an angular centre that means "in tune", and a boundary halfway to each neighbour.
 - **Needle angle**: The direction the needle points, derived from the note being heard and how far the pitch sits from it. Not a stored value — it is a rendering of the live reading.
+- **Face rings**: The circle's radial budget, shared out from the centre: the hub carrying the note name and cents readout, then the needle's band, then the segment labels, then the boundary ticks and the rim. Every boundary is a fraction of the radius rather than a fixed length, so the face is the same drawing at every size instead of one whose proportions drift as the circle shrinks.
 
 ## Success Criteria *(mandatory)*
 
@@ -125,6 +130,8 @@ A player who chose the dial on the web finds the phone app offers the same choic
 - **SC-069**: The chosen display survives closing and reopening the app on 100% of attempts where the device permits storage.
 - **SC-070**: The circular display is fully readable in greyscale — sharp, flat and in-tune are each distinguishable without colour.
 - **SC-071**: Both platforms present the circle with identical segment labels, identical segment order, and needle angles agreeing within 1 degree on the same input.
+- **SC-072**: Once a string has been damped, no part of the needle is visible on the screen within one second — the player is never left reading a pointer aimed at a note that stopped sounding.
+- **SC-073**: The note name and the cents readout never overlap the needle, the segment labels or the rim, at every viewport the app supports down to the shortest.
 
 ## Assumptions
 
@@ -135,6 +142,8 @@ A player who chose the dial on the web finds the phone app offers the same choic
 - **The display choice is per-device.** There is no account and no sync, and both remain out of scope, so choosing the dial in the browser does not change the phone.
 - **The choice lives in the existing settings record.** It is a fourth field beside reference pitch, accidental style and appearance, subject to the same repair-on-read behaviour that lets each field survive a corrupt neighbour.
 - **The circle is drawn with what the platforms already have.** No new drawing or charting dependency is assumed; adding one would need justification against the simplicity principle during planning.
+- **The lapse edge is the one the app already publishes.** "The same moment as the line" in FR-162a needs no new timer and no new duration: the reading filter already holds the last confident value for a fixed interval and then publishes a single lapse, which is what returns the marker to rest today. The needle's fade hangs off that same edge.
+- **The hub is what makes the circle bigger.** FR-170 is a consequence of FR-168's placement, not an independent wish: the note name and the cents readout are the tallest rows above the display, so moving them inside is what leaves the circle room to grow. The two requirements are worth stating separately because the second is the one a player notices.
 - **The existing screen-reader announcement is sufficient.** It already speaks note, octave and status on discrete change, and that is independent of which display is on screen.
 - **This does not touch pitch detection.** Nothing in the audio path, the reading filter chain, or the note maths changes; this is a second rendering of readings that already exist.
 - **Nothing on the out-of-scope list is implied.** The circle shows the chromatic scale because that is what the tuner detects — it is not a tuning preset, a string target, or a custom tuning, and it introduces no reference tone.
