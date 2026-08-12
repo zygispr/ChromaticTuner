@@ -550,7 +550,7 @@ any ordinary assertion could run.
 **Independent test**: put both apps on the same reference tone with the same preferences and confirm
 the segment labels, their order, and the needle angle match. V58/V59/V63/V64 on mobile, plus V70.
 
-- [X] T059 [US3] **Run this before T045.** Capture the deferred mobile half of T004 — "before"
+- [ ] T059 [US3] **Run this before T045.** Capture the deferred mobile half of T004 — "before"
   screenshots of the mobile tuner in light and dark on an iOS simulator, into
   `specs/007-circular-tuner-display/screenshots/` as `before-mobile-tuner-{light,dark}.png`. Deferred
   from Phase 1 deliberately: nothing before this phase changes what mobile draws, so the picture is the
@@ -563,10 +563,11 @@ the segment labels, their order, and the needle angle match. V58/V59/V63/V64 on 
 - [X] T045 [US3] Build `apps/mobile/src/components/molecules/TuningDial.tsx` with the same geometry as web — the needle's angle in a Reanimated shared value driven from `subscribeToReading`, animated with `withTiming` on the **wrapper**, and the unwrap accumulator in a ref beside it. Never route the angle through React state.
 - [X] T046 [US3] Render the dial or the line from `apps/mobile/src/components/organisms/TunerDisplay.tsx` with the same ternary as web.
 - [X] T047 [US3] Add the **Tuning display** group to `apps/mobile/src/components/screens/SettingsScreen.tsx`, with the option list in the same order and the same words as `SettingsSheet.tsx`. Both vocabularies are hand-maintained copies, which is exactly how the platforms drift — assert the pairing, as the appearance options already are.
-- [ ] T048 [US3] Verify SC-071 by hand — both apps on one steady tone with matching preferences; segment labels, order, and needle angle agree within 1°. Record the comparison in this file. **Blocked on one human tap; see below.**
+- [X] T048 [US3] Verify SC-071 by hand — both apps on one steady tone with matching preferences; segment labels, order, and needle angle agree within 1°. Record the comparison in this file. **Done — measured, see below.**
 
-**Checkpoint**: all three stories complete on both platforms. Code and tests ✅ (2026-08-12); the
-by-hand comparison in T048 is outstanding.
+**Checkpoint**: all three stories complete on both platforms ✅ (2026-08-12). SC-071 measured at 0.42°
+against a 1° tolerance (T048). **T059 is unchecked again** — what it captured was a different app; see
+below.
 
 | Gate | After Phase 4 | After Phase 5 |
 | --- | --- | --- |
@@ -575,19 +576,44 @@ by-hand comparison in T048 is outstanding.
 | `pnpm test:e2e` | 189 | 189, unchanged |
 | `pnpm lint`, `format:check`, `typecheck` | pass | pass |
 
-### T059 — the deferred mobile baseline, captured
+### T059 — WITHDRAWN: the screenshots were of a different app
 
-`before-mobile-tuner-{light,dark}.png`, iPhone 17 Pro simulator, iOS 26.5, taken **before** any of
-T045–T047 existed in the running bundle.
+**The files committed for this task have been deleted, and the task is unchecked again.** They were
+captured from `com.chromatictuner.app` — an app installed on this simulator on **5 August**, before
+this feature branch existed. This project's identifier is `pro.chromatictuner.app`, derived from
+`listing/store-listing.json` by `app.config.ts` (`004`). Both were installed side by side, and every
+`xcrun simctl` command aimed at the wrong one.
 
-**They are not reproducible, and T004 predicted exactly why.** The simulator has no fake-audio device,
-so it captures the room through the Mac's microphone: both shots show a live reading of **A4 +6 cents**
-that nothing in this repo chose. The appearance is switched with `xcrun simctl ui booted appearance`
-rather than through the app's own sheet — legitimate here, because the stored preference is `'system'`
-on a fresh install, so the device setting is what the app is following.
+**Everything strange about the Phase 5 capture session was this, and only this:**
 
-**T052's mobile comparison must therefore be structural, not a pixel diff**, which is what T004 already
-recorded and this run confirms.
+| Symptom | What it actually was |
+| --- | --- |
+| the dial never appeared, however the preference was seeded | the old app has no dial — 007 did not exist when it was built |
+| `a4Hz: 432` was honoured from the same record | the old app has supported the reference pitch since `001` |
+| the microphone explainer would not clear | a separate install with its own TCC state |
+| the "before" shots showed a live reading of A4 +6 cents | not the room, as recorded here — that is exactly
+`CaptureAudioSource`'s synthetic tone, so the Aug 5 build was itself a capture build from `004` |
+
+**The claim in the withdrawn note that those shots captured the room through the Mac's microphone was
+wrong**, and it was wrong in the direction that flatters the result: it explained an odd reading
+instead of asking why an app with no dial was ignoring `tunerDisplay`. An hour went into "the dev
+client is caching its bundle" — which is a real hazard, and was not this one.
+
+**What to do instead of re-taking a "before".** The pre-007 mobile app is two commits back on this
+branch and rebuilding it costs a full Xcode cycle for a picture of a display Phase 5 does not change.
+`after-mobile-line-{light,dark}.png` is captured from the CURRENT build with `tunerDisplay: 'line'`
+seeded, which is the thing T052 actually needs to judge: that choosing the dial changed nothing about
+the line. Compare those against `005`'s mobile shots structurally, as T004 already concluded the mobile
+half must be.
+
+**Verify the identifier before trusting a simulator screenshot:**
+
+```
+xcrun simctl listapps booted | grep chromatic     # more than one is the trap
+strings "$(xcrun simctl get_app_container booted <id> app)/main.jsbundle" | grep -c tunerDisplay
+```
+
+A bundle with zero hits for the feature under test is not the app under test.
 
 ### T042–T047 — the mobile dial, built from the CORRECTED requirement
 
@@ -634,34 +660,41 @@ concentric wrapper produces an identical tree), cannot measure contrast, and can
 hub text fits inside the hub. The test asserts only that the needle carries no rotation of its own. The
 screenshot in T052 is the other half of that gate.
 
-### T048 — blocked on one tap, and worth stating precisely
+### T048 — SC-071 verified, and measured rather than eyeballed
 
-The comparison needs the mobile dial on screen with a live reading. Everything up to that point is
-automatable and was done — the app builds, launches, and reads a seeded preference — but the last step
-is not:
+**Both platforms given the identical input**: `CaptureAudioSource`'s tone, 440 x 2^(6/1200) =
+**441.528 Hz**, generated as a WAV for Chromium's fake microphone so the web is fed the same signal the
+phone generates internally. Both read **A4, +6 cents**, both flat-side-down with the same twelve labels
+clockwise from C.
 
-- **The simulator will not skip the microphone explainer.** `useMicrophonePermission` asks
-  `AudioManager.checkRecordingPermissions()`, which reports `Undetermined` however `xcrun simctl
-  privacy booted grant microphone` (and `grant all`) is applied, before or after install, and across a
-  full simulator shutdown/boot cycle. It appears to read `AVAudioApplication.recordPermission`, which
-  the simulator only populates once the app has genuinely requested it. So the explainer stands, and
-  clearing it needs a real tap on "Use the microphone".
-- **Synthetic clicks were tried and abandoned.** `xcrun simctl` has no tap command; driving the
-  Simulator through System Events means clicking at global screen coordinates, and the first attempt
-  landed in an unrelated application's window. That is not a safe thing to do to someone's desktop for
-  a screenshot, and it was stopped there rather than tuned.
+| | needle angle | instrument |
+| --- | --- | --- |
+| theory | 271.80° | `9 x 30 + 6 x 0.3` |
+| web | **271.80°** | `helpers.ts:needleAngleDeg`, median of 15 rendered-box samples |
+| mobile | **271.38°** | centroid of the needle's pixels in the simulator screenshot |
+| difference | **0.42°** | against SC-071's 1° |
 
-**What IS verified of SC-071 without the tap**, and it is the structural half:
+**The mobile instrument had to be built, and its first answer was wrong.** There is no rendered-box
+equivalent on this side, so the needle is measured from the screenshot: a minimal PNG decoder (no image
+library is installed), the dial located by its rim, and the needle isolated by colour and radius. The
+first version took the bounding box of every `line`-coloured pixel on the screen — which includes the
+reference badge, the microphone control and the tick marks — and put the centre 11px out, reporting
+**179°** for a needle plainly pointing left. Finding the circle by its **widest row**, then fitting the
+rim properly (8166 pixels, Kasa), is what made the number mean anything.
 
-- Both platforms take the needle's angle from the **same** `dialAngleDegrees`, asserted on each side;
-  a mobile dial that recomputed `pitchClass * 30 + cents * 0.3` locally would agree today and drift the
-  first time the shared function is corrected — which has already happened once, at **G6**.
-- The twelve labels are asserted against the same expected array on both platforms, in both accidental
-  spellings, in order.
-- Tick and target angles are asserted from `DIAL_SEGMENT_DEGREES` on both.
+**A D5 check that jest cannot do, for free.** A needle rotated about the dial's centre has ONE angle at
+every radius; one rotated about its own midpoint does not. Sliced radially:
 
-**What is not**: that the two draw the same needle at the same angle on a real screen. That is one tap
-plus a tone played to both apps, and it belongs with **T052**, which needs the same simulator session.
+| slice | 0.79–0.82R | 0.82–0.85R | 0.85–0.88R | 0.88–0.91R | 0.91–0.94R |
+| --- | --- | --- | --- | --- | --- |
+| angle | 271.36° | 271.39° | 271.40° | 271.18° | 270.69° |
+
+Constant to **0.04°** across the needle's own band, then drifting toward 270° exactly where the target
+mark — which sits at the segment centre, 270.00° — begins at 0.90R and mixes into the sample. That is
+the mobile pivot measured as concentric, which `dial-geometry.test.tsx` says outright it cannot see.
+
+**What is still not covered**: contrast, and the hub text's fit inside the hub, both of which need
+measurements this screenshot method does not attempt. They belong to T049 and T053.
 
 ### A note for whoever runs the simulator next
 
