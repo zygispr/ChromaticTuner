@@ -59,12 +59,124 @@ obligations rather than pretended into tests:
 **Purpose**: record the starting state and the two numbers Principle V will be measured against, before
 anything changes.
 
-- [ ] T001 Confirm all merge gates pass on a clean checkout of this branch and record the counts in this file — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e`, plus `pnpm --filter @chromatic-tuner/mobile test`. Note whether `pnpm verify:listing` is still red only for the missing Android screenshots it has been red for since `005`.
-- [ ] T002 [P] Audit the existing suites this feature can break and record the list in this file — `packages/core/tests/session.test.ts` (asserts `onReading` handler arguments and will fail on the third one), `packages/core/tests/preferences.test.ts` and `packages/core/tests/port-contracts.test.ts` (assert the exact stored record shape), `packages/react/tests/use-preferences.test.tsx`, `apps/web/e2e/settings.spec.ts` (a new group changes the sheet's control count and tab order — `006`'s focus trap counts focusables), `apps/web/e2e/a11y.spec.ts`, `apps/web/e2e/layout-stability.spec.ts`, `apps/mobile/__tests__/settings.test.tsx`, `apps/mobile/__tests__/settings-modality.test.tsx`
-- [ ] T003 [P] Record the "before" performance numbers for the horizontal line in this file — Chrome DevTools Performance trace over 30 s of continuous tuning on `apps/web`, reporting p95 frame time and dropped frames. Principle V requires before/after for a render-loop change, and "before" cannot be captured after the dial lands.
-- [ ] T004 [P] Capture "before" screenshots of the tuner in light and dark on both platforms into `specs/007-circular-tuner-display/screenshots/` — the line must be pixel-identical afterwards, since FR-149 promises a player who never opens Settings sees no change at all.
+- [X] T001 Confirm all merge gates pass on a clean checkout of this branch and record the counts in this file — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e`, plus `pnpm --filter @chromatic-tuner/mobile test`. Note whether `pnpm verify:listing` is still red only for the missing Android screenshots it has been red for since `005`.
+- [X] T002 [P] Audit the existing suites this feature can break and record the list in this file — `packages/core/tests/session.test.ts` (asserts `onReading` handler arguments and will fail on the third one), `packages/core/tests/preferences.test.ts` and `packages/core/tests/port-contracts.test.ts` (assert the exact stored record shape), `packages/react/tests/use-preferences.test.tsx`, `apps/web/e2e/settings.spec.ts` (a new group changes the sheet's control count and tab order — `006`'s focus trap counts focusables), `apps/web/e2e/a11y.spec.ts`, `apps/web/e2e/layout-stability.spec.ts`, `apps/mobile/__tests__/settings.test.tsx`, `apps/mobile/__tests__/settings-modality.test.tsx`
+- [X] T003 [P] Record the "before" performance numbers for the horizontal line in this file — Chrome DevTools Performance trace over 30 s of continuous tuning on `apps/web`, reporting p95 frame time and dropped frames. Principle V requires before/after for a render-loop change, and "before" cannot be captured after the dial lands.
+- [X] T004 [P] Capture "before" screenshots of the tuner in light and dark on both platforms into `specs/007-circular-tuner-display/screenshots/` — the line must be pixel-identical afterwards, since FR-149 promises a player who never opens Settings sees no change at all. **Web only; see the deviation under T004 below — the mobile half is carried to T059.**
 
-**Checkpoint**: baselines recorded, blast radius known.
+**Checkpoint**: baselines recorded, blast radius known. ✅ (2026-08-12)
+
+### T001 — baseline gate run (2026-08-12, clean tree at `d8907ac`)
+
+| Gate | Result |
+| --- | --- |
+| `pnpm lint` | pass, 0 warnings |
+| `pnpm format:check` | pass **after** the fix below |
+| `pnpm typecheck` | pass — 5 projects (`core`, `tokens`, `react`, `web`, `mobile`) |
+| `pnpm test` | **483 passed**, 20 files, 7.97 s (budget 60 s) |
+| `pnpm test:coverage` | 98.53% stmts / 95.23% branches / 97.40% funcs / **100% lines** — clears 90/90/85 |
+| `pnpm test:e2e` | **156 passed**, 48.1 s |
+| `pnpm --filter @chromatic-tuner/mobile test` | **121 passed**, 17 suites, 7.68 s |
+| `pnpm build` | pass — 239.00 kB js, gzip 75.89 kB |
+| `pnpm verify:listing` | **red, and red for exactly the reason it has been since `005`** |
+
+`verify:listing` reports 3 problems, all the same missing artefact: no
+`listing/assets/screenshots/android/{light,dark}/`, and therefore "android is missing a light
+screenshot". Everything else passes — 25 claim fields, 8 fields, 41 vocabulary strings, 7 claims × 2
+stores, 5 artwork scans, 7 derived identity values. **No new failure**, and no artwork drift.
+
+**Deviation — `format:check` was red on arrival, through no fault of the tree.** The Playwright and
+Chrome DevTools MCP browser tools write page snapshots and console logs to `.playwright-mcp/`, and the
+three `.yml` snapshots there failed `prettier --check`. That directory was untracked and unignored, so
+*any* session that drives the app through those tools turns a merge gate red. Fixed at the root rather
+than by deleting the files: `.playwright-mcp/` added to both `.prettierignore` and `.gitignore`. This
+is unrelated to the dial and would have bitten any future feature the same way.
+
+**Note — local Node is v24.14.0**, while CI pins Node 22 deliberately (research D1 of `004`: Node 22
+still lacks TypeScript type stripping, which is what justifies `listing/scripts/*.mjs` being
+JavaScript). Nothing in this phase depends on the difference, but a green local gate is not evidence
+about Node 22.
+
+### T002 — blast radius, and three corrections to this task list
+
+The audit found the task list itself wrong in three places. Recorded here and fixed in the tasks above.
+
+| Claim in the original task | What the code actually says |
+| --- | --- |
+| `session.test.ts` "will fail on the third one" | **Wrong, and dangerously so.** Its handlers are written `(cents, clarity) => …` and `(cents) => …` (`:168`, `:385`, `:511`, `:527`, `:542`). A function that accepts fewer parameters is assignable to a wider signature, so **every one of these keeps passing** when `ReadingHandler` gains `midi`. There is no arity failure to observe. T009 is reworded: the third argument is invisible to the existing suite and needs assertions written specifically for it — which is the "passes on a broken build" hazard in its purest form. |
+| `settings.spec.ts` asserts control count and tab order | **Wrong file.** `settings.spec.ts` contains no `Tab` assertions at all. The focus trap lives in `a11y.spec.ts` — `FOCUSABLE_SELECTOR` at `:561`, `sheetControls()` at `:564`, V52 at `:588`. T034 is retargeted. |
+| adding a group will break the focus-trap count | **It will not.** `sheetControls()` reads the list from the DOM on every use and asserts `length > 2` rather than `=== 8`; its own comment says this is "K5 applied to the test itself — the assertion keeps its meaning if the sheet ever gains or loses a control". `006` already paid for this. T034 becomes a confirmation, not a repair. |
+
+What genuinely breaks or needs attention:
+
+- **`packages/core/tests/preferences.test.ts`** — three whole-record `toEqual({…})` assertions
+  (`:72`, `:165`, `:260`). These **will** fail the moment `tunerDisplay` exists, which is correct and
+  wanted.
+- **`packages/core/tests/port-contracts.test.ts`** and the mobile/web adapter contract tests — same
+  exact-shape exposure through the shared suite.
+- **`packages/react/tests/use-preferences.test.tsx`** — publishes and asserts the preference surface.
+- **18 references to line-specific test ids** (`tuning-line`, `tuning-track`, `tuning-marker`,
+  `tuning-rule`, `in-tune-zone`) across **8** web e2e files: `helpers.ts`, `a11y.spec.ts`,
+  `appearance.spec.ts`, `fold.spec.ts`, `layout-stability.spec.ts`, `metadata.spec.ts`,
+  `performance.spec.ts`, `tuning-in-tune.spec.ts`. All keep passing because the line stays the
+  default — but each one silently encodes "the tuner draws a line", so any that is ever run with the
+  dial selected will fail. Two are load-bearing for this feature: `performance.spec.ts:38` observes
+  mutations on `[data-testid="tuning-track"]`, and `:161`/`:181` measure cold start by waiting for
+  `[data-testid="tuning-line"]`. **The dial needs its own versions of both**, or its render loop and
+  cold start go unmeasured.
+- **`apps/web/e2e/a11y.spec.ts:528`** reads `[data-testid="tuning-tick"]` for the composited tick
+  contrast — the pattern T049 must copy for the dial.
+- **Mobile**: `apps/mobile/__tests__/settings.test.tsx` and `settings-modality.test.tsx` enumerate the
+  settings screen.
+
+### T003 — "before" performance baseline
+
+**Deviation from the task as written, and an improvement on it.** The task called for a manual Chrome
+DevTools trace. The repo already owns a better instrument: `apps/web/e2e/performance.spec.ts` samples
+real presented frames through `requestAnimationFrame` across 20 s of live tuning against a fixture WAV,
+prints p50/p95/max, and is already a CI gate. A hand-driven DevTools trace would be less reproducible
+and would not be comparable to what T055 will run. Three consecutive runs, `e2-in-tune.wav`:
+
+| Run | p50 | p95 | max | cold start |
+| --- | --- | --- | --- | --- |
+| 1 | 8.3 ms | 9.1 ms | 10.5 ms | 276.5 ms |
+| 2 | 7.9 ms | 10.7 ms | **27.7 ms** | 294.1 ms |
+| 3 | 8.3 ms | 9.1 ms | 11.3 ms | 265.5 ms |
+
+**Baseline for T055: p50 ≈ 8.2 ms, p95 ≈ 9.1–10.7 ms, cold start ≈ 265–294 ms** against budgets of
+17.5 ms / 33.4 ms / 2000 ms. Run 2's 27.7 ms max is machine load, not the app — it is the reason three
+runs were taken rather than one, and it is why T055 must compare **p50 and p95**, not `max`. The
+appearance-switch measurement tracks the session number to within 0.1 ms, as expected.
+
+### T004 — "before" screenshots
+
+Captured four web shots into `specs/007-circular-tuner-display/screenshots/`:
+`before-web-tuner-{light,dark}.png` and `before-web-settings-{light,dark}.png` (the sheet is
+photographed too, since 007 adds a row to it).
+
+Driven by a throwaway Playwright script using the same fake-audio flags as
+`apps/web/e2e/helpers.ts:audioArgs`, replaying `e2-in-tune.wav` at a 1200×900 viewport, with appearance
+set through the app's own Settings sheet rather than by emulating `prefers-color-scheme`. **The
+resulting state is deterministic — E2, "+0 cents", in tune, marker centred — so T052's comparison can
+be a genuine pixel diff.** Reproduce with the same fixture, viewport and route.
+
+**Deviation — the mobile half is not captured, and one part of it cannot be.**
+
+- **Android is impossible on this machine**: there is no Android SDK (`~/Library/Android/sdk` absent).
+  This is the same gap that has kept `verify:listing` red since `005`, now confirmed as a machine
+  limitation rather than an oversight.
+- **iOS is possible but was deliberately deferred.** Xcode 26.6 and five iPhone simulators are
+  available and `apps/mobile/ios/` is already prebuilt. It was not run because (a) nothing before
+  Phase 5 changes what mobile draws — Phase 2 touches `packages/core` and `packages/react` but alters
+  no mobile rendering — so a baseline taken now and one taken before T045 are the same picture, and
+  (b) the simulator has no fake-audio device, so it captures the room rather than a fixture and the
+  shot is **not** reproducible the way the web ones are. That second point matters for T052: the
+  mobile comparison must be structural, not a pixel diff.
+- `005`'s `mobile-tuner-{light,dark}.png` cannot be reused as the baseline: three commits have changed
+  the mobile ruler since it was taken — `5f4bedd` (dimmed below the contrast floor), `ca8ca78` (a
+  different drawing from web), `38f4caa` (320 pt wide on every phone).
+
+Carried forward as **T059**, which must run before T045.
 
 ---
 
@@ -82,7 +194,7 @@ work starts until this phase is green.
 
 ### The reading channel (core)
 
-- [ ] T009 Write failing tests for the third argument in `packages/core/tests/session.test.ts` covering **G12** and **G13** — a live reading publishes `(cents, clarity, midi)` with the analyzer's MIDI number, and a withdrawal publishes `(null, 0, null)` exactly once on the edge. Update the existing two-argument assertions in the same file; they are expected to fail on arity and that failure is the point.
+- [ ] T009 Write failing tests for the third argument in `packages/core/tests/session.test.ts` covering **G12** and **G13** — a live reading publishes `(cents, clarity, midi)` with the analyzer's MIDI number, and a withdrawal publishes `(null, 0, null)` exactly once on the edge. **Corrected at T002**: the existing handlers are written `(cents, clarity) => …` and `(cents) => …`, and a narrower function stays assignable to a wider signature, so **every existing assertion in this file keeps passing whether `midi` is published correctly, published as `undefined`, or not published at all**. The suite is blind here by construction; only assertions written against the third parameter can see it. Capture the handler with a spy and assert `toHaveBeenCalledWith(cents, clarity, midi)` on the full argument list.
 - [ ] T010 Extend `ReadingHandler` to `(cents: number | null, clarity: number, midi: number | null) => void` in `packages/core/src/tuning/session.ts`, publish `reading.midi` from `handleFrames`, and publish `null` from `withdrawReading`. Do not restructure the channel into an object — see **G14** and the allocation hazard above.
 - [ ] T011 Run `pnpm vitest run packages/core/tests/allocation.test.ts` **unmodified** and record the result in this file (**G14**). If it needs editing to pass, the implementation is wrong.
 - [ ] T012 Confirm `TuningLine` still compiles and behaves on both platforms with its two-parameter handler untouched (**G15**) — `apps/web/e2e/marker-rest.spec.ts` and `apps/mobile/__tests__/marker-rest.test.tsx` are the ones that would notice.
@@ -126,7 +238,7 @@ the segment's exact centre. V60–V63.
 - [ ] T031 [US1] Run T024–T028. Deliberately verify the suite catches the D5 defect by temporarily moving the transform onto the needle element; confirm T025 fails, then revert. Record the observed failure in this file — this is the one check that proves the geometry tests measure geometry.
 - [ ] T032 [US1] Render the dial or the line from `apps/web/src/components/organisms/TunerDisplay.tsx` with a ternary on `tunerDisplay`. Two sibling components, no shared "meter" abstraction (research **D1**). `NoteLabel`, `CentsReadout` and `DirectionCue` stay exactly where they are (**FR-168**).
 - [ ] T033 [US1] Add the **Tuning display** group to `apps/web/src/components/organisms/SettingsSheet.tsx`, between Accidentals and Appearance, with **Line** and **Dial** buttons. Reuse the existing group treatment verbatim — `role="group"` + `aria-labelledby` (never fieldset/legend; Safari mis-lays-out the first layout), `aria-pressed`, the `selected` tint **fill** rather than a heavier `text` border, `flex: 1`, and `a11y.minTouchTarget`.
-- [ ] T034 [US1] Update `apps/web/e2e/settings.spec.ts` for the sheet's new control count and tab order, and confirm `006`'s focus trap still cycles correctly with two more focusables — it queries the focusable list on every keypress rather than caching at open, so this should hold; assert it rather than assume it.
+- [ ] T034 [US1] Confirm `006`'s focus trap still cycles correctly with two more focusables in the sheet. **Retargeted at T002**: the trap's tests are in `apps/web/e2e/a11y.spec.ts` (`FOCUSABLE_SELECTOR` `:561`, `sheetControls()` `:564`, V52 `:588`) — `settings.spec.ts` has no `Tab` assertions at all. `sheetControls()` already reads the list from the DOM on every use and asserts `length > 2` rather than a hard-coded 8, so this is expected to pass unchanged; run it and record that it did, rather than editing it.
 
 **Checkpoint**: US1 is independently shippable on web. V60–V63 pass.
 
@@ -159,6 +271,13 @@ press Reset to defaults and confirm the line comes back. V58, V59, V64, V65.
 **Independent test**: put both apps on the same reference tone with the same preferences and confirm
 the segment labels, their order, and the needle angle match. V58/V59/V63/V64 on mobile, plus V70.
 
+- [ ] T059 [US3] **Run this before T045.** Capture the deferred mobile half of T004 — "before"
+  screenshots of the mobile tuner in light and dark on an iOS simulator, into
+  `specs/007-circular-tuner-display/screenshots/` as `before-mobile-tuner-{light,dark}.png`. Deferred
+  from Phase 1 deliberately: nothing before this phase changes what mobile draws, so the picture is the
+  same either way. `005`'s mobile shots are **not** a usable baseline — `5f4bedd`, `ca8ca78` and
+  `38f4caa` each redrew the ruler after they were taken. Android cannot be captured on this machine at
+  all (no SDK), so its half of T052 stays a release-gate formality with nothing to compare.
 - [ ] T042 [P] [US3] Write failing tests in `apps/mobile/__tests__/dial-geometry.test.tsx` for the dial's structure — twelve labels in ascending order starting at C, twelve boundary ticks, and the needle's rotation derived from `dialAngleDegrees`. Model it on `apps/mobile/__tests__/ruler-geometry.test.tsx`, and note in the file that this cannot see **D5** (no layout engine).
 - [ ] T043 [P] [US3] Write a failing test in `apps/mobile/__tests__/settings.test.tsx` for the **Tuning display** group — present, labelled identically to web, two options in the same order, `accessibilityState.selected` on the chosen one, and `a11y.minTouchTarget` honoured.
 - [ ] T044 [P] [US3] Write a failing test in `apps/mobile/__tests__/dial-rest.test.tsx` for **FR-162**/**FR-163** on mobile, mirroring `apps/mobile/__tests__/marker-rest.test.tsx` — no needle before the first reading; hold angle and recolour on lapse.
