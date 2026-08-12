@@ -506,6 +506,62 @@ describe('SettingsScreen (T088)', () => {
       expect(style.minHeight).toBe(a11y.minTouchTarget);
     }
   });
+
+  /**
+   * User Story 3 on mobile (007, T043, FR-147, FR-148).
+   *
+   * The vocabulary is asserted rather than assumed, for the reason the
+   * appearance options above already are: two hand-maintained copies of one
+   * word list is exactly how the platforms drift apart, and a group that says
+   * "Circle" here and "Dial" on the web is a defect FR-148 names outright.
+   */
+  it('offers the tuning display choice in the same words as the web sheet (FR-147)', async () => {
+    await renderSettings();
+
+    expect(screen.getByText('Tuning display')).toBeTruthy();
+    expect(screen.getByTestId('tuner-display-line')).toBeTruthy();
+    expect(screen.getByTestId('tuner-display-dial')).toBeTruthy();
+    expect(screen.getByText('Line')).toBeTruthy();
+    expect(screen.getByText('Dial')).toBeTruthy();
+
+    // 'line' is the default, so it is the chosen one on a fresh install
+    // (FR-149) — the promise that nobody's tuner changes underneath them.
+    expect(screen.getByTestId('tuner-display-line').props.accessibilityState.selected).toBe(true);
+    expect(screen.getByTestId('tuner-display-dial').props.accessibilityState.selected).toBe(false);
+  });
+
+  it('records the chosen display, and only that preference (FR-150)', async () => {
+    const { store } = await renderSettings();
+
+    await press('tuner-display-dial');
+
+    expect(screen.getByTestId('tuner-display-dial').props.accessibilityState.selected).toBe(true);
+    expect(screen.getByTestId('tuner-display-line').props.accessibilityState.selected).toBe(false);
+
+    // The whole record is checked, not just the field that was pressed: the
+    // setter spreads it, and a spread that dropped a sibling would be invisible
+    // to a test that reads back only what it wrote (G17).
+    const saved = await store.load();
+    expect(saved).toMatchObject({
+      tunerDisplay: 'dial',
+      a4Hz: 440,
+      accidentalStyle: 'sharp',
+      appearance: 'system',
+    });
+  });
+
+  it('verifies both display options meet the 44pt touch target (FR-125)', async () => {
+    await renderSettings();
+
+    for (const value of ['line', 'dial'] as const) {
+      const style = StyleSheet.flatten(
+        screen.getByTestId(`tuner-display-${value}`).props.style
+      ) as {
+        minHeight?: number;
+      };
+      expect(style.minHeight).toBe(a11y.minTouchTarget);
+    }
+  });
 });
 
 describe('settings are reachable from the tuner', () => {

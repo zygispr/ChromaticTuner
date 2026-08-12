@@ -550,22 +550,130 @@ any ordinary assertion could run.
 **Independent test**: put both apps on the same reference tone with the same preferences and confirm
 the segment labels, their order, and the needle angle match. V58/V59/V63/V64 on mobile, plus V70.
 
-- [ ] T059 [US3] **Run this before T045.** Capture the deferred mobile half of T004 — "before"
+- [X] T059 [US3] **Run this before T045.** Capture the deferred mobile half of T004 — "before"
   screenshots of the mobile tuner in light and dark on an iOS simulator, into
   `specs/007-circular-tuner-display/screenshots/` as `before-mobile-tuner-{light,dark}.png`. Deferred
   from Phase 1 deliberately: nothing before this phase changes what mobile draws, so the picture is the
   same either way. `005`'s mobile shots are **not** a usable baseline — `5f4bedd`, `ca8ca78` and
   `38f4caa` each redrew the ruler after they were taken. Android cannot be captured on this machine at
   all (no SDK), so its half of T052 stays a release-gate formality with nothing to compare.
-- [ ] T042 [P] [US3] Write failing tests in `apps/mobile/__tests__/dial-geometry.test.tsx` for the dial's structure — twelve labels in ascending order starting at C, twelve boundary ticks, and the needle's rotation derived from `dialAngleDegrees`. Model it on `apps/mobile/__tests__/ruler-geometry.test.tsx`, and note in the file that this cannot see **D5** (no layout engine).
-- [ ] T043 [P] [US3] Write a failing test in `apps/mobile/__tests__/settings.test.tsx` for the **Tuning display** group — present, labelled identically to web, two options in the same order, `accessibilityState.selected` on the chosen one, and `a11y.minTouchTarget` honoured.
-- [ ] T044 [P] [US3] Write a failing test in `apps/mobile/__tests__/dial-rest.test.tsx` for **FR-162**/**FR-163** on mobile, mirroring `apps/mobile/__tests__/marker-rest.test.tsx` — no needle before the first reading; hold angle and recolour on lapse.
-- [ ] T045 [US3] Build `apps/mobile/src/components/molecules/TuningDial.tsx` with the same geometry as web — the needle's angle in a Reanimated shared value driven from `subscribeToReading`, animated with `withTiming` on the **wrapper**, and the unwrap accumulator in a ref beside it. Never route the angle through React state.
-- [ ] T046 [US3] Render the dial or the line from `apps/mobile/src/components/organisms/TunerDisplay.tsx` with the same ternary as web.
-- [ ] T047 [US3] Add the **Tuning display** group to `apps/mobile/src/components/screens/SettingsScreen.tsx`, with the option list in the same order and the same words as `SettingsSheet.tsx`. Both vocabularies are hand-maintained copies, which is exactly how the platforms drift — assert the pairing, as the appearance options already are.
-- [ ] T048 [US3] Verify SC-071 by hand — both apps on one steady tone with matching preferences; segment labels, order, and needle angle agree within 1°. Record the comparison in this file.
+- [X] T042 [P] [US3] Write failing tests in `apps/mobile/__tests__/dial-geometry.test.tsx` for the dial's structure — twelve labels in ascending order starting at C, twelve boundary ticks, and the needle's rotation derived from `dialAngleDegrees`. Model it on `apps/mobile/__tests__/ruler-geometry.test.tsx`, and note in the file that this cannot see **D5** (no layout engine).
+- [X] T043 [P] [US3] Write a failing test in `apps/mobile/__tests__/settings.test.tsx` for the **Tuning display** group — present, labelled identically to web, two options in the same order, `accessibilityState.selected` on the chosen one, and `a11y.minTouchTarget` honoured.
+- [X] T044 [P] [US3] Write a failing test in `apps/mobile/__tests__/dial-rest.test.tsx` for **FR-162**/**FR-163** on mobile, mirroring `apps/mobile/__tests__/marker-rest.test.tsx` — no needle before the first reading; hold angle and recolour on lapse.
+- [X] T045 [US3] Build `apps/mobile/src/components/molecules/TuningDial.tsx` with the same geometry as web — the needle's angle in a Reanimated shared value driven from `subscribeToReading`, animated with `withTiming` on the **wrapper**, and the unwrap accumulator in a ref beside it. Never route the angle through React state.
+- [X] T046 [US3] Render the dial or the line from `apps/mobile/src/components/organisms/TunerDisplay.tsx` with the same ternary as web.
+- [X] T047 [US3] Add the **Tuning display** group to `apps/mobile/src/components/screens/SettingsScreen.tsx`, with the option list in the same order and the same words as `SettingsSheet.tsx`. Both vocabularies are hand-maintained copies, which is exactly how the platforms drift — assert the pairing, as the appearance options already are.
+- [ ] T048 [US3] Verify SC-071 by hand — both apps on one steady tone with matching preferences; segment labels, order, and needle angle agree within 1°. Record the comparison in this file. **Blocked on one human tap; see below.**
 
-**Checkpoint**: all three stories complete on both platforms.
+**Checkpoint**: all three stories complete on both platforms. Code and tests ✅ (2026-08-12); the
+by-hand comparison in T048 is outstanding.
+
+| Gate | After Phase 4 | After Phase 5 |
+| --- | --- | --- |
+| `pnpm --filter @chromatic-tuner/mobile test` | 122 | **139** (+17) |
+| `pnpm test` | 517 | 517, unchanged |
+| `pnpm test:e2e` | 189 | 189, unchanged |
+| `pnpm lint`, `format:check`, `typecheck` | pass | pass |
+
+### T059 — the deferred mobile baseline, captured
+
+`before-mobile-tuner-{light,dark}.png`, iPhone 17 Pro simulator, iOS 26.5, taken **before** any of
+T045–T047 existed in the running bundle.
+
+**They are not reproducible, and T004 predicted exactly why.** The simulator has no fake-audio device,
+so it captures the room through the Mac's microphone: both shots show a live reading of **A4 +6 cents**
+that nothing in this repo chose. The appearance is switched with `xcrun simctl ui booted appearance`
+rather than through the app's own sheet — legitimate here, because the stored preference is `'system'`
+on a fresh install, so the device setting is what the app is following.
+
+**T052's mobile comparison must therefore be structural, not a pixel diff**, which is what T004 already
+recorded and this run confirms.
+
+### T042–T047 — the mobile dial, built from the CORRECTED requirement
+
+**Deviation, and the reason T067 exists.** These tasks were written before Phase 7 and describe a dial
+this repo no longer has: a needle pivoting at the centre, a lapse that "holds angle and recolours", and
+a note name and cents readout left outside the circle. Building them as written would have re-created
+**Defect 2** on the phone and then needed the same fix again. Mobile is built from the corrected
+requirement instead — the hub, the fade to zero, the fractional face (**G25**), and
+`pointerEvents="none"` for **G24a** — so the two platforms are one drawing on the day mobile lands
+rather than two months later.
+
+**One genuine platform difference, and it is in the hub.** Web sizes the hub's text in `cqw`, a
+percentage of the dial's own width resolved by the browser, so `TunerDisplay` hands the dial finished
+elements. React Native has no container units: the only place that number exists is inside the
+component. `hub` is therefore a **render prop** on mobile — `(noteSize) => ReactNode` — and a plain
+node on web. Everything else in the two files is the same arithmetic in the same order.
+
+**Three defects found in the new tests by running them, none in the component:**
+
+1. **`unwrapDegrees` collides with opacity.** The lapse test told the two shared values apart by
+   value — "opacity is only ever 0 or 1" — which is wrong, and the test caught it: the unwrap returns
+   the SHORT way round, so a needle crossing twelve o'clock is asked for exactly `0`. They are now
+   told apart by **duration**, `markerMs` against `colorMs`, which cannot collide.
+2. **An un-awaited `act` corrupts every later test in the file.** The first reading flips the state
+   that mounts the needle, so `emit` has to be wrapped — and the wrapper has to be awaited. Un-awaited,
+   React reported "overlapping act() calls" and the *subscription effect never ran* in the following
+   tests, so three of them failed with no timing calls at all rather than with a wrong value.
+3. **RNTL's automatic cleanup does not register under this jest-expo setup** — `settings.test.tsx`
+   already records this — and here it is worse than a stale query: the leftover component keeps its
+   subscription and leaks its `act` scope into the next test. `afterEach(cleanup)` added.
+
+**Mutation-tested, because tests written after a component that already works prove nothing:**
+
+| Mutation | Result |
+| --- | --- |
+| the lapse's opacity write removed | **2 failed** — the fade and the fade-back-in |
+| `unwrapDegrees` replaced by the raw angle | **1 failed** — the short-way crossing |
+
+Both reverted.
+
+**What `jest-expo` still cannot see**, restated because the new file is easy to over-trust: no layout
+engine and no compositor, so it cannot catch **D5** (a transform on the needle rather than on a
+concentric wrapper produces an identical tree), cannot measure contrast, and cannot tell whether the
+hub text fits inside the hub. The test asserts only that the needle carries no rotation of its own. The
+screenshot in T052 is the other half of that gate.
+
+### T048 — blocked on one tap, and worth stating precisely
+
+The comparison needs the mobile dial on screen with a live reading. Everything up to that point is
+automatable and was done — the app builds, launches, and reads a seeded preference — but the last step
+is not:
+
+- **The simulator will not skip the microphone explainer.** `useMicrophonePermission` asks
+  `AudioManager.checkRecordingPermissions()`, which reports `Undetermined` however `xcrun simctl
+  privacy booted grant microphone` (and `grant all`) is applied, before or after install, and across a
+  full simulator shutdown/boot cycle. It appears to read `AVAudioApplication.recordPermission`, which
+  the simulator only populates once the app has genuinely requested it. So the explainer stands, and
+  clearing it needs a real tap on "Use the microphone".
+- **Synthetic clicks were tried and abandoned.** `xcrun simctl` has no tap command; driving the
+  Simulator through System Events means clicking at global screen coordinates, and the first attempt
+  landed in an unrelated application's window. That is not a safe thing to do to someone's desktop for
+  a screenshot, and it was stopped there rather than tuned.
+
+**What IS verified of SC-071 without the tap**, and it is the structural half:
+
+- Both platforms take the needle's angle from the **same** `dialAngleDegrees`, asserted on each side;
+  a mobile dial that recomputed `pitchClass * 30 + cents * 0.3` locally would agree today and drift the
+  first time the shared function is corrected — which has already happened once, at **G6**.
+- The twelve labels are asserted against the same expected array on both platforms, in both accidental
+  spellings, in order.
+- Tick and target angles are asserted from `DIAL_SEGMENT_DEGREES` on both.
+
+**What is not**: that the two draw the same needle at the same angle on a real screen. That is one tap
+plus a tone played to both apps, and it belongs with **T052**, which needs the same simulator session.
+
+### A note for whoever runs the simulator next
+
+The dev client caches its JS bundle. `xcrun simctl terminate` + `launch` relaunches the app on the
+**cached** bundle, which cost an hour here: the app showed the line while Metro was serving a bundle
+that contained the dial, and a seeded `a4Hz: 432` proved the preference was being read the whole time.
+Reload with the URL the CLI uses —
+`xcrun simctl openurl booted "exp+chromatic-tuner://expo-development-client/?url=http%3A%2F%2F<host>%3A8081"` —
+which forces a fetch. AsyncStorage can be seeded from the host, which is the mobile equivalent of the
+web specs' `useDial`: write `{"chromatic-tuner:preferences": "<json>"}` to
+`$(xcrun simctl get_app_container booted com.chromatictuner.app data)/Library/Application
+Support/com.chromatictuner.app/RCTAsyncLocalStorage_V1/manifest.json` with the app not running.
 
 ---
 
@@ -656,9 +764,10 @@ with the dial instead of crowding at 640px.
       `COLUMN_CHROME_PX` and the cap; route the atoms from `TunerDisplay`.
 - [X] T066 Re-baseline the four `fits the viewport` cases in `dial.spec.ts` against the new chrome, and
       add the shortest supported viewport to them — the old numbers were computed from 526.
-- [ ] T067 **Mobile inherits this, and is unbuilt.** Phase 5 builds the dial with the hub and the fade
+- [X] T067 **Mobile inherits this, and is unbuilt.** Phase 5 builds the dial with the hub and the fade
       from the start; T042–T048 predate both and describe the centre-pivot needle. Read this section
-      before starting them.
+      before starting them. **Done in Phase 5** — the mobile dial was built from the corrected
+      requirement, so Defect 2 was never re-created on the phone.
 
 ### Defect 3 — the dial swallowed the settings badge's clicks
 

@@ -3,6 +3,7 @@ import {
   A4_MIN_HZ,
   type AccidentalStyle,
   type AppearancePreference,
+  type TunerDisplay,
 } from '@chromatic-tuner/core';
 import { usePreferences } from '@chromatic-tuner/react';
 import { a11y, motion, space, type as typeTokens } from '@chromatic-tuner/tokens';
@@ -33,6 +34,18 @@ export interface SettingsScreenProps {
 const ACCIDENTAL_OPTIONS: Array<{ value: AccidentalStyle; label: string; example: string }> = [
   { value: 'sharp', label: 'Sharps', example: 'C♯ D♯ F♯' },
   { value: 'flat', label: 'Flats', example: 'D♭ E♭ G♭' },
+];
+
+/**
+ * The same words, in the same order, as the web sheet (FR-147, FR-148).
+ *
+ * Asserted on both platforms rather than trusted, like the appearance list
+ * below: two hand-maintained copies of one vocabulary is precisely how the two
+ * apps drift into offering a "Circle" here and a "Dial" there.
+ */
+const DISPLAY_OPTIONS: Array<{ value: TunerDisplay; label: string }> = [
+  { value: 'line', label: 'Line' },
+  { value: 'dial', label: 'Dial' },
 ];
 
 /**
@@ -106,9 +119,11 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
     appearancePreference,
     isNonStandardReference,
     persistenceFailed,
+    tunerDisplay,
     setA4Hz,
     setAccidentalStyle,
     setAppearancePreference,
+    setTunerDisplay,
     reset,
   } = usePreferences();
 
@@ -320,6 +335,62 @@ export function SettingsScreen({ open, onClose }: SettingsScreenProps) {
                           </Text>
                           <Text style={[styles.optionExample, { color: colors.text }]}>
                             {option.example}
+                          </Text>
+                        </>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View>
+              <Text style={[styles.legend, { color: colors.text }]}>Tuning display</Text>
+
+              {/* The Accidentals group's treatment, reused verbatim a third
+                  time — which by now is the point. A fresh selection idiom here
+                  would be a fresh chance to repeat the mistake `500dfb5` fixed,
+                  where a heavier `text` border collided with the focus ring and
+                  made the UNCHOSEN option look chosen.
+
+                  `accessibilityRole="radio"`, as Appearance uses: these are
+                  mutually exclusive and exactly one is always chosen, which is
+                  what a radio means to VoiceOver. */}
+              <View style={styles.options}>
+                {DISPLAY_OPTIONS.map((option) => {
+                  const selected = tunerDisplay === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      testID={`tuner-display-${option.value}`}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
+                      onPress={() => setTunerDisplay(option.value)}
+                      style={({ pressed }) => [
+                        styles.option,
+                        { borderColor: selected ? colors.text : colors.line },
+                        selected && { backgroundColor: colors.selected },
+                        // The wash replaces the background outright, so it may
+                        // only be applied to an option that has none. The
+                        // filled one layers it as an overlay, below.
+                        pressed && !selected && { backgroundColor: colors.pressed },
+                      ]}
+                    >
+                      {({ pressed }) => (
+                        <>
+                          {pressed && selected && (
+                            <View
+                              testID={`tuner-display-${option.value}-wash`}
+                              style={[styles.wash, { backgroundColor: colors.pressed }]}
+                            />
+                          )}
+                          <Text
+                            style={[
+                              styles.optionLabel,
+                              { color: colors.text, fontWeight: selected ? '700' : '400' },
+                            ]}
+                          >
+                            {option.label}
                           </Text>
                         </>
                       )}

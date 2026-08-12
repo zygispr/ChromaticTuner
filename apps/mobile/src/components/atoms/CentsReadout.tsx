@@ -8,6 +8,11 @@ export interface CentsReadoutProps {
   /** Latest discrete snapshot; null when there is no reading. */
   readonly cents: number | null;
   readonly subscribeToCents: (handler: (cents: number | null) => void) => () => void;
+  /**
+   * Point size, as {@link NoteLabelProps.size}. The dial passes a size derived
+   * from its own width so the readout scales with the circle (FR-169).
+   */
+  readonly size?: number;
 }
 
 /**
@@ -36,7 +41,11 @@ function format(cents: number): string {
  * throttle allows, re-rendering one leaf is cheap, and the marker is untouched
  * because it animates on the UI thread through Reanimated (research D6).
  */
-export function CentsReadout({ cents, subscribeToCents }: CentsReadoutProps) {
+export function CentsReadout({
+  cents,
+  subscribeToCents,
+  size = typeTokens.centsSize,
+}: CentsReadoutProps) {
   const colors = useThemeColors();
   const [live, setLive] = useState<number | null>(null);
 
@@ -72,7 +81,7 @@ export function CentsReadout({ cents, subscribeToCents }: CentsReadoutProps) {
       testID="cents-readout"
       importantForAccessibility="no-hide-descendants"
       accessibilityElementsHidden
-      style={[styles.text, { color: colors.text }]}
+      style={[styles.text, { color: colors.text, fontSize: size }]}
     >
       {shown === null ? '–' : format(shown)}
     </Text>
