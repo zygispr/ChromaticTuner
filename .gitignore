@@ -61,6 +61,8 @@ playwright-report/
 test-results/
 blob-report/
 .playwright/
+# Scratch output from the Playwright/Chrome DevTools MCP browser tools
+.playwright-mcp/
 
 # Expo / React Native
 .expo/
