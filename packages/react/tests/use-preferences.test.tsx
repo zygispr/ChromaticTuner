@@ -32,8 +32,16 @@ function tone(midi: number, length = SAMPLE_RATE): Float32Array {
 }
 
 function Harness() {
-  const { a4Hz, accidentalStyle, isNonStandardReference, persistenceFailed, setA4Hz, reset } =
-    usePreferences();
+  const {
+    a4Hz,
+    accidentalStyle,
+    isNonStandardReference,
+    persistenceFailed,
+    tunerDisplay,
+    setA4Hz,
+    setTunerDisplay,
+    reset,
+  } = usePreferences();
   const { note } = useTuner();
 
   return (
@@ -42,7 +50,14 @@ function Harness() {
       <span data-testid="style">{accidentalStyle}</span>
       <span data-testid="non-standard">{String(isNonStandardReference)}</span>
       <span data-testid="persist-failed">{String(persistenceFailed)}</span>
+      <span data-testid="display">{tunerDisplay}</span>
       <span data-testid="note">{note ?? '-'}</span>
+      <button data-testid="pick-dial" onClick={() => setTunerDisplay('dial')}>
+        dial
+      </button>
+      <button data-testid="pick-line" onClick={() => setTunerDisplay('line')}>
+        line
+      </button>
       <button data-testid="up" onClick={() => setA4Hz(a4Hz + 50)}>
         up
       </button>
@@ -94,6 +109,7 @@ describe('defaults and loading', () => {
         a4Hz: 432,
         accidentalStyle: 'flat',
         appearance: 'system',
+        tunerDisplay: 'line',
         schemaVersion: 1,
       })
     );
@@ -179,6 +195,7 @@ describe('persistence', () => {
       a4Hz: 415,
       accidentalStyle: 'flat',
       appearance: 'dark',
+      tunerDisplay: 'line',
       schemaVersion: 1,
     });
     renderWith(store);
@@ -286,6 +303,7 @@ describe('the provider resolves one appearance for the whole tree (M9)', () => {
         a4Hz: 440,
         accidentalStyle: 'sharp',
         appearance: 'dark',
+        tunerDisplay: 'line',
         schemaVersion: 1,
       }),
     });
@@ -396,6 +414,7 @@ describe('preferencesLoaded (M10, M11)', () => {
           a4Hz: 440,
           accidentalStyle: 'sharp',
           appearance: 'dark',
+          tunerDisplay: 'line',
           schemaVersion: 1,
         }}
       >
@@ -416,6 +435,7 @@ describe('preferencesLoaded (M10, M11)', () => {
       a4Hz: 432,
       accidentalStyle: 'flat',
       appearance: 'light',
+      tunerDisplay: 'line',
       schemaVersion: 1,
     });
 
@@ -426,6 +446,7 @@ describe('preferencesLoaded (M10, M11)', () => {
         a4Hz: 440,
         accidentalStyle: 'sharp',
         appearance: 'dark',
+        tunerDisplay: 'line',
         schemaVersion: 1,
       },
     });
@@ -453,6 +474,7 @@ describe('the appearance choice is persisted like any other preference', () => {
         a4Hz: 440,
         accidentalStyle: 'sharp',
         appearance: 'dark',
+        tunerDisplay: 'line',
         schemaVersion: 1,
       });
     });
@@ -510,6 +532,7 @@ describe('the accidental choice reaches every note display (FR-023)', () => {
             a4Hz: 440,
             accidentalStyle: 'flat',
             appearance: 'system',
+            tunerDisplay: 'line',
             schemaVersion: 1,
           })
         }
@@ -526,5 +549,109 @@ describe('the accidental choice reaches every note display (FR-023)', () => {
     });
 
     expect(screen.getByTestId('note').textContent).toBe('E♭');
+  });
+});
+
+/**
+ * G20 and the FR-150 half of the display preference, at the React seam.
+ *
+ * The core proves the value is stored and repaired; what is only provable here
+ * is the wiring — that the choice reaches consumers, survives the same
+ * optimistic-write path every other setting uses, and that reset returns it.
+ */
+describe('tuner display (007 FR-146, FR-150, G20)', () => {
+  it('defaults to the line when nothing is stored (FR-149)', async () => {
+    renderWith(new InMemoryPreferencesStore());
+    await waitFor(() => expect(screen.getByTestId('display').textContent).toBe('line'));
+  });
+
+  it('adopts a stored dial on mount (FR-150)', async () => {
+    renderWith(
+      new InMemoryPreferencesStore({
+        a4Hz: 440,
+        accidentalStyle: 'sharp',
+        appearance: 'system',
+        tunerDisplay: 'dial',
+        schemaVersion: 1,
+      })
+    );
+
+    await waitFor(() => expect(screen.getByTestId('display').textContent).toBe('dial'));
+  });
+
+  it('applies a change immediately and persists it', async () => {
+    const store = new InMemoryPreferencesStore();
+    renderWith(store);
+    await waitFor(() => expect(screen.getByTestId('display').textContent).toBe('line'));
+
+    const savesBefore = store.saveCount;
+    await act(async () => {
+      screen.getByTestId('pick-dial').click();
+    });
+
+    expect(screen.getByTestId('display').textContent).toBe('dial');
+    await waitFor(() => expect(store.saveCount).toBeGreaterThan(savesBefore));
+    const written = await store.load();
+    expect(written?.tunerDisplay).toBe('dial');
+  });
+
+  it('leaves the other three preferences alone when it changes', async () => {
+    // The setter spreads the whole record. A spread that dropped a sibling
+    // would be invisible to a test that only reads back the field it set.
+    const store = new InMemoryPreferencesStore({
+      a4Hz: 432,
+      accidentalStyle: 'flat',
+      appearance: 'dark',
+      tunerDisplay: 'line',
+      schemaVersion: 1,
+    });
+    renderWith(store);
+    await waitFor(() => expect(screen.getByTestId('display').textContent).toBe('line'));
+
+    await act(async () => {
+      screen.getByTestId('pick-dial').click();
+    });
+
+    await waitFor(async () => {
+      const written = await store.load();
+      expect(written).toMatchObject({
+        a4Hz: 432,
+        accidentalStyle: 'flat',
+        appearance: 'dark',
+        tunerDisplay: 'dial',
+      });
+    });
+  });
+
+  it('still applies the change when the write fails, and reports it (FR-153)', async () => {
+    const store = new InMemoryPreferencesStore();
+    store.saveError = new Error('quota exceeded');
+    renderWith(store);
+    await waitFor(() => expect(screen.getByTestId('display').textContent).toBe('line'));
+
+    await act(async () => {
+      screen.getByTestId('pick-dial').click();
+    });
+
+    // Applied anyway: a storage failure must not block the choice the user can
+    // plainly see they made (obligation P2).
+    expect(screen.getByTestId('display').textContent).toBe('dial');
+    await waitFor(() => expect(screen.getByTestId('persist-failed').textContent).toBe('true'));
+  });
+
+  it('returns to the line on reset (FR-150)', async () => {
+    const store = new InMemoryPreferencesStore();
+    renderWith(store);
+    await waitFor(() => expect(screen.getByTestId('display').textContent).toBe('line'));
+
+    await act(async () => {
+      screen.getByTestId('pick-dial').click();
+    });
+    expect(screen.getByTestId('display').textContent).toBe('dial');
+
+    await act(async () => {
+      screen.getByTestId('reset').click();
+    });
+    await waitFor(() => expect(screen.getByTestId('display').textContent).toBe('line'));
   });
 });

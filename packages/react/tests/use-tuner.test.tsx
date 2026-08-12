@@ -186,3 +186,110 @@ describe('lifecycle', () => {
     expect(source.isRunning).toBe(false);
   });
 });
+
+/**
+ * G12/G15 at the React seam — the dial's channel, and the line's, side by side.
+ *
+ * `subscribeToReading` exists because the needle's angle needs pitch class and
+ * cents IN THE SAME FRAME, and pitch class is otherwise only on the discrete
+ * channel a render later (research D2). `subscribeToCents` is deliberately left
+ * exactly as it was: `TuningLine` wants cents and nothing else, on both
+ * platforms, and G15 says it keeps working unmodified.
+ */
+describe('subscribeToReading (007 G12, G15)', () => {
+  it('delivers cents, clarity and midi together', async () => {
+    const source = new ScriptedAudioSource({ samples: tone(40) });
+    const seen: Array<[number | null, number, number | null]> = [];
+
+    function Subscriber() {
+      const { subscribeToReading } = useTuner();
+      useEffect(
+        () =>
+          subscribeToReading((cents, clarity, midi) => {
+            seen.push([cents, clarity, midi]);
+          }),
+        [subscribeToReading]
+      );
+      return null;
+    }
+
+    render(
+      <TunerProvider audioSource={source} wakeLock={new NoopWakeLock()}>
+        <Subscriber />
+      </TunerProvider>
+    );
+
+    await act(async () => {
+      await source.startedPromise;
+    });
+    await act(async () => {
+      source.pump(30);
+    });
+
+    const live = seen.filter(([cents]) => cents !== null);
+    expect(live.length).toBeGreaterThan(10);
+
+    // E2. The midi number must arrive on THIS channel — reading it from the
+    // discrete one is exactly the defect this method exists to prevent.
+    for (const [, , midi] of live) expect(midi).toBe(40);
+  });
+
+  it('never triggers a React render (guarantee R1)', async () => {
+    const source = new ScriptedAudioSource({ samples: tone(40) });
+    let renders = 0;
+
+    function Subscriber() {
+      const { subscribeToReading } = useTuner();
+      renders += 1;
+      useEffect(() => subscribeToReading(() => undefined), [subscribeToReading]);
+      return null;
+    }
+
+    render(
+      <TunerProvider audioSource={source} wakeLock={new NoopWakeLock()}>
+        <Subscriber />
+      </TunerProvider>
+    );
+
+    await act(async () => {
+      await source.startedPromise;
+    });
+
+    const rendersBefore = renders;
+    await act(async () => {
+      source.pump(30);
+    });
+
+    expect(renders - rendersBefore).toBeLessThanOrEqual(2);
+  });
+
+  it('leaves subscribeToCents taking a single argument (G15)', async () => {
+    // The line's subscription must be untouched by the dial's arrival. A
+    // one-parameter handler stays valid, and still receives cents first.
+    const source = new ScriptedAudioSource({ samples: tone(40) });
+    const seen: Array<number | null> = [];
+
+    function Subscriber() {
+      const { subscribeToCents } = useTuner();
+      useEffect(() => subscribeToCents((cents) => seen.push(cents)), [subscribeToCents]);
+      return null;
+    }
+
+    render(
+      <TunerProvider audioSource={source} wakeLock={new NoopWakeLock()}>
+        <Subscriber />
+      </TunerProvider>
+    );
+
+    await act(async () => {
+      await source.startedPromise;
+    });
+    await act(async () => {
+      source.pump(30);
+    });
+
+    const live = seen.filter((cents) => cents !== null);
+    expect(live.length).toBeGreaterThan(10);
+    for (const cents of live) expect(Math.abs(cents!)).toBeLessThan(50);
+  });
+});

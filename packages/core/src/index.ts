@@ -35,6 +35,9 @@ export {
   tuningStateOf,
 } from './notes/state';
 
+// --- Dial geometry (007 contract §1-§2) ---
+export { DIAL_SEGMENT_DEGREES, dialAngleDegrees, unwrapDegrees } from './notes/dial';
+
 // --- Domain types (data-model §2-§4) ---
 export { isFailureStatus, statusForAudioError } from './types';
 export type {
@@ -43,6 +46,7 @@ export type {
   Appearance,
   AppearancePreference,
   PitchReading,
+  TunerDisplay,
   TunerStatus,
   TuningState,
 } from './types';

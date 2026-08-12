@@ -45,10 +45,18 @@ For every reading the tuner can produce, `|angle − 30 × pitchClass| ≤ 15°`
 because it is what makes "point at the segment you are hearing" and "point at the exact pitch" one
 instruction rather than two that could disagree.
 
-### G6 — The boundary is single-valued
+### G6 — The boundary is single-valued *as a direction*
 
-`dialAngleDegrees(m, +50)` and `dialAngleDegrees(m + 1, −50)` are the same angle. A pitch exactly
-between two notes lands on the boundary between their segments, from whichever side it is named.
+`dialAngleDegrees(m, +50)` and `dialAngleDegrees(m + 1, −50)` point the same way: they are congruent
+modulo 360. A pitch exactly between two notes lands on the boundary between their segments, from
+whichever side it is named.
+
+**Corrected during implementation.** This originally said "are the same angle", and taken literally
+that is false at one of the twelve boundaries. Eleven of them are equal as raw numbers — C +50 and
+C♯ −50 are both `15°`. The twelfth wraps: B +50 is `345°` and C −50 is `−15°`, the same direction and
+**exactly 360 apart as numbers**. The function is right and the wording was not. This is not a wrinkle
+to paper over — it is precisely the case §2 exists for, and a renderer handed those two raw values in
+consecutive frames with no unwrapping animates a full turn backwards.
 
 ---
 
@@ -129,12 +137,21 @@ A stored record from `001`–`006` — with no `tunerDisplay` at all — loads w
 accidental style and appearance intact, and `tunerDisplay: 'line'`. No migration code, no schema
 version bump: `PREFERENCES_SCHEMA_VERSION` stays at **1**. **(FR-149)**
 
-### G19 — The record round-trips through every adapter
+### G19 — The record round-trips through every adapter *that runs the suite*
 
-`save` then `load` returns the same `tunerDisplay` for `localStorage`, AsyncStorage, and the in-memory
-double. Added to `packages/core/testing/port-contract-tests.ts`, so every implementation is checked by
-the same suite — adding behaviour to a port means adding a contract check, not just an adapter test.
-**(FR-150, FR-148)**
+`save` then `load` returns the same `tunerDisplay`. Added to
+`packages/core/testing/port-contract-tests.ts`, so adding behaviour to a port means adding a contract
+check rather than only an adapter test. **(FR-150, FR-148)**
+
+**Corrected during implementation — this originally claimed `localStorage` was covered, and it is
+not.** Only two implementations actually execute this suite: `InMemoryPreferencesStore`
+(`packages/core/tests/port-contracts.test.ts`) and the AsyncStorage adapter
+(`apps/mobile/__tests__/async-storage-preferences.contract.test.ts`). `apps/web`'s
+`LocalStoragePreferences` is under **no** contract test at all, because `pnpm test` runs Vitest over
+`packages/*` only and `apps/web` has no unit-test project — its only coverage is end-to-end through a
+real browser. The adapter is a whole-record `JSON.stringify`/`JSON.parse` and needs no change for this
+feature, but the gap is real, predates 007, and is recorded here rather than left implied by a
+contract that overstated its reach.
 
 ### G20 — Choosing a display does not touch the microphone
 

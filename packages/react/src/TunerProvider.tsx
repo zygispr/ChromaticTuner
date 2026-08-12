@@ -16,6 +16,7 @@ import type {
   AudioSource,
   PreferencesStore,
   StoredPreferences,
+  TunerDisplay,
   WakeLock,
 } from '@chromatic-tuner/core';
 
@@ -181,6 +182,11 @@ export function TunerProvider({
     [apply, stored]
   );
 
+  const setTunerDisplay = useCallback(
+    (tunerDisplay: TunerDisplay) => apply({ ...stored, tunerDisplay }),
+    [apply, stored]
+  );
+
   const reset = useCallback(() => {
     setStored({ ...DEFAULT_PREFERENCES });
     setPersistenceFailed(false);
@@ -206,10 +212,14 @@ export function TunerProvider({
         // surfaces to disagree about what the app currently looks like.
         appearance: resolveAppearance(stored.appearance, deviceAppearance),
         appearancePreference: stored.appearance,
+        // No resolution step, unlike appearance: what is stored is what is
+        // drawn, so there is one value here rather than a pair.
+        tunerDisplay: stored.tunerDisplay,
         preferencesLoaded,
         setA4Hz,
         setAccidentalStyle,
         setAppearancePreference,
+        setTunerDisplay,
         reset,
       },
     }),
@@ -222,6 +232,7 @@ export function TunerProvider({
       setA4Hz,
       setAccidentalStyle,
       setAppearancePreference,
+      setTunerDisplay,
       reset,
     ]
   );

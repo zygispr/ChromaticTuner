@@ -187,36 +187,121 @@ work starts until this phase is green.
 
 ### Angle maths (core)
 
-- [ ] T005 [P] Write failing tests for `dialAngleDegrees` in `packages/core/tests/dial.test.ts` covering **G1–G6** — C at 0°, A at 270° (not 90°, which is the mirror), octave invariance `f(m, c) === f(m + 12, c)`, the `0.3 × cents` displacement with sharp clockwise, `|angle − 30 × pitchClass| ≤ 15` for every reading, and the boundary identity `f(m, +50) === f(m + 1, −50)`. Use the worked table in [data-model.md §4](./data-model.md) as fixtures. Observe every one fail.
-- [ ] T006 [P] Write failing tests for `unwrapDegrees` in `packages/core/tests/dial.test.ts` covering **G7–G11** — congruence mod 360, `|result − previous| ≤ 180`, the `(344.7, −14.7) → 345.3` crossing, and a monotone five-octave sweep reaching ~1800° without renormalising. Confirm the identity function fails at least three of them before writing any implementation.
-- [ ] T007 Implement `dialAngleDegrees` and `unwrapDegrees` in `packages/core/src/notes/dial.ts`, reusing the existing `pitchClassOf`. No DOM, no React, no platform import — this file compiles against ES2022 only.
-- [ ] T008 Re-export both functions from `packages/core/src/index.ts` and confirm `pnpm test:coverage` still clears 90% lines / 90% functions / 85% branches on `packages/core`.
+- [X] T005 [P] Write failing tests for `dialAngleDegrees` in `packages/core/tests/dial.test.ts` covering **G1–G6** — C at 0°, A at 270° (not 90°, which is the mirror), octave invariance `f(m, c) === f(m + 12, c)`, the `0.3 × cents` displacement with sharp clockwise, `|angle − 30 × pitchClass| ≤ 15` for every reading, and the boundary identity `f(m, +50) === f(m + 1, −50)`. Use the worked table in [data-model.md §4](./data-model.md) as fixtures. Observe every one fail.
+- [X] T006 [P] Write failing tests for `unwrapDegrees` in `packages/core/tests/dial.test.ts` covering **G7–G11** — congruence mod 360, `|result − previous| ≤ 180`, the `(344.7, −14.7) → 345.3` crossing, and a monotone five-octave sweep reaching ~1800° without renormalising. Confirm the identity function fails at least three of them before writing any implementation.
+- [X] T007 Implement `dialAngleDegrees` and `unwrapDegrees` in `packages/core/src/notes/dial.ts`, reusing the existing `pitchClassOf`. No DOM, no React, no platform import — this file compiles against ES2022 only.
+- [X] T008 Re-export both functions from `packages/core/src/index.ts` and confirm `pnpm test:coverage` still clears 90% lines / 90% functions / 85% branches on `packages/core`.
 
 ### The reading channel (core)
 
-- [ ] T009 Write failing tests for the third argument in `packages/core/tests/session.test.ts` covering **G12** and **G13** — a live reading publishes `(cents, clarity, midi)` with the analyzer's MIDI number, and a withdrawal publishes `(null, 0, null)` exactly once on the edge. **Corrected at T002**: the existing handlers are written `(cents, clarity) => …` and `(cents) => …`, and a narrower function stays assignable to a wider signature, so **every existing assertion in this file keeps passing whether `midi` is published correctly, published as `undefined`, or not published at all**. The suite is blind here by construction; only assertions written against the third parameter can see it. Capture the handler with a spy and assert `toHaveBeenCalledWith(cents, clarity, midi)` on the full argument list.
-- [ ] T010 Extend `ReadingHandler` to `(cents: number | null, clarity: number, midi: number | null) => void` in `packages/core/src/tuning/session.ts`, publish `reading.midi` from `handleFrames`, and publish `null` from `withdrawReading`. Do not restructure the channel into an object — see **G14** and the allocation hazard above.
-- [ ] T011 Run `pnpm vitest run packages/core/tests/allocation.test.ts` **unmodified** and record the result in this file (**G14**). If it needs editing to pass, the implementation is wrong.
-- [ ] T012 Confirm `TuningLine` still compiles and behaves on both platforms with its two-parameter handler untouched (**G15**) — `apps/web/e2e/marker-rest.spec.ts` and `apps/mobile/__tests__/marker-rest.test.tsx` are the ones that would notice.
+- [X] T009 Write failing tests for the third argument in `packages/core/tests/session.test.ts` covering **G12** and **G13** — a live reading publishes `(cents, clarity, midi)` with the analyzer's MIDI number, and a withdrawal publishes `(null, 0, null)` exactly once on the edge. **Corrected at T002**: the existing handlers are written `(cents, clarity) => …` and `(cents) => …`, and a narrower function stays assignable to a wider signature, so **every existing assertion in this file keeps passing whether `midi` is published correctly, published as `undefined`, or not published at all**. The suite is blind here by construction; only assertions written against the third parameter can see it. Capture the handler with a spy and assert `toHaveBeenCalledWith(cents, clarity, midi)` on the full argument list.
+- [X] T010 Extend `ReadingHandler` to `(cents: number | null, clarity: number, midi: number | null) => void` in `packages/core/src/tuning/session.ts`, publish `reading.midi` from `handleFrames`, and publish `null` from `withdrawReading`. Do not restructure the channel into an object — see **G14** and the allocation hazard above.
+- [X] T011 Run `pnpm vitest run packages/core/tests/allocation.test.ts` **unmodified** and record the result in this file (**G14**). If it needs editing to pass, the implementation is wrong.
+- [X] T012 Confirm `TuningLine` still compiles and behaves on both platforms with its two-parameter handler untouched (**G15**) — `apps/web/e2e/marker-rest.spec.ts` and `apps/mobile/__tests__/marker-rest.test.tsx` are the ones that would notice.
 
 ### The preference (core)
 
-- [ ] T013 [P] Write failing tests for the stored field in `packages/core/tests/preferences.test.ts` covering **G16–G18** — `'line'` and `'dial'` accepted; absent, `null`, `42`, `''`, `'Line'`, `'circle'`, `'circular'` all yielding `'line'`; a pre-007 record loading with reference pitch, accidental style and appearance intact; and `PREFERENCES_SCHEMA_VERSION` still `1`.
-- [ ] T014 [P] Write a failing test in `packages/core/tests/preferences.test.ts` for **G17** specifically — an unusable `tunerDisplay` must not disturb the other three fields, and an unusable `a4Hz` must not disturb `tunerDisplay`. This is the guarantee that silently weakens each time a field is added.
-- [ ] T015 Add `TunerDisplay` and `isTunerDisplay` to `packages/core/src/types.ts`, following `isAppearancePreference`'s exact-match, case-sensitive shape.
-- [ ] T016 Add `readonly tunerDisplay: TunerDisplay` to `StoredPreferences` in `packages/core/src/ports/preferences-store.ts`, with a comment recording that the **port is unchanged** — one more field inside a blob both adapters already treat as opaque.
-- [ ] T017 Add the default and the repair clause in `packages/core/src/preferences.ts` — `DEFAULT_PREFERENCES.tunerDisplay = 'line'`, destructured and repaired independently alongside the other three. **Leave `PREFERENCES_SCHEMA_VERSION` at 1** and record why in a comment (an absent field is not an incompatible shape; research **D9**).
-- [ ] T018 Add `tunerDisplay` round-trip and repair checks to `packages/core/testing/port-contract-tests.ts` (**G19**) and observe them fail for every implementation — `localStorage`, AsyncStorage, and the in-memory double — via `pnpm test` and `pnpm --filter @chromatic-tuner/mobile test`.
-- [ ] T019 Make T018 pass. Expect **no adapter changes**; if either adapter needs one, that is a finding worth recording here, because it means something was not treating the record as opaque.
+- [X] T013 [P] Write failing tests for the stored field in `packages/core/tests/preferences.test.ts` covering **G16–G18** — `'line'` and `'dial'` accepted; absent, `null`, `42`, `''`, `'Line'`, `'circle'`, `'circular'` all yielding `'line'`; a pre-007 record loading with reference pitch, accidental style and appearance intact; and `PREFERENCES_SCHEMA_VERSION` still `1`.
+- [X] T014 [P] Write a failing test in `packages/core/tests/preferences.test.ts` for **G17** specifically — an unusable `tunerDisplay` must not disturb the other three fields, and an unusable `a4Hz` must not disturb `tunerDisplay`. This is the guarantee that silently weakens each time a field is added.
+- [X] T015 Add `TunerDisplay` and `isTunerDisplay` to `packages/core/src/types.ts`, following `isAppearancePreference`'s exact-match, case-sensitive shape.
+- [X] T016 Add `readonly tunerDisplay: TunerDisplay` to `StoredPreferences` in `packages/core/src/ports/preferences-store.ts`, with a comment recording that the **port is unchanged** — one more field inside a blob both adapters already treat as opaque.
+- [X] T017 Add the default and the repair clause in `packages/core/src/preferences.ts` — `DEFAULT_PREFERENCES.tunerDisplay = 'line'`, destructured and repaired independently alongside the other three. **Leave `PREFERENCES_SCHEMA_VERSION` at 1** and record why in a comment (an absent field is not an incompatible shape; research **D9**).
+- [X] T018 Add `tunerDisplay` round-trip and repair checks to `packages/core/testing/port-contract-tests.ts` (**G19**) and observe them fail for every implementation — `localStorage`, AsyncStorage, and the in-memory double — via `pnpm test` and `pnpm --filter @chromatic-tuner/mobile test`.
+- [X] T019 Make T018 pass. Expect **no adapter changes**; if either adapter needs one, that is a finding worth recording here, because it means something was not treating the record as opaque.
 
 ### The shared React layer
 
-- [ ] T020 [P] Write failing tests in `packages/react/tests/use-preferences.test.tsx` for `tunerDisplay` and `setTunerDisplay` — published from the provider, optimistic in-memory update, persisted through the same `apply()` path, `persistenceFailed` set when the store throws, and `reset()` returning to `'line'`.
-- [ ] T021 [P] Write a failing test in `packages/react/tests/use-tuner.test.tsx` for `subscribeToReading`, asserting all three arguments arrive and that `subscribeToCents` keeps its one-argument signature (**G15**).
-- [ ] T022 Publish `tunerDisplay` and `setTunerDisplay` from `packages/react/src/TunerProvider.tsx` and `packages/react/src/usePreferences.ts`, following `setAccidentalStyle` exactly.
-- [ ] T023 Add `subscribeToReading` to `packages/react/src/useTuner.ts`, forwarding all three scalars, and leave `subscribeToCents` exactly as it is.
+- [X] T020 [P] Write failing tests in `packages/react/tests/use-preferences.test.tsx` for `tunerDisplay` and `setTunerDisplay` — published from the provider, optimistic in-memory update, persisted through the same `apply()` path, `persistenceFailed` set when the store throws, and `reset()` returning to `'line'`.
+- [X] T021 [P] Write a failing test in `packages/react/tests/use-tuner.test.tsx` for `subscribeToReading`, asserting all three arguments arrive and that `subscribeToCents` keeps its one-argument signature (**G15**).
+- [X] T022 Publish `tunerDisplay` and `setTunerDisplay` from `packages/react/src/TunerProvider.tsx` and `packages/react/src/usePreferences.ts`, following `setAccidentalStyle` exactly.
+- [X] T023 Add `subscribeToReading` to `packages/react/src/useTuner.ts`, forwarding all three scalars, and leave `subscribeToCents` exactly as it is.
 
-**Checkpoint**: the core knows about dials but nothing draws one. `pnpm test`, `pnpm typecheck` and `pnpm test:coverage` green; both apps still build and behave identically to T004's screenshots.
+**Checkpoint**: the core knows about dials but nothing draws one. ✅ (2026-08-12)
+
+| Gate | Before Phase 2 | After Phase 2 |
+| --- | --- | --- |
+| `pnpm test` | 483 | **517** (+34) |
+| `pnpm --filter @chromatic-tuner/mobile test` | 121 | **122** (+1, the G19 check against AsyncStorage) |
+| `pnpm test:e2e` | 156 | **156**, unchanged |
+| `pnpm test:coverage` | 98.53 / 95.23 / 97.40 / 100 lines | 98.55 / 95.23 / 97.46 / **100 lines** |
+| `pnpm lint`, `format:check`, `typecheck` | pass | pass |
+
+**The "behaves identically" half of this checkpoint was measured, not asserted.** The T004 capture was
+re-run and compared byte-for-byte: `tuner-dark`, `settings-light` and `settings-dark` are **identical**
+after decompression. `tuner-light` differs by 43 bytes of 3,240,900 — decoded, that is **13 sub-pixels
+at x = 603-604, y = 458-528**, which is the anti-aliased right edge of the tuning marker and nothing
+else. The reading is live, so a fraction of a cent that still prints "+0" moves the marker a fraction
+of a pixel. Phase 2 changed no rendering.
+
+**This refines T052.** "Pixel-identical" is achievable to within the marker's own anti-aliased edge,
+not absolutely. T052 must either allow a small per-pixel tolerance or exclude the marker's two-pixel
+column — a strict `cmp` will fail on a build where nothing has changed.
+
+### T005-T008 — the angle maths
+
+**The tests were proved to discriminate before the real implementation existed**, which for this
+feature is the whole game. A deliberately defective `dial.ts` was written first — cents sign flipped,
+and `unwrapDegrees` as the identity function — and run:
+
+| | Result |
+| --- | --- |
+| Failed | **6**: the two G4 displacement tests, G6, and G9/G10/G11 |
+| **Passed** | **8** — every C-based assertion, every pitch-class assertion, both purity tests |
+
+Eight green tests against an implementation that draws the dial mirrored and spins the needle a full
+turn backwards at the top. That is the hazard table's claim, demonstrated rather than argued.
+
+**Defect found in the test, not the code.** `unwrapDegrees(-14.7, 344.7)` was written expecting
+`-14.7` — the *input* typed again in place of the answer, which is easy when the two are 0.6 apart.
+The correct value is `-15.3`. Caught by running it.
+
+**Contract G6 was wrong and has been corrected.** It said the two sides of a boundary are "the same
+angle". Eleven of the twelve boundaries are equal as raw numbers; the twelfth is not. B +50 is `345°`
+and C -50 is `-15°` — the same direction, **exactly 360 apart**. G6 now states congruence modulo 360,
+and a second test pins the B/C case explicitly, because that discrepancy is precisely what §2 exists
+to resolve.
+
+### T009-T012 — the reading channel
+
+T002's correction held exactly. The three new tests fail on **arity** (`expected [ …2 items ] to have
+a length of 3`) only because they spy on `handler.mock.calls`; every pre-existing handler in the file
+is written `(cents, clarity) => …` and none of them noticed the change in either direction.
+
+- **T011**: `allocation.test.ts` passes **unmodified** — `git diff --stat` on it is empty (G14).
+- **T012**: G15 confirmed on both platforms — `apps/web/e2e/marker-rest.spec.ts` (3 passed) and
+  `apps/mobile/__tests__/marker-rest.test.tsx` (4 passed), with `TuningLine` untouched on either.
+
+### T013-T019 — the preference
+
+**No adapter needed changing**, which is research D9's claim checked rather than assumed. The mobile
+suite gained exactly one test (121 → 122): the new G19 check running against AsyncStorage, passing
+with no adapter edit.
+
+**A test that passes immediately is not evidence, so G19 was mutation-tested.** The in-memory store was
+temporarily changed to `this.value = { ...prefs, tunerDisplay: 'line' }` — the exact defect the check
+exists for, an adapter that silently drops the user's choice. Result: **2 failures**, G19 among them.
+Restored, and `git diff` on that file is empty.
+
+**Finding — one adapter is not under contract at all.** `apps/web`'s `LocalStoragePreferences` runs
+the port contract suite **nowhere**: `pnpm test` is Vitest over `packages/*` only, and `apps/web` has
+no unit-test project, so its sole coverage is end-to-end through a real browser. The adapter is a
+whole-record `JSON.stringify`/`JSON.parse` and is genuinely opaque, so 007 needs nothing from it — but
+contract G19 claimed `localStorage` was checked and it was not. **G19 has been corrected.** Closing the
+gap means giving `apps/web` a unit-test project, which is a build-config change outside this feature.
+
+**The exact-shape exposure was larger than T002 predicted.** T002 found 3 whole-record assertions;
+adding a required field broke **13 stored-record literals across 5 files** — `preferences.test.ts` (4),
+`port-contracts.test.ts` (2), `use-preferences.test.tsx` (2 + 5), and three mobile suites
+(`async-storage-preferences.contract.test.ts`, `settings.test.tsx`, `first-frame.test.tsx`). All are
+type errors rather than silent passes, which is the outcome to want: `StoredPreferences` is a closed
+record, so the compiler enumerates every construction site.
+
+### T020-T023 — the shared React layer
+
+`tunerDisplay` and `setTunerDisplay` follow `setAccidentalStyle` exactly, and `subscribeToReading` is
+added beside `subscribeToCents` rather than replacing it (G15). One test is worth naming: *"leaves the
+other three preferences alone when it changes"* — the setter spreads the whole record, and a spread
+that dropped a sibling would be invisible to any test that reads back only the field it just set.
 
 ---
 

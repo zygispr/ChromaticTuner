@@ -73,6 +73,7 @@ describe('normalizePreferences (obligation P1, data-model §6)', () => {
       a4Hz: 432,
       accidentalStyle: 'flat',
       appearance: 'dark',
+      tunerDisplay: 'line',
       schemaVersion: PREFERENCES_SCHEMA_VERSION,
     });
   });
@@ -166,8 +167,112 @@ describe('normalizePreferences (obligation P1, data-model §6)', () => {
       a4Hz: 432,
       accidentalStyle: 'flat',
       appearance: 'system',
+      tunerDisplay: 'line',
       schemaVersion: 1,
     });
+  });
+
+  /**
+   * G16-G18 — the tuner display field (007 data-model §2).
+   *
+   * The same shape of addition as `appearance` above, and it takes the same
+   * answer for the same reason: an absent field is not an incompatible shape,
+   * so the schema version does not move and no migration code exists. What
+   * makes FR-149 true — "the horizontal display MUST be the default for anyone
+   * who has not chosen" — is one repair clause, not a migration.
+   */
+  it('defaults every unusable tuner display to line (G16, FR-149, FR-151)', () => {
+    // 'Line', 'circle' and 'circular' are the discriminating cases. A
+    // pass-through with no validation at all satisfies any test that only
+    // checks 'line' and 'dial' survive, and would happily store 'circle' —
+    // which nothing downstream can render.
+    const unusable = [
+      undefined,
+      null,
+      0,
+      42,
+      '',
+      'Line',
+      'Dial',
+      'circle',
+      'circular',
+      'horizontal',
+      true,
+      {},
+      [],
+    ];
+
+    for (const value of unusable) {
+      expect(
+        normalizePreferences({ tunerDisplay: value }).tunerDisplay,
+        `${JSON.stringify(value)} should have defaulted to 'line'`
+      ).toBe('line');
+    }
+  });
+
+  it('keeps each of the two permitted displays (G16)', () => {
+    for (const tunerDisplay of ['line', 'dial'] as const) {
+      expect(normalizePreferences({ tunerDisplay }).tunerDisplay).toBe(tunerDisplay);
+    }
+  });
+
+  it('repairs a bad display without disturbing the other three fields (G17)', () => {
+    const repaired = normalizePreferences({
+      a4Hz: 432,
+      accidentalStyle: 'flat',
+      appearance: 'dark',
+      tunerDisplay: 'circle',
+    });
+
+    expect(repaired.tunerDisplay).toBe('line');
+    expect(repaired.a4Hz).toBe(432);
+    expect(repaired.accidentalStyle).toBe('flat');
+    expect(repaired.appearance).toBe('dark');
+  });
+
+  it('repairs the other three without disturbing a valid display (G17)', () => {
+    // The direction that would be missed by only ever corrupting the new
+    // field. This guarantee weakens silently every time a field is added,
+    // which is why it is re-asserted rather than assumed to still hold.
+    const repaired = normalizePreferences({
+      a4Hz: 'broken',
+      accidentalStyle: 'quarter-tone',
+      appearance: 'chartreuse',
+      tunerDisplay: 'dial',
+    });
+
+    expect(repaired.tunerDisplay).toBe('dial');
+    expect(repaired.a4Hz).toBe(A4_DEFAULT_HZ);
+    expect(repaired.accidentalStyle).toBe('sharp');
+    expect(repaired.appearance).toBe('system');
+  });
+
+  it('loads a pre-007 record without loss, and without a version bump (G18)', () => {
+    // Exactly the shape 005 shipped: three preferences, no tunerDisplay.
+    expect(
+      normalizePreferences({
+        a4Hz: 432,
+        accidentalStyle: 'flat',
+        appearance: 'dark',
+        schemaVersion: 1,
+      })
+    ).toEqual({
+      a4Hz: 432,
+      accidentalStyle: 'flat',
+      appearance: 'dark',
+      tunerDisplay: 'line',
+      schemaVersion: 1,
+    });
+
+    // The version must NOT have moved. A bump with no migration behind it
+    // teaches the next reader that the number moves for additive changes,
+    // which is the opposite of what it is for (research D9).
+    expect(PREFERENCES_SCHEMA_VERSION).toBe(1);
+  });
+
+  it('defaults the display for a record with no fields at all (FR-149)', () => {
+    expect(normalizePreferences({}).tunerDisplay).toBe('line');
+    expect(DEFAULT_PREFERENCES.tunerDisplay).toBe('line');
   });
 
   it('repairs one bad field without discarding the good ones', () => {
@@ -232,6 +337,7 @@ describe('loadPreferences (obligation P1)', () => {
       a4Hz: 432,
       accidentalStyle: 'flat',
       appearance: 'dark',
+      tunerDisplay: 'line',
       schemaVersion: 1,
     });
     store.corrupt = true;
@@ -255,12 +361,14 @@ describe('loadPreferences (obligation P1)', () => {
       a4Hz: 415,
       accidentalStyle: 'flat',
       appearance: 'light',
+      tunerDisplay: 'dial',
       schemaVersion: 1,
     });
     expect(await loadPreferences(store)).toEqual({
       a4Hz: 415,
       accidentalStyle: 'flat',
       appearance: 'light',
+      tunerDisplay: 'dial',
       schemaVersion: PREFERENCES_SCHEMA_VERSION,
     });
   });
@@ -290,6 +398,7 @@ describe('savePreferences (obligation P2)', () => {
       // storage, not merely on the way out (M5) — otherwise a value the app
       // itself wrote is one that its own loader has to defend against.
       appearance: 'chartreuse' as never,
+      tunerDisplay: 'circle' as never,
       schemaVersion: 0,
     });
 
@@ -297,6 +406,7 @@ describe('savePreferences (obligation P2)', () => {
       a4Hz: A4_MAX_HZ,
       accidentalStyle: 'flat',
       appearance: 'system',
+      tunerDisplay: 'line',
       schemaVersion: PREFERENCES_SCHEMA_VERSION,
     });
   });

@@ -5,10 +5,11 @@ import { TunerContext, type PreferencesContextValue } from './TunerContext';
 export type UsePreferencesResult = PreferencesContextValue;
 
 /**
- * The three persisted settings and the controls that change them.
+ * The four persisted settings and the controls that change them.
  *
  * Contract: specs/001-chromatic-guitar-tuner/contracts/core-api.md §4, extended
- * by specs/005-dark-mode-toggle/contracts/appearance.md §3.
+ * by specs/005-dark-mode-toggle/contracts/appearance.md §3 and
+ * specs/007-circular-tuner-display/contracts/tuner-display.md §4.
  *
  * `setA4Hz` clamps rather than rejecting (guarantee R4), so a slider dragged
  * past its end stop settles at the end stop instead of throwing the gesture

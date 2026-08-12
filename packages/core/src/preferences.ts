@@ -1,6 +1,6 @@
 import { A4_DEFAULT_HZ, A4_MAX_HZ, A4_MIN_HZ } from './notes/frequency';
 import type { PreferencesStore, StoredPreferences } from './ports/preferences-store';
-import type { AccidentalStyle, AppearancePreference } from './types';
+import type { AccidentalStyle, AppearancePreference, TunerDisplay } from './types';
 
 export { A4_DEFAULT_HZ, A4_MAX_HZ, A4_MIN_HZ };
 
@@ -15,6 +15,13 @@ export { PREFERENCES_STORAGE_KEY } from './preferences-key';
  * Principle VI requires a forward-migration path from the first release, and
  * retrofitting one onto records already on users' devices is far more expensive
  * than carrying the field from day one (data-model §6).
+ *
+ * Still 1 after 007 added `tunerDisplay`, deliberately. An ABSENT field is not
+ * an incompatible shape: the repair clause below turns "no display stored" into
+ * `'line'`, which is the whole of FR-149, with no migration code. Moving the
+ * number for an additive change would teach the next reader that it moves for
+ * additive changes — the opposite of what it is for (research D9, and D6 of
+ * 005, which reached the same conclusion for `appearance`).
  */
 export const PREFERENCES_SCHEMA_VERSION = 1;
 
@@ -25,6 +32,10 @@ export const DEFAULT_PREFERENCES: StoredPreferences = {
   // written before this feature existed, both land on the behaviour the app
   // already had.
   appearance: 'system',
+  // FR-149, the same idea once more: the display nobody chose is the one the
+  // app has always drawn, so upgrading changes nothing for anyone who never
+  // opens Settings.
+  tunerDisplay: 'line',
   schemaVersion: PREFERENCES_SCHEMA_VERSION,
 };
 
@@ -63,6 +74,17 @@ function isAppearancePreference(value: unknown): value is AppearancePreference {
 }
 
 /**
+ * Guarantee G16. Exact match against the two literals, case-sensitive, for the
+ * same reason `isAppearancePreference` is: `'Line'`, `'circle'` and `'circular'`
+ * are all values a hand-edit or a rival implementation would plausibly write,
+ * and none of them is a value this app has ever produced. A loose match would
+ * let `'circle'` through, and nothing downstream can render it.
+ */
+function isTunerDisplay(value: unknown): value is TunerDisplay {
+  return value === 'line' || value === 'dial';
+}
+
+/**
  * Turn anything at all into a usable set of preferences.
  *
  * This function is TOTAL: it is the single place where obligation P1's promise
@@ -82,11 +104,13 @@ export function normalizePreferences(raw: unknown): StoredPreferences {
   let a4Hz: unknown;
   let accidentalStyle: unknown;
   let appearance: unknown;
+  let tunerDisplay: unknown;
   try {
-    ({ a4Hz, accidentalStyle, appearance } = raw as {
+    ({ a4Hz, accidentalStyle, appearance, tunerDisplay } = raw as {
       a4Hz?: unknown;
       accidentalStyle?: unknown;
       appearance?: unknown;
+      tunerDisplay?: unknown;
     });
   } catch {
     // A throwing getter is not a shape we can read at all. Storage should never
@@ -103,6 +127,11 @@ export function normalizePreferences(raw: unknown): StoredPreferences {
     // before 005, and it takes the default like any other unusable value — one
     // clause, no migration, which is why D6 leaves the schema version alone.
     appearance: isAppearancePreference(appearance) ? appearance : DEFAULT_PREFERENCES.appearance,
+    // G16-G18. Repaired independently of its three neighbours, like all of
+    // them: a display choice nobody can render is no reason to discard a
+    // reference pitch the user set deliberately. An absent field lands here
+    // too, which is how a pre-007 record becomes a line with no migration.
+    tunerDisplay: isTunerDisplay(tunerDisplay) ? tunerDisplay : DEFAULT_PREFERENCES.tunerDisplay,
     // Always written at the current version: reading an older record and
     // storing it back is the migration.
     schemaVersion: PREFERENCES_SCHEMA_VERSION,

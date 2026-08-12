@@ -150,6 +150,7 @@ describe('InMemoryPreferencesStore behaviour', () => {
       a4Hz: 440,
       accidentalStyle: 'sharp',
       appearance: 'system',
+      tunerDisplay: 'line',
       schemaVersion: 1,
     });
     store.corrupt = true;
@@ -160,7 +161,13 @@ describe('InMemoryPreferencesStore behaviour', () => {
     const store = new InMemoryPreferencesStore();
     store.saveError = new Error('quota exceeded');
     await expect(
-      store.save({ a4Hz: 440, accidentalStyle: 'sharp', appearance: 'system', schemaVersion: 1 })
+      store.save({
+        a4Hz: 440,
+        accidentalStyle: 'sharp',
+        appearance: 'system',
+        tunerDisplay: 'line',
+        schemaVersion: 1,
+      })
     ).rejects.toThrow('quota exceeded');
     expect(store.saveCount).toBe(1);
   });

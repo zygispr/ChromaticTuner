@@ -200,6 +200,7 @@ describe('SettingsScreen (T088)', () => {
         a4Hz: A4_MAX_HZ,
         accidentalStyle: 'sharp',
         appearance: 'system',
+        tunerDisplay: 'line',
         schemaVersion: 1,
       })
     );
@@ -218,6 +219,7 @@ describe('SettingsScreen (T088)', () => {
         a4Hz: A4_MIN_HZ,
         accidentalStyle: 'sharp',
         appearance: 'system',
+        tunerDisplay: 'line',
         schemaVersion: 1,
       })
     );
@@ -431,6 +433,7 @@ describe('SettingsScreen (T088)', () => {
         a4Hz: 415,
         accidentalStyle: 'flat',
         appearance: 'system',
+        tunerDisplay: 'line',
         schemaVersion: 1,
       })
     );
