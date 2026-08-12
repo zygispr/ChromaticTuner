@@ -29,6 +29,41 @@ const SEGMENTS = 12;
  */
 const MAX_SIZE_PX = 320;
 
+/**
+ * Everything in the tuner column that is NOT the dial, plus the layout's own
+ * vertical padding: reference badge, note label, cents readout, direction cue,
+ * the status slot, the microphone control, and five gaps.
+ *
+ * Measured, not guessed — the column is 574px tall with the line, of which the
+ * line is 96, and `TunerLayout` adds 2 x 24px of padding.
+ *
+ * This exists because the dial is the FIRST element in this app whose height
+ * competes with the viewport. It sized itself from width alone at first, and
+ * that shipped a defect: the column went 574px to 798px, and below an 846px
+ * viewport the microphone control was pushed off the bottom of the screen —
+ * 122px off it at 700px — against FR-018, which requires the primary display to
+ * be usable without scrolling because the player's hands are on the instrument.
+ *
+ * If a row above or below the dial changes height, this number is wrong and the
+ * `fits the viewport` cases in `e2e/dial.spec.ts` are what say so.
+ */
+const COLUMN_CHROME_PX = 526;
+
+/**
+ * The dial takes the smallest of: its cap, the width it is given, and the
+ * height actually left over.
+ *
+ * `aspect-ratio` then derives the height from the width, so the dial stays
+ * square whichever term wins. The height term must NOT be expressed as a
+ * percentage: a percentage height resolves against the parent, whose height is
+ * `auto` here, so it would resolve to nothing and silently do nothing.
+ *
+ * At the viewport where the LINE's column stops fitting — 622px — this leaves
+ * the dial 96px, exactly the height the line occupies. So choosing the dial can
+ * never cost a player a control that the line would have left on screen.
+ */
+const SIZE = `min(${MAX_SIZE_PX}px, 100%, calc(100dvh - ${COLUMN_CHROME_PX}px))`;
+
 /** Where the labels sit, as a percentage of the dial's half-width. */
 const LABEL_RADIUS_PERCENT = 38;
 
@@ -137,8 +172,7 @@ export function TuningDial({
       aria-hidden="true"
       style={{
         position: 'relative',
-        width: '100%',
-        maxWidth: MAX_SIZE_PX,
+        width: SIZE,
         aspectRatio: '1 / 1',
         margin: '0 auto',
       }}

@@ -329,7 +329,7 @@ the segment's exact centre. V60–V63.
 
 | Gate | After Phase 2 | After Phase 3 |
 | --- | --- | --- |
-| `pnpm test:e2e` | 156 | **166** (+10 dial) |
+| `pnpm test:e2e` | 156 | **170** (+10 dial, +4 for defect 1) |
 | `pnpm test` | 517 | 517, unchanged |
 | `pnpm --filter @chromatic-tuner/mobile test` | 122 | 122, unchanged |
 | `pnpm lint`, `format:check`, `typecheck` | pass | pass |
@@ -420,6 +420,47 @@ failure, because the tail of the output listed only the last line of the failure
 summary. Re-running with a filter that printed the whole summary showed **two**.
 A truncated tail is not a result; the run has to be read, not glanced at.
 
+### Defect 1 — the dial pushed the microphone control off the screen
+
+**Reported by the maintainer against the committed Phase 3 build**, from a screenshot: the dial fitted,
+"Start listening" did not. Found before T053/V69, which is where it would eventually have been caught.
+
+Measured at 900px wide, both displays:
+
+| | line | dial | delta |
+| --- | --- | --- | --- |
+| tuner column height | 574px | **798px** | +224px, exactly the dial's 320 minus the line's 96 |
+| smallest viewport that fits | 622px | **846px** | |
+| overflow at a 700px viewport | none | **122px below the fold** | |
+
+**Root cause**: the dial sized itself from WIDTH alone — `width: 100%; max-width: 320px;
+aspect-ratio: 1` — so its height was unbounded by what was actually left. `TunerLayout` is
+`min-height: 100dvh` with `overflow: hidden`, so a column taller than the viewport grows and the
+bottom of it leaves the screen. This is FR-018, which requires the primary display to be usable
+without scrolling because the player's hands are on the instrument.
+
+The dial is the **first element in this app whose height competes with the viewport**. Every other row
+is small enough that width-only sizing was never wrong, which is why no existing component had a
+pattern to copy.
+
+**Fix**: the dial takes the smallest of its cap, the width it is given, and the height left over —
+`min(320px, 100%, calc(100dvh - 526px))` — with `aspect-ratio` deriving the height so it stays square
+whichever term wins. The height term must not be a percentage: percentage heights resolve against the
+parent, whose height is `auto`, so it would silently do nothing.
+
+`COLUMN_CHROME_PX = 526` is measured (574 − 96, plus the layout's 2 × 24px padding), not guessed, and
+four `fits the viewport` cases at 900/800/700/640 are what will say so if a row above or below the dial
+ever changes height.
+
+**A property worth keeping**: at 622px — the viewport where the LINE's column stops fitting — the
+formula leaves the dial 96px, exactly the height the line occupies. Choosing the dial can therefore
+never cost a player a control that the line would have left on screen.
+
+**Carried to T053/V69**: at a 640px viewport the dial is 114px and the twelve labels crowd — legible,
+but not the metre FR-017 asks for. At 700px (174px) it reads cleanly. Scaling the label size with the
+dial is the obvious next move and was deliberately NOT bundled into this fix; T053 is where legibility
+at the extremes gets judged.
+
 ### Deviation from research D7 — no in-tune wedge
 
 D7 proposed a tinted wedge on the active segment. It is not drawn, on D6's own
@@ -484,7 +525,7 @@ the segment labels, their order, and the needle angle match. V58/V59/V63/V64 on 
 - [ ] T050 [P] Verify reduced motion on both platforms (**FR-165**, **D11**, V66) — Playwright's `reducedMotion: 'reduce'` for web, `AccessibilityInfo` mocked for mobile. The transition is **removed**, not shortened, and V61's short-way crossing still holds with no animation at all.
 - [ ] T051 [P] Verify the dial is silent to assistive technology (**G24**, **FR-164**, V70) — `aria-hidden` on web, `accessibilityElementsHidden` plus `importantForAccessibility="no-hide-descendants"` on mobile, and the announcer unchanged. Confirm with VoiceOver that the twelve labels are not reachable and the needle is never spoken.
 - [ ] T052 [P] Capture "after" screenshots of both displays in light and dark on both platforms into `specs/007-circular-tuner-display/screenshots/`. The **line** shots must be pixel-identical to T004 (**SC-068**). The dial shots are the only gate on **D5** for mobile — look at where the needle's pivot actually is.
-- [ ] T053 [P] Verify layout and text size (V69) — narrowest supported phone width in portrait and landscape, largest text step, dial not clipped, twelve labels not overlapping each other or the needle, and the note name, cents readout, direction cue and microphone control all still on screen.
+- [ ] T053 [P] Verify layout and text size (V69) — narrowest supported phone width in portrait and landscape, largest text step, dial not clipped, twelve labels not overlapping each other or the needle, and the note name, cents readout, direction cue and microphone control all still on screen. **Defect 1 (Phase 3) already fixed the fitting half and left a specific question here**: at a 640px viewport the dial shrinks to 114px and the twelve labels crowd. Decide whether the label size should scale with the dial, and judge it on both platforms.
 - [ ] T054 [P] Verify greyscale (**SC-070**, V68) — sharp, flat and in-tune each identifiable on the dial with colour removed.
 - [ ] T055 Record the "after" performance numbers in this file and compare against T003 (**Principle V**, **SC-067**, V71) — 30 s trace on the dial, p95 frame time and dropped frames. A regression above 10% blocks merge.
 - [ ] T056 Run the full gate set and record the counts in this file — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e`, plus `pnpm --filter @chromatic-tuner/mobile test`. Confirm `pnpm build && pnpm verify:listing` reports **no artwork drift**; the dial adds no colour, so drift here means a token changed and that is a defect rather than a reason to regenerate.
