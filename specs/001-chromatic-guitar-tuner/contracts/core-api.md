@@ -112,6 +112,19 @@ export class TunerSession {
 }
 ```
 
+**Extended by `007`.** `ReadingHandler` now takes a **third scalar**,
+`midi: number | null`, and a withdrawal publishes `(null, 0, null)` — see
+[`007`'s **G12** and **G13**](../../007-circular-tuner-display/contracts/tuner-display.md).
+The signature above is left as `001` wrote it because the guarantees below are
+still exactly what it promises, and because the extension changed nothing for
+existing subscribers: a narrower function stays assignable to a wider one, so
+every two-parameter handler in this repo compiled and behaved identically before
+and after (**G15**). The circular display needs pitch class in the SAME frame as
+the cents — taking it from the discrete channel instead flicks the needle 30°
+backwards for one frame on every note boundary (`007` research D2) — and three
+bare scalars keep S4's sibling promise below, that the continuous path allocates
+nothing per publish (**G14**).
+
 **Guarantees**
 
 | # | Guarantee | Traces to |

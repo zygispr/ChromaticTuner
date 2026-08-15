@@ -30,9 +30,21 @@ export type StatusHandler = (status: TunerStatus) => void;
  * The continuous channel's payload.
  *
  * `cents` is `null` when the reading has LAPSED — see guarantee R3 on
- * `TunerSession`. Consumers must return their position indicator to rest.
+ * `TunerSession`. Consumers must return their position indicator to rest, or,
+ * like the dial, deliberately hold it and say so in another channel (FR-162).
+ *
+ * `midi` was added by 007 (guarantee G12) and is what the circular display's
+ * needle angle needs. It cannot come from the discrete channel instead: pitch
+ * class arrives there a React render later, so a display combining the two
+ * would compute a 30-degree backwards flick for one frame at EVERY note
+ * boundary — precisely when the player is turning the peg (research D2).
+ *
+ * Three bare scalars rather than an object, and that is load-bearing: this
+ * fires ~43 times a second and `allocation.test.ts` asserts the steady-state
+ * path allocates nothing (Principle V, guarantee G14). Tidying these into a
+ * `{ cents, clarity, midi }` would allocate on every frame.
  */
-export type ReadingHandler = (cents: number | null, clarity: number) => void;
+export type ReadingHandler = (cents: number | null, clarity: number, midi: number | null) => void;
 
 const DEFAULT_SAMPLE_RATE = 44100;
 const HOP_SIZE = 1024;
@@ -89,9 +101,10 @@ function isRecoverable(status: TunerStatus): boolean {
  *                    Fires only on genuine change, so React re-renders rarely.
  *   onReading      — CONTINUOUS. ~43 times a second. Drives the marker
  *                    transform directly and never touches React state. Also
- *                    fires ONCE with `(null, 0)` when a reading lapses, so a
- *                    consumer can return its marker to rest rather than hold a
- *                    position the tuner can no longer justify (guarantee R3).
+ *                    fires ONCE with `(null, 0, null)` when a reading lapses,
+ *                    so a consumer can return its marker to rest rather than
+ *                    hold a position the tuner can no longer justify
+ *                    (guarantee R3).
  *
  * Contract: specs/001-chromatic-guitar-tuner/contracts/core-api.md §3
  */
@@ -295,7 +308,10 @@ export class TunerSession {
   private withdrawReading(): void {
     if (!this.hasLiveReading) return;
     this.hasLiveReading = false;
-    for (const handler of this.readingHandlers) handler(null, 0);
+    // `null` midi as well as `null` cents (G13). Retaining the last note number
+    // here would have the channel name a note the tuner is no longer hearing,
+    // which is the same mistake as encoding "nothing" as zero cents.
+    for (const handler of this.readingHandlers) handler(null, 0, null);
   }
 
   private async doStop(): Promise<void> {
@@ -370,7 +386,7 @@ export class TunerSession {
     // Continuous channel first: the marker should move even when the discrete
     // status is unchanged.
     for (const handler of this.readingHandlers) {
-      handler(reading.cents, reading.clarity);
+      handler(reading.cents, reading.clarity, reading.midi);
     }
 
     // The analyzer REUSES its reading object, so storing it directly would make

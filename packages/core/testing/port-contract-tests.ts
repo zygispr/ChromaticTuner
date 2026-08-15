@@ -191,6 +191,7 @@ export const preferencesStoreContract: Record<
       a4Hz: 432,
       accidentalStyle: 'flat',
       appearance: 'dark',
+      tunerDisplay: 'dial',
       schemaVersion: 1,
     } as const;
     await store.save(prefs);
@@ -216,12 +217,48 @@ export const preferencesStoreContract: Record<
       const store = factory();
       await store.clear();
 
-      const prefs = { a4Hz: 440, accidentalStyle: 'sharp', appearance, schemaVersion: 1 } as const;
+      const prefs = {
+        a4Hz: 440,
+        accidentalStyle: 'sharp',
+        appearance,
+        tunerDisplay: 'line',
+        schemaVersion: 1,
+      } as const;
       await store.save(prefs);
 
       const loaded = await store.load();
       assert(loaded !== null, `a record with appearance '${appearance}' must load back`);
       assertSameRecord(loaded, prefs, `the record carrying appearance '${appearance}' changed`);
+    }
+  },
+
+  /**
+   * G19 — every tuner display survives storage, on every adapter.
+   *
+   * Separate from the round-trip above for the same reason the appearance
+   * check is: the failure it catches is value-specific rather than
+   * shape-specific. An adapter serialising through a hand-written mapping
+   * keeps whichever value the other check happened to use and silently loses
+   * the other, and the user's choice would then survive a reload only if they
+   * happened to pick the one the test used.
+   */
+  'P1: every tuner display value round-trips (G19, FR-150)': async (factory) => {
+    for (const tunerDisplay of ['line', 'dial'] as const) {
+      const store = factory();
+      await store.clear();
+
+      const prefs = {
+        a4Hz: 440,
+        accidentalStyle: 'sharp',
+        appearance: 'system',
+        tunerDisplay,
+        schemaVersion: 1,
+      } as const;
+      await store.save(prefs);
+
+      const loaded = await store.load();
+      assert(loaded !== null, `a record with tunerDisplay '${tunerDisplay}' must load back`);
+      assertSameRecord(loaded, prefs, `the record carrying tunerDisplay '${tunerDisplay}' changed`);
     }
   },
 
@@ -231,6 +268,7 @@ export const preferencesStoreContract: Record<
       a4Hz: 440,
       accidentalStyle: 'sharp',
       appearance: 'system',
+      tunerDisplay: 'line',
       schemaVersion: 1,
     });
     await store.clear();

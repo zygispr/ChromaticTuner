@@ -8,6 +8,8 @@ import { space } from '@chromatic-tuner/tokens';
 import { useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
+import { pitchClassOf } from '@chromatic-tuner/core';
+
 import { CentsReadout } from '../atoms/CentsReadout';
 import { DirectionCue } from '../atoms/DirectionCue';
 import { NoteLabel } from '../atoms/NoteLabel';
@@ -15,6 +17,7 @@ import { ReferenceBadge } from '../atoms/ReferenceBadge';
 import { ScreenReaderAnnouncer } from '../atoms/ScreenReaderAnnouncer';
 import { MicrophoneToggle } from '../molecules/MicrophoneToggle';
 import { StatusBanner, statusSlotHeight } from '../molecules/StatusBanner';
+import { TuningDial } from '../molecules/TuningDial';
 import { TuningLine } from '../molecules/TuningLine';
 import { SettingsScreen } from '../screens/SettingsScreen';
 
@@ -33,9 +36,18 @@ export interface TunerDisplayProps {
 }
 
 export function TunerDisplay({ capturing, onToggleCapture }: TunerDisplayProps) {
-  const { status, note, octave, tuningState, direction, cents, subscribeToCents, retry } =
-    useTuner();
-  const { a4Hz, isNonStandardReference } = usePreferences();
+  const {
+    status,
+    note,
+    octave,
+    tuningState,
+    direction,
+    cents,
+    subscribeToCents,
+    subscribeToReading,
+    retry,
+  } = useTuner();
+  const { a4Hz, accidentalStyle, isNonStandardReference, tunerDisplay } = usePreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Reactive rather than read once: `useWindowDimensions` re-renders when the
@@ -58,9 +70,46 @@ export function TunerDisplay({ capturing, onToggleCapture }: TunerDisplayProps) 
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
-      <NoteLabel note={note} octave={octave} state={tuningState} />
-      <CentsReadout cents={cents} subscribeToCents={subscribeToCents} />
-      <TuningLine state={tuningState} subscribeToCents={subscribeToCents} />
+      {/* Two sibling components and a ternary, not one parameterised meter:
+          they share a props shape and nothing else (research D1). The dial adds
+          a channel rather than replacing the three that were already here,
+          which is FR-168 — but it does move two of them into the middle of the
+          circle, where the player is already looking and where they leave the
+          circle room to be worth looking at (FR-170).
+
+          The atoms are built once and placed differently rather than rendered
+          twice, so the two displays cannot drift apart in what they show. */}
+      {tunerDisplay === 'dial' ? (
+        <TuningDial
+          state={tuningState}
+          accidentalStyle={accidentalStyle}
+          // Taken from the DISCRETE channel on purpose. The needle needs pitch
+          // class and cents in the same frame and gets both from
+          // subscribeToReading; this only decides which label is highlighted,
+          // where a frame of lag is invisible.
+          activePitchClass={status.kind === 'reading' ? pitchClassOf(status.reading.midi) : null}
+          subscribeToReading={subscribeToReading}
+          hub={(noteSize) => (
+            <>
+              <NoteLabel note={note} octave={octave} state={tuningState} size={noteSize} />
+              <CentsReadout
+                cents={cents}
+                subscribeToCents={subscribeToCents}
+                // A quarter of the note, the ratio the two tokens already stood
+                // in, so the hub scales as one block.
+                size={noteSize * 0.25}
+              />
+            </>
+          )}
+        />
+      ) : (
+        <>
+          <NoteLabel note={note} octave={octave} state={tuningState} />
+          <CentsReadout cents={cents} subscribeToCents={subscribeToCents} />
+          <TuningLine state={tuningState} subscribeToCents={subscribeToCents} />
+        </>
+      )}
+
       <DirectionCue direction={direction} state={tuningState} />
 
       <View style={[styles.statusSlot, { minHeight: statusSlotHeight(fontScale) }]}>

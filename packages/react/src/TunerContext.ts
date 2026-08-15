@@ -4,6 +4,7 @@ import type {
   AccidentalStyle,
   Appearance,
   AppearancePreference,
+  TunerDisplay,
   TunerSession,
 } from '@chromatic-tuner/core';
 
@@ -46,10 +47,27 @@ export interface PreferencesContextValue {
    */
   readonly appearancePreference: AppearancePreference;
 
+  /**
+   * Which tuning display to draw (007 FR-146).
+   *
+   * Unlike `appearance` there is nothing to resolve: the stored value IS the
+   * thing to render, so there is only one member here rather than a chosen/
+   * resolved pair. `'line'` for anyone who has never chosen, which is what
+   * makes FR-149 true without a migration.
+   */
+  readonly tunerDisplay: TunerDisplay;
+
   /** Clamped to the supported range rather than rejected (guarantee R4). */
   readonly setA4Hz: (hz: number) => void;
   readonly setAccidentalStyle: (style: AccidentalStyle) => void;
   readonly setAppearancePreference: (preference: AppearancePreference) => void;
+  /**
+   * Reaches `session` by no code path, which is what makes FR-152 structural:
+   * choosing a display cannot interrupt capture or re-prompt for the
+   * microphone, because there is nothing between this and the audio source
+   * (guarantee G20).
+   */
+  readonly setTunerDisplay: (display: TunerDisplay) => void;
   readonly reset: () => void;
 
   /**

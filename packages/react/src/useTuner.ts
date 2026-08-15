@@ -34,6 +34,28 @@ export interface UseTunerResult {
    */
   readonly subscribeToCents: (handler: (cents: number | null) => void) => () => void;
 
+  /**
+   * The same CONTINUOUS channel, carrying the note as well (007 G12).
+   *
+   * Everything `subscribeToCents` promises applies here unchanged: ~43 Hz, no
+   * re-render, never call `setState` from it.
+   *
+   * Use this rather than combining `subscribeToCents` with the `note` above
+   * when a display needs pitch class and deviation TOGETHER. Those two arrive
+   * on different channels a render apart, so a display that combines them
+   * computes a wrong angle for one frame at every note boundary — a visible
+   * 30-degree flick on a dial, at exactly the moment the player is turning the
+   * peg (research D2).
+   *
+   * `cents` and `midi` are both `null` when the reading lapses, fired once on
+   * the edge (guarantee R3, G13).
+   *
+   * @returns an unsubscribe function.
+   */
+  readonly subscribeToReading: (
+    handler: (cents: number | null, clarity: number, midi: number | null) => void
+  ) => () => void;
+
   readonly start: () => void;
   readonly stop: () => void;
 
@@ -85,6 +107,12 @@ export function useTuner(options: UseTunerOptions = {}): UseTunerResult {
     [session]
   );
 
+  const subscribeToReading = useCallback(
+    (handler: (cents: number | null, clarity: number, midi: number | null) => void) =>
+      session.onReading(handler),
+    [session]
+  );
+
   const start = useCallback(() => {
     void session.start();
   }, [session]);
@@ -110,6 +138,7 @@ export function useTuner(options: UseTunerOptions = {}): UseTunerResult {
     direction: reading ? directionCue(reading.state) : null,
     cents: reading ? reading.cents : null,
     subscribeToCents,
+    subscribeToReading,
     start,
     stop,
     retry,

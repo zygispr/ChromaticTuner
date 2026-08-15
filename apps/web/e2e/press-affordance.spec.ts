@@ -57,11 +57,15 @@ test('every control in the settings sheet washes on hover (FR-058)', async ({ pa
 
   const sheet = page.getByTestId('settings-sheet');
   const controls = await sheet.locator('button:visible').all();
-  // Done, Sharps, Flats, Match device, Light, Dark, Reset — if this drops, a
-  // control stopped being a button. The loop below is what actually covers the
-  // three appearance options; the count is here so that a control quietly
-  // leaving the set is a failure rather than a silently smaller loop.
-  expect(controls.length).toBe(7);
+  // Done, Sharps, Flats, Line, Dial, Match device, Light, Dark, Reset — if this
+  // drops, a control stopped being a button. The loop below is what actually
+  // covers the options; the count is here so that a control quietly leaving the
+  // set is a failure rather than a silently smaller loop.
+  //
+  // Went 7 -> 9 when 007 added the Tuning display group. The canary did its job:
+  // it failed on a sheet that had grown, which is exactly the event it exists to
+  // announce.
+  expect(controls.length).toBe(9);
 
   for (const control of controls) {
     const name = await control.getAttribute('data-testid');

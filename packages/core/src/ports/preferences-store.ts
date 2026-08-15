@@ -1,11 +1,12 @@
-import type { AccidentalStyle, AppearancePreference } from '../types';
+import type { AccidentalStyle, AppearancePreference, TunerDisplay } from '../types';
 
 /**
- * The only state this product persists: three preferences, on the device the
+ * The only state this product persists: four preferences, on the device the
  * user set them on. No accounts, no server, no sync (FR-032, SC-015, FR-131).
  *
  * Contract: specs/001-chromatic-guitar-tuner/contracts/platform-ports.md §2,
- * extended by specs/005-dark-mode-toggle/contracts/appearance.md §2.
+ * extended by specs/005-dark-mode-toggle/contracts/appearance.md §2 and
+ * specs/007-circular-tuner-display/contracts/tuner-display.md §4.
  */
 export interface StoredPreferences {
   readonly a4Hz: number;
@@ -16,6 +17,12 @@ export interface StoredPreferences {
    * to learn anything (contract §5).
    */
   readonly appearance: AppearancePreference;
+  /**
+   * Added by 007. The PORT is unchanged again, for the same reason 005 gave —
+   * one more field inside a blob both adapters already treat as opaque, so
+   * neither `localStorage` nor AsyncStorage learns anything (contract §4).
+   */
+  readonly tunerDisplay: TunerDisplay;
   /**
    * Forward-migration hook, carried from the first release because Principle VI
    * requires a migration path from day one and retrofitting one is far more

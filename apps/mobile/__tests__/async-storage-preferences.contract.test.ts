@@ -43,6 +43,7 @@ describe('AsyncStoragePreferences failure handling', () => {
       a4Hz: 415,
       accidentalStyle: 'flat',
       appearance: 'dark',
+      tunerDisplay: 'line',
       schemaVersion: 1,
     } as const;
     await store.save(prefs);

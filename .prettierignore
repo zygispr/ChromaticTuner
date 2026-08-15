@@ -5,6 +5,10 @@ coverage/
 .expo/
 playwright-report/
 test-results/
+# Scratch output from the Playwright/Chrome DevTools MCP browser tools: page
+# snapshots and console logs, rewritten on every use. Not source, and the .yml
+# snapshots fail format:check the moment anyone drives the app through them.
+.playwright-mcp/
 pnpm-lock.yaml
 *.min.js
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { TunerSession } from '../src/tuning/session';
 import { frequencyOf } from '../src/notes/frequency';
@@ -199,6 +199,92 @@ describe('onReading (continuous channel)', () => {
     await session.stop();
 
     expect(calls).toBe(0);
+  });
+
+  /**
+   * G12 and G13 — the third scalar, added by 007 for the dial's needle.
+   *
+   * These use a SPY on the full argument list rather than a handler with named
+   * parameters, and that is the entire point. Every other test in this describe
+   * block is written `(cents, clarity) => …`, and a function taking fewer
+   * parameters stays assignable to a wider signature — so all of them keep
+   * passing whether `midi` is published correctly, published as `undefined`, or
+   * never published at all. The suite is blind here by construction. Only
+   * `mock.calls` can see the argument that no parameter names.
+   */
+  describe('midi on the continuous channel (007 G12, G13)', () => {
+    it('publishes the reading’s midi number alongside cents and clarity (G12)', async () => {
+      const source = new ScriptedAudioSource({ samples: toneOf(45) });
+      const session = makeSession(source);
+
+      const handler = vi.fn();
+      session.onReading(handler);
+
+      await session.start();
+      source.pump(12);
+
+      // Live readings only: stop() publishes a lapse, which G13 covers.
+      const live = handler.mock.calls.filter(([cents]) => cents !== null);
+      expect(live.length).toBeGreaterThan(0);
+
+      for (const call of live) {
+        expect(call).toHaveLength(3);
+        const [cents, clarity, midi] = call as [number, number, number];
+        expect(midi).toBe(45);
+        expect(Number.isFinite(cents)).toBe(true);
+        expect(clarity).toBeGreaterThan(0);
+      }
+
+      await session.stop();
+    });
+
+    it('agrees with the midi the discrete channel published', async () => {
+      // The two channels describing the same reading differently would be a
+      // defect no single-channel test could see, and the needle would then
+      // disagree with the note name beside it.
+      const source = new ScriptedAudioSource({ samples: toneOf(40) });
+      const session = makeSession(source);
+
+      const handler = vi.fn();
+      session.onReading(handler);
+
+      await session.start();
+      source.pump(12);
+
+      expect(session.status.kind).toBe('reading');
+      if (session.status.kind !== 'reading') throw new Error('expected a reading');
+      const discrete = session.status.reading.midi;
+
+      const live = handler.mock.calls.filter(([cents]) => cents !== null);
+      const last = live[live.length - 1]!;
+      expect(last[2]).toBe(discrete);
+
+      await session.stop();
+    });
+
+    it('withdraws with (null, 0, null), once, on the edge (G13)', async () => {
+      const source = new ScriptedAudioSource({ samples: toneOf(40) });
+      const session = makeSession(source);
+
+      const handler = vi.fn();
+      session.onReading(handler);
+
+      await session.start();
+      source.pump(40);
+      handler.mockClear();
+
+      // Long enough to pass the hold and lapse the reading.
+      source.pump(Math.ceil((700 / 1000) * (SAMPLE_RATE / 1024)) + 40);
+
+      const withdrawals = handler.mock.calls.filter(([cents]) => cents === null);
+      expect(withdrawals).toHaveLength(1);
+
+      // `null`, not a retained note number: the channel's way of saying "I have
+      // nothing" must not name a note the tuner is no longer hearing.
+      expect(withdrawals[0]).toEqual([null, 0, null]);
+
+      await session.stop();
+    });
   });
 });
 

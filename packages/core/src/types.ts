@@ -21,6 +21,15 @@ export type Appearance = 'light' | 'dark';
 export type AppearancePreference = Appearance | 'system';
 
 /**
+ * Which tuning display the user has chosen (007 data-model §1, FR-146).
+ *
+ * The stored value IS the vocabulary the UI shows — "Line" and "Dial" — in the
+ * same way `AccidentalStyle` stores `'sharp'`/`'flat'`. A record opened by a
+ * human then reads as what it means, rather than as a code for it.
+ */
+export type TunerDisplay = 'line' | 'dial';
+
+/**
  * The classification the entire UI keys off (data-model §4).
  *
  * Deliberately a closed set of four so that colour, marker position, and text

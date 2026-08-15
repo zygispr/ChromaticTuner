@@ -34,6 +34,7 @@ const DARK_RECORD = {
   a4Hz: 440,
   accidentalStyle: 'sharp',
   appearance: 'dark',
+  tunerDisplay: 'line',
   schemaVersion: 1,
 } as const;
 
