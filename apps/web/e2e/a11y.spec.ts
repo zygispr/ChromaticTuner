@@ -1,7 +1,14 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
-import { activeTestId, audioArgs, openSettings, waitForNote } from './helpers';
+import {
+  activeTestId,
+  audioArgs,
+  openSettings,
+  useDial,
+  waitForNeedleAngle,
+  waitForNote,
+} from './helpers';
 
 test.use(audioArgs('e2-in-tune.wav'));
 
@@ -90,6 +97,84 @@ test('does not announce the visual channels a second time', async ({ page }) => 
   for (const id of ['note-label', 'cents-readout', 'tuning-line', 'direction-cue']) {
     await expect(page.getByTestId(id)).toHaveAttribute('aria-hidden', 'true');
   }
+});
+
+/**
+ * V70 / G24 / FR-164 — the dial says nothing to a screen reader.
+ *
+ * Three separate claims, because they fail separately:
+ *
+ * 1. Nothing inside the circle reaches the accessibility tree. Asserted by
+ *    walking each mark's ANCESTORS for `aria-hidden`, not by reading the
+ *    attribute off the mark — `aria-hidden` on a container hides its whole
+ *    subtree, so a needle with no attribute of its own is correctly hidden and
+ *    an assertion on the element alone would report the opposite.
+ * 2. The announcer is unchanged. The dial replaces a visual channel, not a
+ *    spoken one, so the sentence and the number of live regions must be exactly
+ *    what the line produces.
+ * 3. Axe finds nothing on the dial. The whole existing suite runs against the
+ *    default display, so before this the dial had never been analysed at all.
+ */
+test('the dial is silent to assistive technology (V70, G24, FR-164)', async ({ page }) => {
+  test.setTimeout(60_000);
+  await useDial(page);
+  await page.goto('/');
+  await waitForNote(page, 'E');
+  await waitForNeedleAngle(page);
+
+  const exposure = await page.evaluate(() => {
+    const hiddenByAnAncestor = (el: Element): boolean => {
+      let node: Element | null = el;
+      while (node) {
+        if (node.getAttribute('aria-hidden') === 'true') return true;
+        node = node.parentElement;
+      }
+      return false;
+    };
+
+    const marks = [
+      ...document.querySelectorAll(
+        '[data-testid="tuning-dial"], [data-testid="dial-rim"], [data-testid="dial-tick"], [data-testid="dial-target"], [data-testid="dial-label"], [data-testid="dial-needle"], [data-testid="dial-needle-wrapper"], [data-testid="dial-hub"]'
+      ),
+    ];
+
+    return {
+      total: marks.length,
+      exposed: marks
+        .filter((el) => !hiddenByAnAncestor(el))
+        .map((el) => el.getAttribute('data-testid')),
+      dialIsHidden:
+        document.querySelector('[data-testid="tuning-dial"]')?.getAttribute('aria-hidden') ===
+        'true',
+    };
+  });
+
+  // The rim, twelve ticks, the target, twelve labels, the needle and its
+  // wrapper, the hub and the dial itself. Counted so the filter below cannot
+  // pass on an empty list — which is what a renamed test id would produce.
+  expect(exposure.total, 'found none of the dial to check').toBeGreaterThanOrEqual(28);
+  expect(exposure.exposed, 'part of the dial is reachable by assistive technology').toEqual([]);
+  expect(exposure.dialIsHidden).toBe(true);
+
+  // The announcer is untouched — same sentence, and still the only live region.
+  const announcer = page.getByTestId('sr-announcer');
+  await expect(announcer).toHaveAttribute('aria-live', 'polite');
+  await expect(announcer).toHaveAttribute('aria-atomic', 'true');
+  await expect(announcer).toContainText(/E 2, .*(in tune|cents)/);
+  expect(await page.locator('[aria-live]:not([aria-hidden="true"])').count()).toBe(1);
+});
+
+test('the tuner screen with the dial has no accessibility violations', async ({ page }) => {
+  test.setTimeout(60_000);
+  await useDial(page);
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  const results = await analyze(page);
+  expect(
+    results.violations,
+    results.violations.map((v) => `${v.id}: ${v.help}`).join('\n')
+  ).toEqual([]);
 });
 
 test('every interactive control is labelled and meets the touch target floor', async ({ page }) => {
@@ -543,6 +628,140 @@ for (const scheme of ['light', 'dark'] as const) {
         contrastOfRgb(tick.composited, tick.backdrop),
         `a ${tick.major ? 'major' : 'minor'} tick is under the 3:1 graphic floor`
       ).toBeGreaterThanOrEqual(3);
+    }
+  });
+}
+
+/**
+ * V67 / G22 / FR-167 — the dial's marks, composited, in both appearances.
+ *
+ * The dial is the ruler's problem again and worse. Nothing else can see it:
+ *
+ * - the tokens test checks the PALETTE, so an `opacity` applied at a call site
+ *   is invisible to it — the exact hole that shipped the FLAT/SHARP labels at
+ *   0.55 and the ruler and its ticks at 0.6/0.5;
+ * - Axe's `color-contrast` rule covers TEXT only, so a dimmed graphic passes;
+ * - and the dial is `aria-hidden` (G24), so Axe skips its twelve labels
+ *   entirely. Text that would normally be Axe's own business is not.
+ *
+ * So every mark is composited by hand, as the ruler's are. Two things this does
+ * that the ruler's version does not, both because of how the dial is built:
+ *
+ * 1. The alpha is accumulated up the ANCESTOR CHAIN rather than read off the
+ *    element. Every mark here sits inside at least one wrapper — the rotation
+ *    has to go on a dial-sized concentric element (G21) — and the needle's fade
+ *    lives on its wrapper while its colour lives on itself. An opacity on any
+ *    ancestor dims the mark exactly as one on the mark would, and reading the
+ *    element alone would not see it.
+ * 2. It asserts that the accumulated alpha is exactly 1. That is G22 stated as
+ *    behaviour rather than as a source grep: a steady-state multiplier is
+ *    forbidden outright, so a mark that still clears its floor at 0.8 is a
+ *    failure of the rule even though it is not yet a failure of contrast. The
+ *    lapsed needle's fade to zero is the single exception, and it is not in the
+ *    steady state this test measures.
+ */
+async function dialMarkContrast(page: Page) {
+  const measured = await page.evaluate(() => {
+    const parse = (c: string) => c.match(/\d+(\.\d+)?/g)!.map(Number);
+    const backdrop = parse(getComputedStyle(document.querySelector('main')!).backgroundColor);
+
+    /**
+     * Every opacity between this element and the document, multiplied.
+     *
+     * A group's opacity applies to the group as a whole, so a mark inside three
+     * wrappers is dimmed by all of them. Walking the chain is what makes this
+     * measure what the eye receives rather than what one element declares.
+     */
+    const effectiveAlpha = (el: Element): number => {
+      let alpha = 1;
+      let node: Element | null = el;
+      while (node) {
+        alpha *= Number(getComputedStyle(node).opacity);
+        node = node.parentElement;
+      }
+      return alpha;
+    };
+
+    const read = (el: Element, channel: 'background' | 'border' | 'text') => {
+      const style = getComputedStyle(el);
+      const own = parse(
+        channel === 'background'
+          ? style.backgroundColor
+          : channel === 'border'
+            ? style.borderTopColor
+            : style.color
+      );
+      // A colour's own fourth channel dims it exactly as an `opacity` does, and
+      // is a second way to write the same defect.
+      const alpha = effectiveAlpha(el) * (own.length > 3 ? own[3]! : 1);
+      return {
+        composited: own.slice(0, 3).map((c, i) => c * alpha + backdrop[i]! * (1 - alpha)),
+        alpha,
+      };
+    };
+
+    const all = (selector: string) => [...document.querySelectorAll(selector)];
+
+    return {
+      backdrop,
+      rim: read(document.querySelector('[data-testid="dial-rim"]')!, 'border'),
+      // The coloured bar inside each rotated wrapper, not the wrapper itself —
+      // the wrapper is a transparent square the size of the whole dial.
+      ticks: all('[data-testid="dial-tick"] > *').map((el) => read(el, 'background')),
+      target: read(document.querySelector('[data-testid="dial-target"] > *')!, 'background'),
+      needle: read(document.querySelector('[data-testid="dial-needle"]')!, 'background'),
+      labels: all('[data-testid="dial-label"]').map((el) => read(el, 'text')),
+    };
+  });
+
+  return measured;
+}
+
+for (const scheme of ['light', 'dark'] as const) {
+  test(`the dial's marks meet their contrast floors in ${scheme} (V67, G22, FR-167)`, async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await useDial(page);
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto('/');
+    await waitForNote(page, 'E');
+    // The needle is not drawn until something has been heard (FR-163), so this
+    // waits for an angle rather than for the note alone — otherwise the read
+    // below lands in the window where there is no needle to measure.
+    await waitForNeedleAngle(page);
+
+    const measured = await dialMarkContrast(page);
+
+    // Vacuity guards. Every assertion below is a `for` over a list, and an
+    // empty list passes all of them.
+    expect(measured.ticks, 'the dial drew no boundary ticks').toHaveLength(12);
+    expect(measured.labels, 'the dial drew no segment labels').toHaveLength(12);
+
+    const graphics = [
+      ['the rim', measured.rim] as const,
+      ['the needle', measured.needle] as const,
+      ['the target mark', measured.target] as const,
+      ...measured.ticks.map((tick, i) => [`boundary tick ${i}`, tick] as const),
+    ];
+
+    for (const [name, mark] of graphics) {
+      expect(
+        contrastOfRgb(mark.composited, measured.backdrop),
+        `${name} is under the 3:1 graphic floor in ${scheme}`
+      ).toBeGreaterThanOrEqual(3);
+      expect(mark.alpha, `${name} is drawn at ${mark.alpha}, and G22 forbids any`).toBe(1);
+    }
+
+    for (const [i, label] of measured.labels.entries()) {
+      expect(
+        contrastOfRgb(label.composited, measured.backdrop),
+        `segment label ${i} is under the 4.5:1 text floor in ${scheme}`
+      ).toBeGreaterThanOrEqual(4.5);
+      expect(
+        label.alpha,
+        `segment label ${i} is drawn at ${label.alpha}, and G22 forbids any`
+      ).toBe(1);
     }
   });
 }

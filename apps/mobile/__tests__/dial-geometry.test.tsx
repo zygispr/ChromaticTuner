@@ -216,4 +216,32 @@ describe('the face is the same drawing as web (G23, G25)', () => {
     // Native hit-tests rotated views the same way, and the dial is decoration.
     expect(view.getByTestId('tuning-dial', HIDDEN).props.pointerEvents).toBe('none');
   });
+
+  /**
+   * V70 / G24 / FR-164 — the dial says nothing to a screen reader.
+   *
+   * BOTH props, because on Android one of them does nothing: iOS reads
+   * `accessibilityElementsHidden` and Android reads
+   * `importantForAccessibility="no-hide-descendants"`, so a dial carrying only
+   * the first is silent on one platform and reads out twelve note names on the
+   * other. `TuningLine` already carries the pair for the same reason.
+   *
+   * The count is the other half. RNTL excludes hidden subtrees from every query
+   * by default — which is why `HIDDEN` exists all through this file — so
+   * "nothing found without the option" and "twelve found with it" together say
+   * the marks exist AND are hidden, where either alone is satisfied by a dial
+   * that simply is not there.
+   */
+  it('is hidden from assistive technology on both platforms (V70, G24, FR-164)', async () => {
+    const view = await renderDial(4);
+
+    const dial = view.getByTestId('tuning-dial', HIDDEN);
+    expect(dial.props.accessibilityElementsHidden).toBe(true);
+    expect(dial.props.importantForAccessibility).toBe('no-hide-descendants');
+
+    expect(view.getAllByTestId('dial-label', HIDDEN)).toHaveLength(12);
+    expect(view.queryAllByTestId('dial-label')).toEqual([]);
+    expect(view.queryAllByTestId('dial-tick')).toEqual([]);
+    expect(view.queryAllByTestId('tuning-dial')).toEqual([]);
+  });
 });

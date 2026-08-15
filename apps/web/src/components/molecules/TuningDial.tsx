@@ -126,13 +126,13 @@ const SIZE = `min(${MAX_SIZE_PX}px, 100%, calc(100dvh - ${COLUMN_CHROME_PX}px))`
 const HUB_RADIUS = 0.55;
 const LABEL_RADIUS = 0.66;
 /**
- * 0.78 rather than the 0.75 this was first drawn at, because the labels are the
- * one thing here that gets proportionally BIGGER as the dial shrinks: below a
- * ~275px dial their floor takes over from `4cqw`, and at the shortest supported
- * viewport the label reached 0.75R and met the needle. The floor came down from
- * 11px to 10px in the same fix, so the ring has margin from both ends rather
- * than being balanced on one. Measured, not reasoned about afterwards —
- * `dial-hub.spec.ts` runs the ring ordering at five viewport heights.
+ * 0.78 rather than the 0.75 this was first drawn at, because the labels used to
+ * get proportionally BIGGER as the dial shrank: below a ~275px dial their floor
+ * took over from `4cqw`, and at the shortest supported viewport the label
+ * reached 0.75R and met the needle. The floor is gone now (see
+ * `LABEL_FONT_SIZE`), which removes the growth this was widened for — but the
+ * margin is kept rather than spent, since it costs the needle nothing and
+ * `dial-hub.spec.ts` runs the ring ordering at five viewport heights either way.
  */
 const NEEDLE_INNER_RADIUS = 0.78;
 const NEEDLE_OUTER_RADIUS = 0.96;
@@ -160,12 +160,26 @@ const radialSpan = (inner: number, outer: number) => `${50 * (outer - inner)}%`;
  * `font-size` resolves against the PARENT'S FONT SIZE rather than its width, so
  * the same expression silently computes something else entirely.
  *
- * The labels do get a floor and a ceiling, unlike the note: their ring has room
- * to spare in both directions — twelve labels 30° apart at 0.66R are nowhere
- * near touching — so clamping them trades nothing, while clamping the note
- * would break the hub it has to fit inside.
+ * The labels get a CEILING but no floor, and the missing floor is the point.
+ *
+ * They had one — `clamp(10px, 4cqw, 20px)` — on the reasoning that their ring
+ * has room to spare in both directions, twelve labels 30° apart at 0.66R being
+ * nowhere near touching. That is true of a large dial and false of a small one,
+ * because the spacing shrinks with the circle while a floored glyph does not:
+ * measured, adjacent labels first touched at a ~90px dial and were a solid
+ * smear of 66 overlapping pairs at the 2px dial a 320px-tall window produces.
+ *
+ * Which is G25's collision exactly — a FIXED length inside the circle fighting
+ * a proportional ring — in the one dimension G25's table does not list, the
+ * type. Proportional all the way down, the glyph and the gap between glyphs
+ * shrink together and the arrangement cannot collide at any size. A tiny dial
+ * is then illegible rather than incoherent, which is the better of the two
+ * failures and the only one that keeps the face one drawing.
+ *
+ * The ceiling stays: it stops the labels growing into the needle on a large
+ * dial, where the ring genuinely does have room to spare.
  */
-const LABEL_FONT_SIZE = `clamp(10px, 4cqw, 20px)`;
+const LABEL_FONT_SIZE = `min(4cqw, 20px)`;
 
 /** See the needle below: proportional, with a floor at what it used to be. */
 const NEEDLE_WIDTH = `max(6px, 1.7cqw)`;

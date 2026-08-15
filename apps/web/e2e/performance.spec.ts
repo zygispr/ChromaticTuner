@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { audioArgs, waitForNote } from './helpers';
+import { audioArgs, useDial, waitForNeedleAngle, waitForNote } from './helpers';
 
 test.use(audioArgs('e2-in-tune.wav'));
 
@@ -258,4 +258,137 @@ test('switching appearance mid-reading costs no dropped frames (SC-050)', async 
   expect(await page.evaluate(() => document.documentElement.getAttribute('data-theme'))).toBe(
     'dark'
   );
+});
+
+/* ------------------------------------------------------------------------- *
+ * The dial's own render loop (007, T055, V71, Principle V).
+ *
+ * The three cases above measure the display a player gets by default, and the
+ * dial is a second render loop beside it: a bigger element, one transform per
+ * frame plus an opacity, and twelve labels and thirteen marks that must NOT be
+ * re-rendered per reading. None of that is covered by a suite that only ever
+ * loads the line — T002 flagged exactly this gap, and Phase 7 measured the dial
+ * by hand-editing a spec, which is a number nobody can reproduce later.
+ *
+ * Same instruments, same budgets, `useDial` seeded, so the dial's numbers and
+ * the line's are directly comparable rather than merely both green.
+ * ------------------------------------------------------------------------- */
+
+test('the needle moves without re-rendering React (guarantee R1, G21)', async ({ page }) => {
+  test.setTimeout(120_000);
+
+  await useDial(page);
+  await page.goto('/');
+  await waitForNote(page, 'E');
+  await waitForNeedleAngle(page);
+
+  await page.evaluate(() => {
+    const counts = { needle: 0, other: 0 };
+    (window as unknown as { __counts: typeof counts }).__counts = counts;
+
+    // The WRAPPER, not the needle: the rotation goes on a dial-sized concentric
+    // element, because `rotate()` turns an element about its own centre (G21).
+    const wrapper = document.querySelector('[data-testid="dial-needle-wrapper"]');
+    new MutationObserver((records) => {
+      for (const record of records) {
+        if (record.target === wrapper) counts.needle += 1;
+        else counts.other += 1;
+      }
+    }).observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      characterData: true,
+    });
+  });
+
+  await page.waitForTimeout(5_000);
+
+  const counts = await page.evaluate(
+    () => (window as unknown as { __counts: { needle: number; other: number } }).__counts
+  );
+
+  expect(counts.needle).toBeGreaterThan(100);
+  expect(
+    counts.other,
+    `expected the rest of the tree to stay quiet; needle=${counts.needle} other=${counts.other}`
+  ).toBeLessThan(counts.needle / 2);
+});
+
+test('the dial sustains its frame budget through a continuous session (SC-067, V71)', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+
+  await useDial(page);
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  const frames = await page.evaluate(async () => {
+    const deltas: number[] = [];
+    await new Promise<void>((resolve) => {
+      let previous = performance.now();
+      const started = previous;
+      const tick = (now: number) => {
+        deltas.push(now - previous);
+        previous = now;
+        if (now - started >= 20_000) resolve();
+        else requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    return deltas;
+  });
+
+  const steady = frames.slice(1).sort((a, b) => a - b);
+  expect(steady.length).toBeGreaterThan(500);
+
+  const p50 = steady[Math.floor(steady.length * 0.5)]!;
+  const p95 = steady[Math.floor(steady.length * 0.95)]!;
+  const worst = steady[steady.length - 1]!;
+
+  console.log(
+    `dial frame time: p50 ${p50.toFixed(1)}ms  p95 ${p95.toFixed(1)}ms  max ${worst.toFixed(1)}ms`
+  );
+
+  // The same two budgets the line is held to. `max` is deliberately printed and
+  // not asserted: T003 recorded a 27.7ms outlier on an unloaded machine running
+  // the LINE, which is why that baseline says to compare p50 and p95.
+  expect(p50).toBeLessThanOrEqual(17.5);
+  expect(p95).toBeLessThanOrEqual(33.4);
+});
+
+test('the dial reaches a usable display within the cold-start budget (V71)', async ({ page }) => {
+  await useDial(page);
+  await page.addInitScript(() => {
+    const record = (): void => {
+      (window as unknown as { __coldStartMs?: number }).__coldStartMs = performance.now();
+    };
+
+    if (document.querySelector('[data-testid="tuning-dial"]')) {
+      record();
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      if (!document.querySelector('[data-testid="tuning-dial"]')) return;
+      record();
+      observer.disconnect();
+    });
+
+    // `document`, not `document.documentElement` — see the line's version.
+    observer.observe(document, { childList: true, subtree: true });
+  });
+
+  await page.goto('/');
+  await expect(page.getByTestId('tuning-dial')).toBeVisible();
+
+  const coldStartMs = await page.evaluate(
+    () => (window as unknown as { __coldStartMs?: number }).__coldStartMs
+  );
+
+  expect(coldStartMs, 'the cold-start observer never fired').toBeDefined();
+  console.log(`dial cold start to usable display: ${coldStartMs!.toFixed(1)}ms`);
+
+  expect(coldStartMs!).toBeLessThanOrEqual(2_000);
 });

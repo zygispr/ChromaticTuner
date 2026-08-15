@@ -414,15 +414,21 @@ function statusSlotEstimate(fontScale: number): number {
 }
 
 /**
- * Segment labels scale with the dial, with a floor and a ceiling.
+ * Segment labels scale with the dial, with a ceiling and deliberately no floor.
  *
- * The labels get bounds where the note deliberately does not: their ring has
- * room to spare in both directions — twelve labels 30° apart at 0.66R are
- * nowhere near touching — so clamping them trades nothing, while clamping the
- * note would break the hub it has to fit inside.
+ * The floor was `10`, on the reasoning that the ring has room to spare in both
+ * directions — twelve labels 30° apart at 0.66R being nowhere near touching.
+ * True of a large dial, false of a small one: the spacing shrinks with the
+ * circle while a floored glyph does not, and web measured adjacent labels
+ * touching at a ~90px dial and piling into a smear below that. That is G25's
+ * collision in the one dimension its table does not list, the type. Removed on
+ * both platforms together, because G23 is one drawing rather than two that
+ * agree at the sizes anyone happened to screenshot.
+ *
+ * The ceiling stays: it stops the labels growing into the needle on a big dial.
  */
 function labelFontSize(size: number): number {
-  return Math.max(10, Math.min(20, size * 0.04));
+  return Math.min(20, size * 0.04);
 }
 
 function needleWidth(size: number): number {

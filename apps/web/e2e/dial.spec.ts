@@ -1,7 +1,16 @@
 import { PREFERENCES_STORAGE_KEY } from '@chromatic-tuner/core';
 import { expect, test, type Page } from '@playwright/test';
 
-import { audioArgs, expectNeedleAt, medianNeedleAngleDeg, useDial, waitForNote } from './helpers';
+import {
+  audioArgs,
+  expectNeedleAt,
+  expectOneEmphasisedLabel,
+  greyscaleChannels,
+  medianNeedleAngleDeg,
+  useDial,
+  waitForNote,
+  withoutColour,
+} from './helpers';
 
 test.use(audioArgs('d3-in-tune.wav'));
 
@@ -204,6 +213,158 @@ for (const height of [900, 800, 700, 640, 560]) {
     expect(dial!.y).toBeGreaterThanOrEqual(0);
     // Still square, whatever it had to shrink to.
     expect(Math.abs(dial!.width - dial!.height)).toBeLessThan(2);
+  });
+}
+
+/**
+ * V69 — the narrow phone, and the short window.
+ *
+ * The `fits the viewport` cases above vary HEIGHT at a comfortable 900px width,
+ * because the dial's fitting defect was a height defect. Width is the other
+ * axis and it fails differently: `min()` picks `100%` rather than the height
+ * term, and the labels take their size from `4cqw` — a percentage of the dial
+ * itself.
+ *
+ * 320x568 is the narrowest phone this app claims (`ruler-width.test.tsx` calls
+ * 320 "a phone from 2016"). 568x320 is the same device turned over, and it is
+ * the case that found something: see the label test below.
+ */
+for (const [width, height, orientation] of [
+  [320, 568, 'portrait'],
+  [568, 320, 'landscape'],
+] as const) {
+  test(`fits a ${width}x${height} phone in ${orientation}, unclipped (V69, FR-018)`, async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width, height });
+    await useDial(page);
+    await page.goto('/');
+    await waitForNote(page, 'D');
+
+    const box = await page.evaluate(() => {
+      const rect = (testId: string) =>
+        document.querySelector(`[data-testid="${testId}"]`)?.getBoundingClientRect() ?? null;
+      return {
+        dial: rect('tuning-dial'),
+        cue: rect('direction-cue'),
+        toggle: rect('microphone-toggle'),
+      };
+    });
+
+    expect(box.dial, 'the dial has no box').not.toBeNull();
+
+    // Not clipped on ANY edge. The height cases above only ever check the top
+    // and the control below; a dial wider than the viewport clips left and
+    // right instead, and reads as a perfectly ordinary circle right up until
+    // the labels at three and nine o'clock go missing.
+    expect(Math.round(box.dial!.left), 'the dial is clipped on the left').toBeGreaterThanOrEqual(0);
+    expect(Math.round(box.dial!.right), 'the dial is clipped on the right').toBeLessThanOrEqual(
+      width
+    );
+    expect(Math.round(box.dial!.top), 'the dial is clipped at the top').toBeGreaterThanOrEqual(0);
+
+    // The two rows FR-168 keeps outside the circle are still drawn.
+    expect(box.cue, 'the direction cue has no box').not.toBeNull();
+    expect(box.toggle, 'the microphone control has no box').not.toBeNull();
+  });
+
+  /**
+   * The dial is never worse than the line at the same viewport.
+   *
+   * Stated as a COMPARISON rather than as "the control fits", because at 320px
+   * of height nothing fits: the tuner column is 622px tall with the line — the
+   * note name alone is 128 — so the microphone control is 278px below the fold
+   * there whichever display is chosen. Measured, not assumed.
+   *
+   * This is the property Defect 1's fix was built around, and the only form of
+   * it that has any content at the extremes: choosing the dial must never cost
+   * a player a control the line would have left on screen.
+   */
+  test(`puts the control no lower than the line does at ${width}x${height} (V69, FR-018)`, async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    const controlBottom = async (dial: boolean) => {
+      const context = await page.context().newPage();
+      await context.setViewportSize({ width, height });
+      if (dial) await useDial(context);
+      await context.goto('/');
+      await waitForNote(context, 'D');
+      const bottom = await context
+        .getByTestId('microphone-toggle')
+        .evaluate((el) => el.getBoundingClientRect().bottom);
+      await context.close();
+      return bottom;
+    };
+
+    const withLine = await controlBottom(false);
+    const withDial = await controlBottom(true);
+
+    expect(
+      Math.round(withDial),
+      `the dial puts the control at ${Math.round(withDial)}px, ${Math.round(withDial - withLine)}px lower than the line's ${Math.round(withLine)}px`
+    ).toBeLessThanOrEqual(Math.round(withLine));
+  });
+}
+
+/**
+ * The twelve labels never run into each other, at ANY size (G25, V69).
+ *
+ * A total invariant, and it was not one when this was written. The labels are
+ * the one thing on the face that grows RELATIVE to the dial as the dial
+ * shrinks, because `4cqw` used to bottom out at a 10px floor: measured, twelve
+ * labels first touched at a ~90px dial and were a solid smear of 66 overlapping
+ * pairs at the 2px dial a 320px-tall window produces.
+ *
+ * That is exactly the collision G25 exists to forbid — a FIXED length inside
+ * the circle fighting a proportional ring — reappearing in the one dimension
+ * G25's table does not list, the type. The floor is gone; the label is
+ * proportional all the way down, so the spacing and the glyph shrink together
+ * and the drawing stays coherent at every size it can be given.
+ *
+ * The heights are deliberately absurd at the low end. A 320px-tall window is
+ * not a viewport this app is usable in — nothing fits, with either display —
+ * but "the face does not break" should not be conditional on the window being
+ * a sensible one, and an assertion that only holds above some threshold is one
+ * nobody will remember to re-derive when a row above the dial changes height.
+ */
+for (const height of [320, 360, 400, 480, 640, 900]) {
+  test(`draws twelve labels that never overlap at ${height}px (G25, V69)`, async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width: 900, height });
+    await useDial(page);
+    await page.goto('/');
+    await waitForNote(page, 'D');
+
+    const labels = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="dial-label"]')].map((el) => {
+        const r = el.getBoundingClientRect();
+        return {
+          text: el.textContent ?? '',
+          left: r.left,
+          right: r.right,
+          top: r.top,
+          bottom: r.bottom,
+        };
+      })
+    );
+
+    expect(labels, 'the dial drew no labels to check').toHaveLength(12);
+
+    // Every pair, not just adjacent ones: a label mispositioned by a whole
+    // segment collides with a distant one, and the loop costs 66 comparisons.
+    for (let i = 0; i < labels.length; i += 1) {
+      for (let j = i + 1; j < labels.length; j += 1) {
+        const a = labels[i]!;
+        const b = labels[j]!;
+        const overlaps =
+          a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+        expect(overlaps, `labels ${a.text} and ${b.text} overlap at a ${height}px viewport`).toBe(
+          false
+        );
+      }
+    }
   });
 }
 
@@ -496,4 +657,33 @@ test('a refused write still switches the display and warns (FR-153, V65)', async
   await expect(page.getByTestId('tuner-display-dial')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('persistence-warning')).toBeVisible();
   await expect(page.getByTestId('persistence-warning')).toContainText(/not be remembered/i);
+});
+
+/**
+ * V68 / SC-070 — in tune, with the colour taken away.
+ *
+ * The third of the three states. Its non-hue channels are different from the
+ * other two's and that is the point: sharp and flat are told apart by which
+ * SIDE of the target mark the needle is on, and in tune has no side — so it is
+ * carried by the needle being ON the mark, by the cue naming the state in
+ * words, and by the readout. The flat and sharp halves are in
+ * `dial-greyscale.spec.ts` and `dial-detune.spec.ts`, one per fixture.
+ */
+test('an in-tune string is readable with no colour at all (V68, SC-070)', async ({ page }) => {
+  test.setTimeout(60_000);
+  await useDial(page);
+  await page.goto('/');
+  await withoutColour(page);
+  await waitForNote(page, 'D');
+
+  const { offset, weights, cue } = await greyscaleChannels(page);
+
+  // The in-tune band is +/-3 cents, which is 0.9 degrees. 3 is the same bound
+  // the sharp and flat cases sit outside, so the three are exhaustive rather
+  // than three separate opinions about what counts as centred.
+  expect(Math.abs(offset), `the needle is ${offset.toFixed(1)}° from the target mark`).toBeLessThan(
+    3
+  );
+  expectOneEmphasisedLabel(weights);
+  expect(cue).toMatch(/IN TUNE/i);
 });

@@ -255,7 +255,17 @@ near the rim would have stacked them on the very mark they are meant to sit besi
 places the needle next to the tick it is aiming at, which is the pair the player is actually reading.
 
 Stroke widths are exempt: a tick's 2px thickness is tangential, not radial, and a proportional hairline
-would go sub-pixel and blur on a small dial. **(FR-157, FR-169, SC-073)**
+would go sub-pixel and blur on a small dial.
+
+**The type inside the circle is NOT exempt, and this clause originally left that unsaid.** The segment
+labels were given a floor — `clamp(10px, 4cqw, 20px)` — on the reasoning that their ring has room to
+spare in both directions. It has, on a large dial. On a small one the spacing shrinks with the circle
+while a floored glyph does not: measured, adjacent labels first touched at a ~90px dial, and at the 2px
+dial a 320px-tall window produces, all sixty-six pairs overlapped. That is this guarantee's own
+collision, reached through the one dimension the table above does not list. The floor is gone on both
+platforms; the ceiling stays, because it only ever binds where the ring genuinely has room. A label
+whose size is a fraction of the dial cannot collide at any size, which is what makes this a property
+rather than a range. **(FR-157, FR-169, SC-073)**
 
 ### G26 — The hub text fits inside the hub, at every size
 

@@ -712,18 +712,286 @@ Support/com.chromatictuner.app/RCTAsyncLocalStorage_V1/manifest.json` with the a
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T049 [P] Assert the **composited** contrast of the needle, ticks, rim and labels in both appearances in `apps/web/e2e/a11y.spec.ts` (**G22**, **FR-167**, V67) — ≥ 4.5:1 for the labels, ≥ 3:1 for the graphics, measured as the ruler's already are. Then grep both `TuningDial.tsx` files for `opacity` and confirm there is none.
-- [ ] T050 [P] Verify reduced motion on both platforms (**FR-165**, **D11**, V66) — Playwright's `reducedMotion: 'reduce'` for web, `AccessibilityInfo` mocked for mobile. The transition is **removed**, not shortened, and V61's short-way crossing still holds with no animation at all.
-- [ ] T051 [P] Verify the dial is silent to assistive technology (**G24**, **FR-164**, V70) — `aria-hidden` on web, `accessibilityElementsHidden` plus `importantForAccessibility="no-hide-descendants"` on mobile, and the announcer unchanged. Confirm with VoiceOver that the twelve labels are not reachable and the needle is never spoken.
-- [ ] T052 [P] Capture "after" screenshots of both displays in light and dark on both platforms into `specs/007-circular-tuner-display/screenshots/`. The **line** shots must be pixel-identical to T004 (**SC-068**). The dial shots are the only gate on **D5** for mobile — look at where the needle's pivot actually is.
-- [ ] T053 [P] Verify layout and text size (V69) — narrowest supported phone width in portrait and landscape, largest text step, dial not clipped, twelve labels not overlapping each other or the needle, and the note name, cents readout, direction cue and microphone control all still on screen. **Defect 1 (Phase 3) already fixed the fitting half and left a specific question here**: at a 640px viewport the dial shrinks to 114px and the twelve labels crowd. Decide whether the label size should scale with the dial, and judge it on both platforms.
-- [ ] T054 [P] Verify greyscale (**SC-070**, V68) — sharp, flat and in-tune each identifiable on the dial with colour removed.
-- [ ] T055 Record the "after" performance numbers in this file and compare against T003 (**Principle V**, **SC-067**, V71) — 30 s trace on the dial, p95 frame time and dropped frames. A regression above 10% blocks merge.
-- [ ] T056 Run the full gate set and record the counts in this file — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e`, plus `pnpm --filter @chromatic-tuner/mobile test`. Confirm `pnpm build && pnpm verify:listing` reports **no artwork drift**; the dial adds no colour, so drift here means a token changed and that is a defect rather than a reason to regenerate.
-- [ ] T057 Update `CLAUDE.md` with what a future reader cannot derive from the code — the rotation-origin trap and why the transform is on the wrapper (**D5**), the ~11× angular resolution finding (**D6**), and the third scalar on the reading channel with the one-frame boundary flick that forced it (**D2**).
-- [ ] T058 Update `packages/core` contract references — `specs/001-chromatic-guitar-tuner/contracts/core-api.md` §3 gains a pointer to **G12**/**G13**, since the reading channel it documents now publishes three arguments.
+- [X] T049 [P] Assert the **composited** contrast of the needle, ticks, rim and labels in both appearances in `apps/web/e2e/a11y.spec.ts` (**G22**, **FR-167**, V67) — ≥ 4.5:1 for the labels, ≥ 3:1 for the graphics, measured as the ruler's already are. Then grep both `TuningDial.tsx` files for `opacity` and confirm there is none.
+- [X] T050 [P] Verify reduced motion on both platforms (**FR-165**, **D11**, V66) — Playwright's `reducedMotion: 'reduce'` for web, `AccessibilityInfo` mocked for mobile. The transition is **removed**, not shortened, and V61's short-way crossing still holds with no animation at all.
+- [X] T051 [P] Verify the dial is silent to assistive technology (**G24**, **FR-164**, V70) — `aria-hidden` on web, `accessibilityElementsHidden` plus `importantForAccessibility="no-hide-descendants"` on mobile, and the announcer unchanged. Confirm with VoiceOver that the twelve labels are not reachable and the needle is never spoken. **The VoiceOver pass is the one part still owed by hand — see below.**
+- [X] T052 [P] Capture "after" screenshots of both displays in light and dark on both platforms into `specs/007-circular-tuner-display/screenshots/`. The **line** shots must be pixel-identical to T004 (**SC-068**). The dial shots are the only gate on **D5** for mobile — look at where the needle's pivot actually is.
+- [X] T053 [P] Verify layout and text size (V69) — narrowest supported phone width in portrait and landscape, largest text step, dial not clipped, twelve labels not overlapping each other or the needle, and the note name, cents readout, direction cue and microphone control all still on screen. **Defect 1 (Phase 3) already fixed the fitting half and left a specific question here**: at a 640px viewport the dial shrinks to 114px and the twelve labels crowd. Decide whether the label size should scale with the dial, and judge it on both platforms. **Answered, and it found a defect — Defect 4 below.**
+- [X] T054 [P] Verify greyscale (**SC-070**, V68) — sharp, flat and in-tune each identifiable on the dial with colour removed.
+- [X] T055 Record the "after" performance numbers in this file and compare against T003 (**Principle V**, **SC-067**, V71) — 30 s trace on the dial, p95 frame time and dropped frames. A regression above 10% blocks merge.
+- [X] T056 Run the full gate set and record the counts in this file — `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm test:e2e`, plus `pnpm --filter @chromatic-tuner/mobile test`. Confirm `pnpm build && pnpm verify:listing` reports **no artwork drift**; the dial adds no colour, so drift here means a token changed and that is a defect rather than a reason to regenerate.
+- [X] T057 Update `CLAUDE.md` with what a future reader cannot derive from the code — the rotation-origin trap and why the transform is on the wrapper (**D5**), the ~11× angular resolution finding (**D6**), and the third scalar on the reading channel with the one-frame boundary flick that forced it (**D2**).
+- [X] T058 Update `packages/core` contract references — `specs/001-chromatic-guitar-tuner/contracts/core-api.md` §3 gains a pointer to **G12**/**G13**, since the reading channel it documents now publishes three arguments.
 
-**Checkpoint**: every gate green, both platforms screenshotted, performance measured.
+**Checkpoint**: every gate green, both platforms screenshotted, performance measured. ✅ (2026-08-15)
+
+| Gate | After Phase 4 | After Phase 6 |
+| --- | --- | --- |
+| `pnpm test:e2e` | 189 | **214** (+25) |
+| `pnpm --filter @chromatic-tuner/mobile test` | 139 | **148** (+9) |
+| `pnpm test` | 517 | 517, unchanged — Phase 6 adds no `packages/*` test |
+| `pnpm test:coverage` | 98.56 / 95.32 / 100 lines | 98.56 / 95.32 / 97.50 / **100 lines** |
+| `pnpm lint`, `format:check`, `typecheck` | pass | pass (5 projects) |
+| `pnpm build` | pass | pass — 243.62 kB js, gzip 77.04 kB |
+| `pnpm verify:listing` | red for the Android screenshots | **red for exactly that and nothing else** |
+
+`verify:listing` reports the same 3 problems it has reported since `005`: no
+`listing/assets/screenshots/android/{light,dark}/`, and therefore "android is missing a light
+screenshot". **`artwork: 5 scanned` with no drift**, which is what T056 asked — the dial introduces no
+colour, so a drift here would have meant a token moved.
+
+**A count in the Phase 7 table was wrong.** It records mobile at 122 after Phase 7; Phase 5 records 139,
+and 148 − 9 new tests = 139. Phase 7 added no mobile test, so 139 is the number that was true and 122
+was carried over stale from Phase 4. Nothing depends on it beyond this correction.
+
+### T049 — the composited floors, and what the grep actually found
+
+Two tests in `a11y.spec.ts`, one per appearance, compositing every mark by hand: rim, twelve ticks, the
+target, the needle, twelve labels. Two things they do that the ruler's version does not, both forced by
+how the dial is built:
+
+1. **The alpha is accumulated up the ancestor chain**, not read off the element. Every mark sits inside
+   at least one wrapper because the rotation has to go on a concentric element (**G21**), and the
+   needle's fade lives on its wrapper while its colour lives on the needle itself.
+2. **It asserts the accumulated alpha is exactly 1**, which is **G22** as behaviour rather than as a
+   source grep: a steady-state multiplier is forbidden outright, so a mark still clearing its floor at
+   0.9 fails the rule before it fails the ratio.
+
+Both mutation-tested, and they fail through **different** assertions, which is the point of having both:
+
+| Mutation | Result |
+| --- | --- |
+| `opacity: 0.5` on the tick WRAPPER (an ancestor of the coloured bar) | the composited **ratio** fails — "boundary tick 0 is under the 3:1 graphic floor", in both appearances |
+| `opacity: 0.9` on the labels — still comfortably over 4.5:1 | only the **alpha** assertion fails — "segment label 0 is drawn at 0.9, and G22 forbids any" |
+
+**The grep half of the task is stale and the answer is "there is opacity, and it is the permitted
+one".** T049 was written before Phase 7. Every occurrence in either `TuningDial.tsx` is the lapse fade
+— the transition declaration, the write of `'0'` on the lapse edge, the write of `'1'` on a live
+reading, `willChange`, and the initial `opacity: 1` — which is exactly the single exception the
+rewritten **G22** permits, and never a multiplier. The behavioural assertion above is what keeps that
+true from now on, in a way a grep never could.
+
+### T050 — reduced motion, and two things that are not what they look like
+
+**`test.use({ reducedMotion: 'reduce' })` does nothing in this repo.** Measured under Playwright 1.62.1
+with the `Desktop Chrome` device, at file level and at `describe` level alike:
+`window.matchMedia('(prefers-reduced-motion: reduce)').matches` reads **false** inside the page, while
+`page.emulateMedia({ reducedMotion: 'reduce' })` reads **true**. Every case here goes through
+`emulateMedia`, always before `goto`, because the components read the query once on mount. This is worth
+knowing before writing the next motion test: the obvious spelling fails loudly here, but only because
+the assertions were about a specific duration rather than about "not much".
+
+**The global reset would have hidden a broken component.** `main.tsx` carries the conventional
+`transition-duration: 0.01ms !important` under the media query (FR-016), and `!important` beats an
+inline style — so the composed duration comes back as `1e-05s` even on a build where the dial itself
+never dropped anything. The test therefore reads the transition **twice**: the component's own inline
+declaration, and the browser's composed duration. Proved by mutation — with the dial's `reduceMotion`
+branch disabled, the composed duration is still imperceptible and only the inline assertion fails:
+
+```
+the dial itself still asked for "transform 90ms cubic-bezier(...), opacity 180ms cubic-bezier(...)"
+under Reduce Motion
+```
+
+Paired with a positive case in every instance (`markerMs` on `transform`, `colorMs` on `opacity`),
+because a lone negative passes for the emptiest possible reason — the vacuity
+`settings-animation.test.tsx` had to be rescued from. The line's marker is asserted the same way in the
+same file, since it shares the mechanism.
+
+**V66 step 4 has its own case on both platforms**: unwrapping is not an animation concern, so the B/C
+crossing still takes the short way with no tween at all. An implementation that folded the unwrap into
+the animated path would leave the needle jumping the long way round for exactly the users who asked for
+less movement.
+
+Mobile: `dial-reduced-motion.test.tsx`, with `withTiming` as a spy and the shared values captured as
+they are created. Mutation-tested by "honouring" the preference with a 1ms tween — the classic wrong
+fix — which the `toHaveLength(0)` catches.
+
+**A defect in the test instrument, found by the instrument.** The shared-value mock had to be
+**memoised**. `jest.setup.js`'s global mock returns a fresh object per render, and this dial re-renders
+three times before the first reading (the reduced-motion preference resolving, the layout measuring,
+the needle mounting) — so the object the test captured was the first and the component was writing to
+the third. The angle read back as 0 forever against a component that was working perfectly.
+`ruler-width.test.tsx` already carries this lesson for the marker; `dial-rest.test.tsx` never noticed
+because it only ever inspects `withTiming` calls.
+
+### T051 — silent to assistive technology
+
+Web: one test walking every mark's **ancestors** for `aria-hidden` — not reading the attribute off the
+mark, because `aria-hidden` on a container hides its whole subtree and an assertion on the element alone
+would report the opposite. 28 elements checked, none exposed. Mutation: removing `aria-hidden` from the
+dial root fails it with "part of the dial is reachable by assistive technology".
+
+The same test re-asserts the announcer, since the dial replaces a **visual** channel and must leave the
+spoken one alone: same sentence, same `aria-live`/`aria-atomic`, still exactly one live region.
+
+**Axe had never seen the dial.** Every existing case in `a11y.spec.ts` loads the default display, so
+`the tuner screen with the dial has no accessibility violations` is a new gate rather than a
+restatement. It passes.
+
+Mobile: both props asserted in `dial-geometry.test.tsx`, because on Android only one of them does
+anything — iOS reads `accessibilityElementsHidden`, Android reads
+`importantForAccessibility="no-hide-descendants"`, and a dial carrying only the first is silent on one
+platform and reads twelve note names on the other. Mutation: dropping the Android prop fails it. The
+count is asserted from both sides — twelve labels found **with** `includeHiddenElements`, none without
+— so "hidden" and "not there at all" stay distinguishable.
+
+**Still owed by hand: the VoiceOver and TalkBack passes.** They are manual by the quickstart's own
+design and cannot be driven from here. `a11y.spec.ts` has said since `001` that these stay manual;
+nothing above changes that, and V70's step 1 is still unticked on a real device. Note also the open
+VoiceOver announcement defect recorded outside this feature — it is not a 007 regression, and this
+feature does not touch the announcer.
+
+### T052 — the "after" screenshots, and why "pixel-identical" needed a definition
+
+Web: `after-web-{line,dial}-{light,dark}.png` and `after-web-settings-{light,dark}.png`, captured with
+T004's recipe exactly — `e2-in-tune.wav`, 1200×900, appearance set through the app's own Settings sheet.
+**The recipe is reproducible to the byte**: two consecutive captures of the same state differ in 0
+pixels of 1,080,000.
+
+Against T004's baselines, masking two regions:
+
+| | cents readout | marker column | everywhere else |
+| --- | --- | --- | --- |
+| light | 0 | 12 px | **0** |
+| dark | 0 | 32 px | 16 px at **delta 1** |
+
+The 16 are the microphone control's rounded corners at one level of anti-aliasing. **SC-068 holds.**
+
+**But the readout is not deterministic, and that is worth writing down.** An earlier capture of the same
+build differed from the baseline by 891 pixels at a delta of 230, in a box that decodes to the cents
+readout: the baseline reads `+0 cents` and that capture read `−0 cents`. The fixture is in tune to a
+fraction of a cent, so which side of zero it lands on varies between runs while the printed number does
+not. Phase 2's checkpoint anticipated the marker's anti-aliased column; this is the same phenomenon two
+orders of magnitude larger, and it means the readout's box has to be excluded from any pixel comparison
+rather than tolerated. The comparison outside it is exact.
+
+Mobile: `after-mobile-{line,dial}-{light,dark}.png` from Phase 5 stand, verified current —
+`git log` shows **no commit touching `apps/mobile/src` or `packages/` since they were taken**, and the
+working tree is clean there. Re-capturing would cost a full simulator cycle for the same picture, which
+is the reasoning T059 already recorded for the "before" half.
+
+**The D5 gate**: the dial shot was read directly, and the needle sits in the outer band at 9 o'clock
+just clockwise-of-horizontal for A4 +6 cents — where a needle rotated about its own midpoint could not
+be. T048's radial slicing is the measured form of the same check (constant to 0.04° across the needle's
+band).
+
+### Defect 4 — the label floor put twelve glyphs on top of each other
+
+**Found by T053, by asserting something nobody had asserted: that no two labels overlap.**
+
+Phase 7 gave the labels `clamp(10px, 4cqw, 20px)`, on the reasoning that "their ring has room to spare
+in both directions — twelve labels 30° apart at 0.66R are nowhere near touching". True of a large dial
+and false of a small one, because the spacing shrinks with the circle while a floored glyph does not.
+Measured, at a 900px-wide window:
+
+| viewport height | 320 | 360 | 400 | 420 | 480+ |
+| --- | --- | --- | --- | --- | --- |
+| dial | 2px | 42px | 82px | 102px | 132px+ |
+| label | 10px (floored) | 10px | 10px | 10px | 10px |
+| **overlapping pairs** | **66** | **12** | **2** | 0 | 0 |
+
+Sixty-six overlapping pairs is every pair: a solid smear of twelve glyphs on a 2px circle.
+
+**This is G25's collision, in the one dimension G25's table does not list.** The guarantee forbids a
+fixed length inside the circle fighting a proportional ring, and names the tick and the label ring; the
+type escaped the list. **Fix**: the floor is gone on both platforms — `min(4cqw, 20px)` on web,
+`Math.min(20, size * 0.04)` on mobile — so the glyph and the gap between glyphs shrink together and the
+arrangement cannot collide at any size. A tiny dial is then illegible rather than incoherent, which is
+the better of the two failures and the only one that keeps the face one drawing.
+
+**It changes nothing at any size a player is likely to see**: `4cqw` clears 10px above a 250px dial, so
+the floor was inactive from a 568px viewport upwards. The `after-web-dial-*` screenshots were
+re-captured after the fix and are identical outside the readout box, at the cap where the ceiling binds.
+
+**The ceiling stays.** It stops the labels growing into the needle on a large dial, where the ring
+genuinely does have the room the old comment claimed.
+
+### T053 — the rest of V69, and one thing the app has never supported
+
+Six new cases in `dial.spec.ts` for label overlap, from a 320px-tall window upward, and four for the
+narrow phone: 320×568 portrait and 568×320 landscape, asserting the dial is unclipped on **every** edge
+— the existing `fits the viewport` cases only ever checked the top and the control below, and a dial
+wider than the viewport clips left and right instead, reading as a perfectly ordinary circle until the
+labels at three and nine o'clock go missing.
+
+**In landscape on a phone, nothing fits — and that predates the dial.** Measured at 568×320: the tuner
+column is **622px** tall with the line (the note name alone is 128), so the microphone control sits
+**278px below the fold** whichever display is chosen. It is asserted here as a **comparison** rather
+than as "the control fits", because the comparison is the only form of the claim with any content at
+the extremes:
+
+| 568×320 | control's bottom edge |
+| --- | --- |
+| line | 598px |
+| dial | **293px** — on screen |
+
+The dial shrinks to fit and the line does not, so Defect 1's property holds at the extreme in the
+direction that matters: choosing the dial never costs a player a control the line would have left on
+screen.
+
+**Largest text step**: on web this has no meaning to assert — the type scale is fixed pixels, so a
+browser's text-size setting moves nothing on the tuner screen. On mobile it does, and
+`apps/mobile/__tests__/dial-fit.test.tsx` is new for it: the dial's size is asserted **exactly** against
+an independently restated `min(cap, width, height − chrome(fontScale))` at five screens including
+`fontScale` 1.35 (the largest ordinary step) and 3.1 (an accessibility step). Mutation: dropping
+`fontScale` from `statusSlotEstimate` fails the two large-text cases and leaves the other three green,
+which is exactly the shape of the defect — invisible at the default setting.
+
+**A runner limit found while writing it, recorded because the next person will hit it.** The render
+following the **second** explicit `cleanup` or `unmount` in a jest-expo file comes back as an empty
+tree, whether or not anything changed between them — and `afterEach(cleanup)` is one of the two. So
+that file is one render per test, and the text-size cases assert arithmetic rather than comparing two
+renders. Same family as the RNTL quirks `settings.test.tsx` and `dial-rest.test.tsx` already record.
+
+### T054 — greyscale, and what the emulation actually does
+
+Three cases, one per state and one per fixture — `dial-greyscale.spec.ts` (flat), `dial-detune.spec.ts`
+(sharp), `dial.spec.ts` (in tune) — each asserting the three channels that carry **no hue**:
+
+1. the needle's **side** of the segment's target mark (a new `targetAngleDeg` helper, and a signed,
+   wrapped offset, because the pair straddles twelve o'clock for half the notes);
+2. exactly **one** label drawn heavier than the other eleven — stated as "one of twelve" rather than
+   "this one is bold", since a build that emboldened every label satisfies any assertion about the
+   active one and carries no information;
+3. the direction cue's words.
+
+**What `Emulation.setEmulatedVisionDeficiency` does and does not do is worth stating**, because it looks
+like it should be doing more: it changes what is **painted** and nothing about the DOM, so a colour
+measured under achromatopsia is identical to one measured without it. It is applied here so a failure's
+trace shows what the player would see, while the assertions are made against channels that were never
+hue in the first place. The luminance half is not repeated: a WCAG ratio is computed from relative
+luminance alone, so T049's composited floors are already greyscale measurements, and the tokens package
+separately pins flat, sharp and in-tune to distinct luminances.
+
+Mutation: removing the active label's bold weight fails with "no label is drawn heavier than the
+others".
+
+### T055 — after performance, and the dial's own gates
+
+**The dial had no performance gate at all.** T002 flagged it — `performance.spec.ts` observes
+`[data-testid="tuning-track"]` and waits for `[data-testid="tuning-line"]` — and Phase 7 measured the
+dial by hand-editing a spec, which is a number nobody can reproduce later. Three cases added, mirroring
+the line's exactly so the two are comparable rather than merely both green: the R1 mutation count on the
+needle's **wrapper**, the 20 s frame sampler, and cold start to a usable dial.
+
+Three consecutive runs, same instrument, both displays measured in the same run on the same machine:
+
+| run | line p50 | line p95 | dial p50 | dial p95 | line cold | dial cold |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 8.1 ms | 9.6 ms | 8.1 ms | 9.3 ms | 102.4 ms | 100.0 ms |
+| 2 | 8.3 ms | 9.2 ms | 8.3 ms | 9.3 ms | 99.4 ms | 104.0 ms |
+| 3 | 8.2 ms | 9.4 ms | 7.9 ms | 9.5 ms | 101.8 ms | 101.1 ms |
+
+**No regression.** Dial p50 8.1 ms against the line's 8.2; dial p95 9.4 ms against the line's 9.4 —
+inside the run-to-run spread, against budgets of 17.5 ms and 33.4 ms and a 10% block. T003's baseline
+(p50 ≈ 8.2, p95 ≈ 9.1–10.7) is matched. `max` is printed and not asserted, for the reason T003 gave.
+
+Cold start reads ~100 ms here against T003's 265–294 ms for the same spec. That is machine state rather
+than the app — the comparison that means anything is the one inside each run, and there the dial and the
+line agree to a few milliseconds.
+
+`allocation.test.ts` still passes unmodified (V71 step 4, **G14**), inside the unchanged 517.
 
 ---
 

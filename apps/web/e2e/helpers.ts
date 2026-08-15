@@ -214,6 +214,44 @@ export async function needleAngleDeg(page: Page): Promise<number> {
 }
 
 /**
+ * Where the ACTIVE SEGMENT'S TARGET MARK sits, in degrees clockwise from the
+ * top — measured the same way {@link needleAngleDeg} measures the needle.
+ *
+ * The pair is what makes the dial readable with no colour at all (SC-070): the
+ * needle's side of this mark is the sharp/flat channel, and it is geometry
+ * rather than hue. The mark itself is inside a rotated, dial-sized wrapper, so
+ * the box measured is the child that actually carries the ink.
+ */
+export async function targetAngleDeg(page: Page): Promise<number> {
+  const geometry = await page.evaluate(() => {
+    const dial = document.querySelector('[data-testid="tuning-dial"]')?.getBoundingClientRect();
+    const mark = document.querySelector('[data-testid="dial-target"] > *')?.getBoundingClientRect();
+    if (!dial || !mark) return null;
+    return {
+      dx: mark.x + mark.width / 2 - (dial.x + dial.width / 2),
+      dy: mark.y + mark.height / 2 - (dial.y + dial.height / 2),
+    };
+  });
+
+  expect(geometry, 'no target mark on the dial').not.toBeNull();
+
+  const degrees = (Math.atan2(geometry!.dx, -geometry!.dy) * 180) / Math.PI;
+  return (degrees + 360) % 360;
+}
+
+/**
+ * How far clockwise the needle is from the target mark, in [-180, 180).
+ *
+ * Signed and wrapped, because the pair straddles twelve o'clock for half the
+ * notes on the dial: a needle at 359 and a mark at 1 are two degrees apart, and
+ * a subtraction calls them 358 and gets the SIDE wrong, which is the only thing
+ * this quantity is ever used for.
+ */
+export function signedOffsetDeg(needle: number, target: number): number {
+  return ((needle - target + 540) % 360) - 180;
+}
+
+/**
  * The needle's ACCUMULATED angle, read from the wrapper's inline transform.
  *
  * Deliberately a different measurement from {@link needleAngleDeg}, because the
@@ -506,4 +544,47 @@ export function rgbOf(value: string): string {
     return `${parseInt(hex.slice(0, 2), 16)},${parseInt(hex.slice(2, 4), 16)},${parseInt(hex.slice(4, 6), 16)}`;
   }
   return value.trim();
+}
+
+export async function withoutColour(page: Page): Promise<void> {
+  const client = await page.context().newCDPSession(page);
+  await client.send('Emulation.setEmulatedVisionDeficiency', { type: 'achromatopsia' });
+}
+
+/**
+ * The three hue-free channels, read together.
+ *
+ * In one pass rather than three, because they describe one instant: the needle
+ * animates and the fixture loops, so a cue read a round-trip after an angle can
+ * legitimately describe a different reading.
+ */
+export async function greyscaleChannels(page: Page) {
+  const needle = await medianNeedleAngleDeg(page);
+  const target = await targetAngleDeg(page);
+  const weights = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-testid="dial-label"]')].map((el) =>
+      Number(getComputedStyle(el).fontWeight)
+    )
+  );
+  const cue = ((await page.getByTestId('direction-cue').textContent()) ?? '').trim();
+
+  return { offset: signedOffsetDeg(needle, target), weights, cue };
+}
+
+/**
+ * Exactly one label is heavier than the rest.
+ *
+ * Stated as "one of twelve", not "this one is bold": a build that emboldened
+ * every label would satisfy any assertion about the active one and would carry
+ * no information at all.
+ */
+export function expectOneEmphasisedLabel(weights: number[]): void {
+  expect(weights).toHaveLength(12);
+  const heaviest = Math.max(...weights);
+  const lightest = Math.min(...weights);
+  expect(heaviest, 'no label is drawn heavier than the others').toBeGreaterThan(lightest);
+  expect(
+    weights.filter((weight) => weight === heaviest),
+    'more than one label is emphasised, so weight names no segment'
+  ).toHaveLength(1);
 }

@@ -100,6 +100,16 @@ This is the core performance design (`research.md` D6) and the easiest thing to 
 
 Note also that percentage `translateX` resolves against the transformed element's own width: the marker transform goes on the full-width track, never on the marker. This shipped wrong for seven phases; `apps/web/e2e/helpers.ts:markerOffsetPx` measures real bounding boxes to keep it honest.
 
+`onReading` publishes **three** scalars since `007` — `(cents, clarity, midi)` — and the third one is not a convenience. The needle's angle is a function of pitch class _and_ cents, and pitch class was previously available only from the discrete channel, one React render later. The two channels do not land in the same frame, so a pitch crossing any note boundary would read `C +50` (15°) and then compute `C −50` (−15°) for exactly one frame before the new note name arrived: **a 30° backwards flick on every boundary, at every note**, precisely while the player is turning the peg (research `007` D2). Three bare scalars also allocate nothing, which is why this is not a `{ cents, clarity, midi }` object — `allocation.test.ts` must keep passing unmodified. `subscribeToCents` is untouched and `TuningLine` still uses it.
+
+### The dial, and the rotation-origin trap
+
+`rotate()` turns an element about **its own centre**, so the needle's angle is written to a dial-sized, concentric **wrapper** and never to the needle itself. A needle drawn as a bar has its centre halfway along itself: rotate it directly and it orbits its own midpoint and swings out of the circle — while `getComputedStyle(needle).transform` reports exactly the matrix that was asked for. This is the rotate-shaped twin of the `translateX` bug above, it is the single most breakable thing in `TuningDial.tsx` on both platforms, and `apps/web/e2e/helpers.ts:needleAngleDeg` catches it by measuring the needle's rendered box (under the defect it reads ~0° for every tone). `jest-expo` **cannot** catch it — no layout engine, so both trees are identical — which is why the web component was built and proved first and mobile copies its shape.
+
+The consequence to remember when touching the face: every rotated mark is an `inset: 0` square the size of the whole dial, and a rotated square hit-tests over its **rotated** area, overhanging the dial's own box by up to `((√2 − 1) / 2) × size` — 101px on a 489px dial. The corners paint nothing, so the reach is invisible until a control near the dial stops taking clicks. One `pointer-events: none` on the dial's root (`pointerEvents="none"` on mobile) is the whole fix (G24a).
+
+**A dial is ~11× less sensitive per cent than the line, and that is inherent rather than fixable** (research `007` D6): twelve segments on one face give each note 30° of arc, so a cent is 0.3° against the line's 7.2px, and matching the line would need a needle 1375px long. Do not "improve" this by drawing the in-tune tolerance as a wedge — ±3 cents is a 3° sliver, about seven pixels of arc, so a wedge that size is invisible and a visible one lies about the tolerance. The target is a mark, the tolerance is carried by colour, and the fine precision stays in the cents readout, which FR-168 keeps on screen inside the hub.
+
 ### Appearance, and the two no-flash routes
 
 The stored record carries **three** preferences since `005` — `a4Hz`, `accidentalStyle`, `appearance` —
