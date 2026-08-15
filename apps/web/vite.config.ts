@@ -237,12 +237,27 @@ try {
  * the same unit, so the reservation and the thing it reserves for cannot
  * disagree on mobile browsers whose chrome collapses on scroll.
  *
+ * **`min-height` and NOT `height`, and the difference is a reported defect.**
+ * `#root` used to carry both. `height: 100%` is a DEFINITE height, so `#root`
+ * stayed pinned to the viewport while `<main>` grew to the 622px its column
+ * needs — and the supporting content, positioned immediately after a box that
+ * was 122px shorter than its own contents, was drawn UNDERNEATH the tuner:
+ * the heading behind the readout, a paragraph behind the microphone control.
+ * Reserving a floor is the requirement; capping the ceiling never was. The fold
+ * now grows with the column, and everything below it moves down (`fold.spec.ts`,
+ * `never paints over the supporting content`).
+ *
+ * `html, body` lose theirs with it. All a definite height on those was doing was
+ * giving `#root`'s percentage something to resolve against — nothing else on
+ * this page is sized as a percentage of the viewport's height, and `body`'s
+ * background reaches the canvas by propagation rather than by covering it.
+ *
  * Tuner document only. `privacy.html` runs no scripts, so nothing there ever
  * arrived late, and it has no `#root` to reserve anything for.
  */
 const layoutCss = `
 *, *::before, *::after { box-sizing: border-box; }
-html, body, #root { margin: 0; padding: 0; height: 100%; }
+html, body, #root { margin: 0; padding: 0; }
 #root { min-height: 100dvh; }
 `;
 
