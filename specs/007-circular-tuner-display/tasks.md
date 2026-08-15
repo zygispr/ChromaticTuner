@@ -550,13 +550,13 @@ any ordinary assertion could run.
 **Independent test**: put both apps on the same reference tone with the same preferences and confirm
 the segment labels, their order, and the needle angle match. V58/V59/V63/V64 on mobile, plus V70.
 
-- [ ] T059 [US3] **Run this before T045.** Capture the deferred mobile half of T004 — "before"
-  screenshots of the mobile tuner in light and dark on an iOS simulator, into
-  `specs/007-circular-tuner-display/screenshots/` as `before-mobile-tuner-{light,dark}.png`. Deferred
-  from Phase 1 deliberately: nothing before this phase changes what mobile draws, so the picture is the
-  same either way. `005`'s mobile shots are **not** a usable baseline — `5f4bedd`, `ca8ca78` and
-  `38f4caa` each redrew the ruler after they were taken. Android cannot be captured on this machine at
-  all (no SDK), so its half of T052 stays a release-gate formality with nothing to compare.
+- [X] T059 **WITHDRAWN — closed with no artefact, and deliberately.** It asked for the deferred mobile
+  half of T004: "before" screenshots of the mobile tuner in light and dark on an iOS simulator, as
+  `before-mobile-tuner-{light,dark}.png`. Its first attempt photographed **the wrong app** (see the
+  note below) and re-taking it would cost a full Xcode cycle for a picture of a display this feature
+  does not change. What it existed to prove is proved by other evidence, also below. Android was never
+  capturable on this machine at all (no SDK), so its half of T052 was always a release-gate formality
+  with nothing to compare. Read the note before reopening this.
 - [X] T042 [P] [US3] Write failing tests in `apps/mobile/__tests__/dial-geometry.test.tsx` for the dial's structure — twelve labels in ascending order starting at C, twelve boundary ticks, and the needle's rotation derived from `dialAngleDegrees`. Model it on `apps/mobile/__tests__/ruler-geometry.test.tsx`, and note in the file that this cannot see **D5** (no layout engine).
 - [X] T043 [P] [US3] Write a failing test in `apps/mobile/__tests__/settings.test.tsx` for the **Tuning display** group — present, labelled identically to web, two options in the same order, `accessibilityState.selected` on the chosen one, and `a11y.minTouchTarget` honoured.
 - [X] T044 [P] [US3] Write a failing test in `apps/mobile/__tests__/dial-rest.test.tsx` for **FR-162**/**FR-163** on mobile, mirroring `apps/mobile/__tests__/marker-rest.test.tsx` — no needle before the first reading; hold angle and recolour on lapse.
@@ -566,7 +566,8 @@ the segment labels, their order, and the needle angle match. V58/V59/V63/V64 on 
 - [X] T048 [US3] Verify SC-071 by hand — both apps on one steady tone with matching preferences; segment labels, order, and needle angle agree within 1°. Record the comparison in this file. **Done — measured, see below.**
 
 **Checkpoint**: all three stories complete on both platforms ✅ (2026-08-12). SC-071 measured at 0.42°
-against a 1° tolerance (T048). **T059 is unchecked again** — what it captured was a different app; see
+against a 1° tolerance (T048). **T059 was unchecked here and is now closed as WITHDRAWN** (2026-08-15)
+— what it captured was a different app, and the picture it asked for is not worth an Xcode cycle; see
 below.
 
 | Gate | After Phase 4 | After Phase 5 |
@@ -578,7 +579,11 @@ below.
 
 ### T059 — WITHDRAWN: the screenshots were of a different app
 
-**The files committed for this task have been deleted, and the task is unchecked again.** They were
+**Closed 2026-08-15 with no artefact, by decision rather than by oversight.** The box is `[X]` so the
+task list stops reading as a forgotten screenshot; this note is what it is checked against. The
+substance is unchanged from when it was withdrawn, and the reasons not to reopen it are at the end.
+
+**The files committed for this task have been deleted.** They were
 captured from `com.chromatictuner.app` — an app installed on this simulator on **5 August**, before
 this feature branch existed. This project's identifier is `pro.chromatictuner.app`, derived from
 `listing/store-listing.json` by `app.config.ts` (`004`). Both were installed side by side, and every
@@ -614,6 +619,23 @@ strings "$(xcrun simctl get_app_container booted <id> app)/main.jsbundle" | grep
 ```
 
 A bundle with zero hits for the feature under test is not the app under test.
+
+**Why this stays closed.** Three things have to be true together for a "before" screenshot to be worth
+a rebuild, and none of them is:
+
+1. **It would show nothing new.** T059's own deferral argued that nothing before Phase 5 changes what
+   mobile draws. That still holds — and Phase 6 changed the mobile dial only, never `TuningLine`, so
+   the line on the phone is the same drawing it was at the branch point.
+2. **The comparison it was for has better evidence.** T052 needs "choosing the dial changed nothing
+   about the line", and `after-mobile-line-{light,dark}.png` shows exactly that from the current build,
+   with `tunerDisplay: 'line'` seeded. A "before" from a two-commits-back build would be a weaker
+   version of the same claim, photographed on a different binary.
+3. **It cannot be completed anyway.** The Android half was never capturable on this machine (no SDK) —
+   the same gap that has kept `verify:listing` red since `005`. Closing the iOS half alone would leave
+   the task half-done under a full checkmark, which is what it looked like the first time.
+
+Reopen it only if the mobile ruler changes, and then take the "before" from the commit that changes it
+rather than from this branch's root.
 
 ### T042–T047 — the mobile dial, built from the CORRECTED requirement
 
