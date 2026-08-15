@@ -1176,6 +1176,57 @@ baselines, so the states are comparable (E2, in tune). Mobile is unbuilt; see T0
 
 ---
 
+## Post-merge
+
+### Defect 5 — the dial shrank past legibility, and the fold painted over the page
+
+Two defects reported together against the running app, on a window made short. They are one story:
+below a certain height the tuner column stops fitting, and neither the layout nor the dial had been
+asked what should happen then.
+
+**The fold.** `#root` carried `height: 100%` **and** `min-height: 100dvh`. The first is a definite
+height, so `#root` stayed pinned to the viewport while `<main>` grew to the 622px its column needs, and
+the supporting content — positioned immediately after a box 122px shorter than its own contents — was
+drawn **underneath** the tuner. Measured at 800×500: `#root` 500px, `<main>` 622px, `#site-content`
+starting at y=500 with the microphone control spanning 554–598. `003`'s D3 examined these same rules
+and cleared them, correctly, of making the document unscrollable; capping the fold is a different
+failure and it was not looked for. **Fix**: `min-height` alone. `html, body` lose their `height: 100%`
+with it — all it was doing was giving `#root`'s percentage something to resolve against.
+
+**The dial.** `SIZE` had no lower bound, so the height term drove it to 82px at a 400px viewport and
+**2px** at 320px — the same table Defect 4 measured, read the other way round. Defect 4 removed the
+label's floor so a small dial degrades coherently; nothing said how small was too small. **Fix**: a
+floor on the height term only, `max(304px, calc(100dvh - 318px))`. 304px is DERIVED — it is the size
+the height term produces at a 622px viewport, the height at which the **line's** column stops fitting.
+Above it, shrinking buys a fit the line achieves too. Below it, no display fits and the page scrolls
+whichever is chosen, so a circle that goes on shrinking is spending legibility on nothing it can win.
+The floor is deliberately **not** applied to the `100%` width term: a narrow viewport must still shrink
+the circle, because a dial clipped left and right loses the labels at three and nine o'clock and cannot
+be scrolled to.
+
+**One gate re-baselined, and it is the fit case at 560px added in Phase 7.** It asserted an absolute
+fit the line does not achieve at that height — at 560px the line puts the control 62px below the fold —
+and paying for it is precisely what drove the dial under 250px. 560 moves to the property that has
+content where nothing fits, `puts the control no lower than the line does`, which it passes at 592px
+against the line's 598px. The absolute fit is gated down to 640px, the shortest supported screen.
+
+**New cases**: four in `dial.spec.ts` (`never shrinks the dial past legibility` at 560/480/400/320,
+asserting the diameter **and** the label size, since the labels are why the floor exists), and two in
+`fold.spec.ts` (`never paints over the supporting content`, one per display). All six were observed
+failing first — the dial's overlap case only after the floor landed, which is the point: the floor is
+what makes the dial's column outgrow the fold at all.
+
+**Mobile is deliberately not mirrored.** `apps/mobile/.../TuningDial.tsx` has the same unbounded
+`Math.min(...)`, but the same floor there is a regression rather than a fix: `TunerScreen` centres the
+column in a `flex: 1` view with **no scroll**, so a column that outgrows the screen is clipped at both
+ends instead of scrolling — the microphone control becomes unreachable rather than merely low. A 304pt
+floor bites on a 320×568 phone at ordinary text size (chrome 293pt leaves 275pt) and on a 375×667 phone
+at accessibility text sizes, both supported devices. The condition it would fix is meanwhile
+unreachable: the app is `orientation: 'portrait'`, and no portrait phone is short enough to drive the
+dial small. If the floor is ever wanted there, the scrollable column has to come first.
+
+---
+
 ## Dependencies
 
 ```text

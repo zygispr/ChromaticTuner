@@ -84,19 +84,48 @@ const MAX_SIZE_PX = Math.round(typeTokens.noteSize / NOTE_SIZE_RATIO);
 const COLUMN_CHROME_PX = 526 - typeTokens.noteSize - typeTokens.centsSize - 2 * space.lg;
 
 /**
+ * The height at which the LINE's column stops fitting the fold.
+ *
+ * Measured, and the bar every fitting case in `e2e/dial.spec.ts` is stated
+ * against: the horizontal display's column is 622px tall whatever the viewport,
+ * so below this height the page scrolls whichever display is chosen.
+ */
+const LINE_FITS_ABOVE_PX = 622;
+
+/**
+ * The dial stops shrinking here (FR-017).
+ *
+ * DERIVED, not chosen — it is the size the height term below produces at the
+ * viewport where the line's column stops fitting. The reasoning is the same
+ * comparison the cap's is: above that height, shrinking buys a fit the line
+ * achieves too, and the dial should pay for it; below it, NO display fits and
+ * the page scrolls either way, so a circle that goes on shrinking is spending
+ * legibility on nothing it can win.
+ *
+ * It was reported without one. The dial went to 82px at a 400px viewport and to
+ * 2px at 320px: the labels are `4cqw` with no floor of their own (G25), so they
+ * followed it down to 0.08px and the face stopped being a display some way
+ * before that.
+ */
+const MIN_SIZE_PX = LINE_FITS_ABOVE_PX - COLUMN_CHROME_PX;
+
+/**
  * The dial takes the smallest of: its cap, the width it is given, and the
- * height actually left over.
+ * height actually left over — but never less than the floor on the last of
+ * those.
  *
  * `aspect-ratio` then derives the height from the width, so the dial stays
  * square whichever term wins. The height term must NOT be expressed as a
  * percentage: a percentage height resolves against the parent, whose height is
  * `auto` here, so it would resolve to nothing and silently do nothing.
  *
- * At the viewport where the LINE's column stops fitting — 622px — this leaves
- * the dial 96px, exactly the height the line occupies. So choosing the dial can
- * never cost a player a control that the line would have left on screen.
+ * The floor is inside the height term and NOT applied to the other two. A
+ * narrow viewport must still be allowed to shrink the circle, because the
+ * alternative there is a dial clipped left and right with the labels at three
+ * and nine o'clock cut off — and unlike a short viewport, that cannot be
+ * scrolled to.
  */
-const SIZE = `min(${MAX_SIZE_PX}px, 100%, calc(100dvh - ${COLUMN_CHROME_PX}px))`;
+const SIZE = `min(${MAX_SIZE_PX}px, 100%, max(${MIN_SIZE_PX}px, calc(100dvh - ${COLUMN_CHROME_PX}px)))`;
 
 /**
  * The face's radial budget, as fractions of the radius (G25).

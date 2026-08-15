@@ -185,11 +185,22 @@ test('the settings sheet opens from the badge with the dial selected (FR-022)', 
  *
  * **Re-baselined in Phase 7.** The note name and the cents readout moved into
  * the hub, so the chrome these cases are measured against fell from 526px to
- * 318px and the dial's cap rose. The heights are unchanged and 560 was added:
- * the fit is the requirement, and it has to hold across a bigger dial rather
- * than because of a smaller one.
+ * 318px and the dial's cap rose. The heights are unchanged: the fit is the
+ * requirement, and it has to hold across a bigger dial rather than because of a
+ * smaller one.
+ *
+ * **560 moved out, and where it went matters.** It was added in Phase 7 and it
+ * asserted a fit the LINE does not achieve at that height — the line's column is
+ * 622px whatever the viewport, so at 560px the horizontal display puts the
+ * microphone control 62px below the fold and the page scrolls. Buying the dial's
+ * fit there costs it the floor below (a 242px circle at 560px, and nothing at
+ * 320px), which is what a maintainer reported: the dial shrank until it could
+ * not be read. So 560 is now covered by the property that has content at heights
+ * nothing fits — `puts the control no lower than the line does` — which it still
+ * passes, at 592px against the line's 598px. The absolute fit is gated down to
+ * 640px, the shortest supported screen.
  */
-for (const height of [900, 800, 700, 640, 560]) {
+for (const height of [900, 800, 700, 640]) {
   test(`fits the viewport at ${height}px, control and all (FR-018)`, async ({ page }) => {
     test.setTimeout(60_000);
     await page.setViewportSize({ width: 900, height });
@@ -227,13 +238,16 @@ for (const height of [900, 800, 700, 640, 560]) {
  *
  * 320x568 is the narrowest phone this app claims (`ruler-width.test.tsx` calls
  * 320 "a phone from 2016"). 568x320 is the same device turned over, and it is
- * the case that found something: see the label test below.
+ * the case that found something: see the label test below. 900x560 is the short
+ * desktop window the fit loop above used to cover, kept here as the comparison
+ * it can actually satisfy now the dial has a floor.
  */
 for (const [width, height, orientation] of [
   [320, 568, 'portrait'],
   [568, 320, 'landscape'],
+  [900, 560, 'a short window'],
 ] as const) {
-  test(`fits a ${width}x${height} phone in ${orientation}, unclipped (V69, FR-018)`, async ({
+  test(`fits a ${width}x${height} viewport in ${orientation}, unclipped (V69, FR-018)`, async ({
     page,
   }) => {
     test.setTimeout(60_000);
@@ -305,6 +319,65 @@ for (const [width, height, orientation] of [
       Math.round(withDial),
       `the dial puts the control at ${Math.round(withDial)}px, ${Math.round(withDial - withLine)}px lower than the line's ${Math.round(withLine)}px`
     ).toBeLessThanOrEqual(Math.round(withLine));
+  });
+}
+
+/**
+ * The dial stops shrinking before it stops being a display (FR-017, FR-018).
+ *
+ * Reported against the running app: as the window got shorter the dial got
+ * smaller "till it's no longer readable". Measured on the unfixed code, at a
+ * 900px width: 242px of circle at a 560px viewport, 82px at 400px, and 2px at
+ * 320px — a face with 0.08px labels and a hub that cannot hold a note name.
+ *
+ * The floor is DERIVED, and from the same comparison every other fitting case
+ * here rests on: 304px is the dial's size at a 622px viewport, which is the
+ * height at which the LINE's column stops fitting. Above it, shrinking buys a
+ * fit that the horizontal display also achieves, and the dial goes on paying for
+ * it. Below it, no display fits and the page scrolls whichever is chosen — so a
+ * circle that keeps shrinking is spending legibility on nothing. Change
+ * `COLUMN_CHROME_PX` and the floor moves with it.
+ *
+ * The label size is asserted beside the diameter because it is the reason the
+ * floor exists: the labels are `4cqw` with no lower bound (G25), so they are the
+ * first thing to become unreadable and they do it in proportion.
+ *
+ * Width is deliberately generous. A dial is still allowed to shrink below the
+ * floor when the VIEWPORT is narrow — the alternative is a circle clipped left
+ * and right — which is the case the `320x568` test above covers.
+ */
+const MIN_DIAL_PX = 304;
+
+for (const height of [560, 480, 400, 320]) {
+  test(`never shrinks the dial past legibility at ${height}px of height (FR-017, V69)`, async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width: 900, height });
+    await useDial(page);
+    await page.goto('/');
+    await waitForNote(page, 'D');
+
+    const face = await page.evaluate(() => {
+      const dial = document.querySelector('[data-testid="tuning-dial"]')?.getBoundingClientRect();
+      const label = document.querySelector('[data-testid="dial-label"]');
+      return {
+        size: dial?.width ?? 0,
+        labelPx: label ? Number.parseFloat(getComputedStyle(label).fontSize) : 0,
+      };
+    });
+
+    expect(
+      Math.round(face.size),
+      `the dial is ${Math.round(face.size)}px across at a ${height}px viewport`
+    ).toBeGreaterThanOrEqual(MIN_DIAL_PX);
+
+    // 0.04 x 304. Restated as a number rather than as arithmetic on the
+    // measured size, which would hold just as happily on a 2px dial.
+    expect(
+      face.labelPx,
+      `the segment labels are ${face.labelPx.toFixed(1)}px at a ${height}px viewport`
+    ).toBeGreaterThanOrEqual(12);
   });
 }
 

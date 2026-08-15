@@ -1,17 +1,22 @@
 import { expect, test } from '@playwright/test';
 
-import { audioArgs, waitForNote } from './helpers';
+import { audioArgs, useDial, waitForNote } from './helpers';
 
 /**
  * The tuner owns the first viewport height, and the document may scroll past it
  * (FR-066, FR-067, D3).
  *
- * Before 003 three rules conspired to make the document unscrollable —
- * `height: 100%` on `html, body, #root` and `overflow: hidden` on `<main>`.
- * That was invisible while the tuner was the only thing on the page. It stops
- * being invisible the moment supporting content sits after `#root`: the content
- * is present in the DOM, readable by a crawler, and completely unreachable by a
- * person.
+ * Before 003 three rules were thought to conspire to make the document
+ * unscrollable — `height: 100%` on `html, body, #root` and `overflow: hidden` on
+ * `<main>`. Measured, they did not (see the FR-067 case below), but the concern
+ * behind them is real the moment supporting content sits after `#root`: content
+ * present in the DOM, readable by a crawler, and unreachable by a person.
+ *
+ * `height: 100%` on `#root` is gone now — it capped the fold rather than
+ * reserving it, and the tuner was drawn on top of the content whenever the
+ * column outgrew the viewport. The rule left in its place is `min-height`, and
+ * the case that pins the difference is `never paints over the supporting
+ * content` below.
  *
  * Both halves matter and they pull against each other. Making the page
  * scrollable is easy; making it scrollable *without* costing the tuner any of
@@ -52,9 +57,13 @@ test('the tuner occupies exactly one viewport height (FR-066)', async ({ page })
  * **This passes on unmodified code, and that is the finding.** Research D3
  * claimed three rules "conspire to make the document unscrollable". Measured,
  * they do not: `overflow: hidden` sits on `<main>` *inside* `#root`, so it clips
- * main's own overflow and never the document, and `height: 100%` sets a box
+ * main's own overflow and never the document, and `height: 100%` set a box
  * height without clipping anything. Content appended after `#root` on the
  * unmodified build scrolls to 2104px quite happily.
+ *
+ * What that `height: 100%` did do was let the column overflow the box the
+ * content was positioned after, which is a collision rather than a scroll trap —
+ * a different defect, found later, and the one the overlap case below pins.
  *
  * So this is a characterisation test, not a red-to-green one. It is kept
  * because the property it pins is genuinely required from here on and is one
@@ -202,6 +211,77 @@ test('the fold gate fails when something encroaches on it (FR-087, SC-032)', asy
     'injecting 400px into the fold pushed nothing out of view — the gate above cannot detect encroachment'
   ).toBeGreaterThan(0);
 });
+
+/**
+ * FR-064 / FR-066: when the column outgrows the fold, the fold GROWS with it.
+ *
+ * Reported against the running app: below a 622px viewport — the height at which
+ * the horizontal display's column stops fitting — the heading and its prose were
+ * drawn *underneath* the tuner, with the microphone control sitting across a
+ * paragraph.
+ *
+ * The mechanism is one declaration. `#root` carried `height: 100%` as well as
+ * `min-height: 100dvh`, and the first of those is a DEFINITE height: `<main>`
+ * grew to its 622px of content while `#root`'s box stayed pinned to the
+ * viewport, so the column overflowed a box that the supporting content was
+ * positioned immediately after. Measured at 500px of height: `#root` 500px,
+ * `<main>` 622px, content starting at y=500 with the column reaching 598.
+ *
+ * Every element that paints, against the content's box, rather than
+ * `#root`'s height against `<main>`'s — the arithmetic is the cause and the
+ * collision is the defect, and a fold that grows by some other route is just as
+ * correct.
+ *
+ * Both displays, because the dial's column has its own height and its own floor
+ * (`dial.spec.ts`) and would meet this from a different direction.
+ */
+for (const display of ['line', 'dial'] as const) {
+  test(`the tuner never paints over the supporting content on a short viewport (${display}, FR-064, FR-066)`, async ({
+    page,
+  }) => {
+    // 500px: shorter than either column, and shorter than any supported phone.
+    // The requirement is not that this viewport be usable — nothing fits it —
+    // but that the page degrade by scrolling rather than by overlapping.
+    await page.setViewportSize({ width: 800, height: 500 });
+    if (display === 'dial') await useDial(page);
+    await page.goto('/');
+    await waitForNote(page, 'E');
+
+    const overlaps = await page.evaluate(
+      (ids: readonly string[]) => {
+        const content = document.querySelector('#site-content')?.getBoundingClientRect();
+        if (!content) return ['#site-content is not in the document'];
+
+        const hits: string[] = [];
+        for (const id of ids) {
+          // The flex container paints nothing of its own — same exclusion the
+          // scroll-cue case makes, and for the same reason.
+          if (id === 'tuner-display') continue;
+          const element = document.querySelector(`[data-testid="${id}"]`);
+          if (!element) continue;
+          const box = element.getBoundingClientRect();
+          const intersects =
+            content.left < box.right &&
+            content.right > box.left &&
+            content.top < box.bottom &&
+            content.bottom > box.top;
+          if (intersects) {
+            hits.push(
+              `${id} (${Math.round(box.top)}–${Math.round(box.bottom)}px) over content starting at ${Math.round(content.top)}px`
+            );
+          }
+        }
+        return hits;
+      },
+      [...FOLD_ELEMENTS, 'tuning-dial']
+    );
+
+    expect(
+      overlaps,
+      `the tuner is drawn on top of the supporting content:\n  ${overlaps.join('\n  ')}`
+    ).toEqual([]);
+  });
+}
 
 /**
  * FR-068: something tells the reader there is more below.
