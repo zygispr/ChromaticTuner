@@ -6,7 +6,19 @@
     <meta name="color-scheme" content="light dark" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/icon.svg" />
+    <!--
+      A raster, and not `icon.svg` (008 — FR-176, research D6). Safari on iOS and
+      iPadOS does not accept SVG here and does not say so: it adds a screenshot
+      of the page to the home screen instead. SVG stays correct for `rel="icon"`
+      above, which is why the rule this pair is checked against is per-`rel`.
+
+      Three separate things about this file are deliberate, and all three look
+      right in a file browser if got wrong: it is a PNG, it is opaque (iOS fills
+      transparency with solid black), and it is SQUARE — `icon.svg` is generated
+      pre-rounded for a favicon, and iOS applies its own superellipse, so a
+      rounded source is cut twice and the wallpaper shows at four corners.
+    -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!--
       The title, description, canonical address, token stylesheet, and the whole
       supporting content section are injected by `siteIdentity()` in

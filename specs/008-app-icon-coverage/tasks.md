@@ -500,19 +500,95 @@ same action on Android. Testable and shippable without touching the mobile app a
 
 ### Gates for User Story 2 (write first, observe red) ⚠️
 
-- [ ] T021 [US2] Replace the format assertion in `apps/web/e2e/metadata.spec.ts` (the `['an icon', /\.(?:svg|png|ico)$/]` row at line 530) with a **per-`rel`** rule per L14: `rel="apple-touch-icon"` must end `.png`; `rel="icon"` may be `.svg`, `.png` or `.ico`. Keep collecting the URLs from the live document rather than writing filenames into the test — the existing comment explains why, and it is the same reason the rule must be per-`rel` rather than per-document
-- [ ] T022 [US2] Extend the manifest test in `apps/web/e2e/metadata.spec.ts` with L14's third row: the manifest names at least one raster of at least 192×192 and at least one of at least 512×512, alongside its SVG entries. Assert on the declared `sizes` **and** confirm the referenced bytes, so a mislabelled `sizes` cannot pass
-- [ ] T023 [US2] **Observe T021 and T022 red on the unfixed document** — run `pnpm test:e2e -- metadata.spec.ts` before T024, with `apple-touch-icon` still pointing at `/icon.svg` and the manifest still SVG-only, and record both failures here (V75). Under the old assertion this passed, which is why the defect survived three features
+- [X] T021 [US2] Replace the format assertion in `apps/web/e2e/metadata.spec.ts` (the `['an icon', /\.(?:svg|png|ico)$/]` row at line 530) with a **per-`rel`** rule per L14: `rel="apple-touch-icon"` must end `.png`; `rel="icon"` may be `.svg`, `.png` or `.ico`. Keep collecting the URLs from the live document rather than writing filenames into the test — the existing comment explains why, and it is the same reason the rule must be per-`rel` rather than per-document
+- [X] T022 [US2] Extend the manifest test in `apps/web/e2e/metadata.spec.ts` with L14's third row: the manifest names at least one raster of at least 192×192 and at least one of at least 512×512, alongside its SVG entries. Assert on the declared `sizes` **and** confirm the referenced bytes, so a mislabelled `sizes` cannot pass
+- [X] T023 [US2] **Observe T021 and T022 red on the unfixed document** — run `pnpm test:e2e -- metadata.spec.ts` before T024, with `apple-touch-icon` still pointing at `/icon.svg` and the manifest still SVG-only, and record both failures here (V75). Under the old assertion this passed, which is why the defect survived three features
 
 ### Implementation for User Story 2
 
-- [ ] T024 [US2] Repoint `<link rel="apple-touch-icon">` in `apps/web/index.html` from `/icon.svg` to `/apple-touch-icon.png`. Leave `<link rel="icon" href="/icon.svg" type="image/svg+xml">` exactly as it is — SVG is correct there and has been supported since iOS 15 (D6)
-- [ ] T025 [US2] Add the two raster entries to `webManifest()` in `apps/web/vite.config.ts`: `{ src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' }` and `{ src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }`. Keep both existing SVG entries (D7)
-- [ ] T026 [US2] Add every public icon to the precache manifest in `precache()` in `apps/web/vite.config.ts` — `/apple-touch-icon.png`, `/icon-192.png`, `/icon-512.png`, and `/icon-maskable.svg`, which was **already missing** beside the hard-coded `/icon.svg` (research D9). Public-directory files are not in Vite's bundle object, which is why this list is explicit and why an addition here is easy to forget
-- [ ] T027 [US2] Run `pnpm test:e2e -- metadata.spec.ts` green, then V78: `pnpm build && pnpm --filter @chromatic-tuner/web preview --port 4173 &` and `pnpm --filter @chromatic-tuner/web verify:offline`. Confirm the generated `dist/sw.js` precache list names all five icons
+- [X] T024 [US2] Repoint `<link rel="apple-touch-icon">` in `apps/web/index.html` from `/icon.svg` to `/apple-touch-icon.png`. Leave `<link rel="icon" href="/icon.svg" type="image/svg+xml">` exactly as it is — SVG is correct there and has been supported since iOS 15 (D6)
+- [X] T025 [US2] Add the two raster entries to `webManifest()` in `apps/web/vite.config.ts`: `{ src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' }` and `{ src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }`. Keep both existing SVG entries (D7)
+- [X] T026 [US2] Add every public icon to the precache manifest in `precache()` in `apps/web/vite.config.ts` — `/apple-touch-icon.png`, `/icon-192.png`, `/icon-512.png`, and `/icon-maskable.svg`, which was **already missing** beside the hard-coded `/icon.svg` (research D9). Public-directory files are not in Vite's bundle object, which is why this list is explicit and why an addition here is easy to forget
+- [X] T027 [US2] Run `pnpm test:e2e -- metadata.spec.ts` green, then V78: `pnpm build && pnpm --filter @chromatic-tuner/web preview --port 4173 &` and `pnpm --filter @chromatic-tuner/web verify:offline`. Confirm the generated `dist/sw.js` precache list names all five icons
 
-**Checkpoint**: User Stories 1 and 2 both work independently. Every installable surface but the manual
-ones is proved.
+**Checkpoint**: reached. User Stories 1 and 2 both work independently. Every installable surface but the
+manual ones is proved.
+
+### Phase 4 findings
+
+**T023 — both gates red on the unfixed document**, with the other 13 tests in the file still passing:
+
+```text
+✘ every referenced asset resolves (FR-085, P7)
+  Error: these references resolve but are in a format the naming platform cannot use:
+    rel="apple-touch-icon" points at /icon.svg, which apple-touch-icon cannot render —
+    it must match /\.png$/
+
+✘ the manifest offers rasters big enough to install with (FR-177, L14)
+  Error: the manifest names no raster icon at all — an engine that cannot render SVG has
+  nothing to fall back to
+
+2 failed, 13 passed
+```
+
+**The old test could not have caught this even in principle, and that is structural rather than an
+oversight.** It collected icon URLs into a flat `Set<string>`, which discards which tag published which
+href — and L14's rule is per-`rel`: `.svg` is correct for `rel="icon"` and wrong for
+`apple-touch-icon`. No assertion over a set of bare URLs can say both things at once. So T021 changed
+the collection to carry `{ rel, href }` pairs first, and the format table follows from that. The
+`rel`s are still read from the live document; only the *rules* are written down.
+
+**A `rel` the table does not know is reported, not skipped.** That is deliberate: skipping unknown
+`rel`s is exactly where the next instance of this defect would hide — a new icon reference added later,
+silently unchecked, in a file whose whole purpose is to notice that. The failure text says to add the
+row rather than pretending the reference is fine.
+
+**T022 asserts the declared `sizes` and the bytes, because either alone is defeatable.** "The manifest
+names a PNG" passes on a 48×48; a browser selects on the declared `sizes` string, which is written by
+hand and can lie. The test reads each raster's PNG IHDR — width and height are big-endian 32-bit at
+bytes 16 and 20, needing no dependency — and fails separately on a mismatch:
+
+```text
+{src} declares sizes="192x192" but the file is 48px — a browser picks by the declared size
+and gets something else
+```
+
+It also asserts that **some** icon carries `maskable`. Without one, an installer that crops chooses the
+`any` icon and cuts into the mark.
+
+**The manifest as built**, four entries, both SVGs kept:
+
+```json
+[{ "src": "/icon.svg",          "sizes": "any",     "type": "image/svg+xml", "purpose": "any" },
+ { "src": "/icon-maskable.svg", "sizes": "any",     "type": "image/svg+xml", "purpose": "maskable" },
+ { "src": "/icon-192.png",      "sizes": "192x192", "type": "image/png",     "purpose": "any" },
+ { "src": "/icon-512.png",      "sizes": "512x512", "type": "image/png",     "purpose": "any maskable" }]
+```
+
+`icon-512.png` is `any maskable` as one entry rather than two files, which is only correct because it is
+drawn at the safe-zone scale — the same bytes serve both uses when the mark is inside the crop.
+
+**A pre-existing defect fixed alongside, and recorded rather than quietly corrected.** The precache list
+hard-coded `/icon.svg` and had never included `/icon-maskable.svg`. An installed app was therefore
+offline-capable with an icon that 404s — invisible until someone installs it and loses their connection,
+which is research D9's "registrations that ship quietly when missed" exactly. The three new rasters
+would have joined it. The list is now derived from one `publicIcons` array, with a comment saying why it
+must be explicit at all: `publicDir` files are copied *past* the bundle, so the `bundle`-sweep above
+cannot see them.
+
+**V78 — the generated `sw.js` and the offline run agree**, five icons precached:
+
+```text
+precached: chromatic-tuner-a206921727b0
+  /  /index.html  /privacy.html  /manifest.webmanifest
+  /icon.svg  /icon-maskable.svg  /apple-touch-icon.png  /icon-192.png  /icon-512.png
+  /assets/index-Bkh6f_SO.js
+
+cold / warm (service worker) / offline — all three starts inside the 2000 ms budget (FR-026)
+```
+
+**Gates**: `pnpm test:e2e` **222 passed** (up from 221 — one new test), `pnpm lint`, `pnpm typecheck`
+and `pnpm format:check` clean. No file under `packages/*` touched, and `a11y.spec.ts` unmoved.
 
 ---
 

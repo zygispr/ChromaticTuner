@@ -505,9 +505,25 @@ function webManifest(): string {
       orientation: 'any',
       background_color: color.background.light,
       theme_color: color.background.light,
+      /*
+       * Both SVGs and both rasters (008 — FR-177, research D7).
+       *
+       * The SVGs alone were a gap of the same shape as the touch icon: an
+       * engine that cannot use an icon substitutes something rather than
+       * reporting a problem. Chromium asks for at least a 192 and a 512, and
+       * for an SVG to be paired with a raster fallback.
+       *
+       * `icon-512.png` is drawn at the safe-zone scale because it is offered as
+       * `maskable` as well — an installer that crops chooses it, and a
+       * full-bleed drawing would lose the outer mark to the crop. `any
+       * maskable` is one entry rather than two files: the same bytes are
+       * correct for both uses when the mark is inside the safe zone.
+       */
       icons: [
         { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
         { src: '/icon-maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+        { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
       ],
     },
     null,
@@ -861,12 +877,32 @@ function precache(): Plugin {
        * certain to open, and "works online, blank offline" is precisely the
        * failure nobody stumbles into during development.
        */
+      /*
+       * Every public icon is listed here, and the list is explicit because
+       * `publicDir` files are copied past the bundle rather than through it —
+       * they are not in `bundle`, so the sweep above cannot see them.
+       *
+       * `/icon-maskable.svg` was missing before 008 and had been since it was
+       * added: the installed app was offline-capable with an icon that 404s,
+       * which is invisible until someone installs it and goes offline. The
+       * three rasters would have joined it, so the omission is recorded rather
+       * than quietly corrected — research D9 names this as one of the
+       * registrations that ship quietly when missed.
+       */
+      const publicIcons = [
+        '/icon.svg',
+        '/icon-maskable.svg',
+        '/apple-touch-icon.png',
+        '/icon-192.png',
+        '/icon-512.png',
+      ];
+
       const manifest = [
         ...new Set([
           '/',
           ...PAGES.map(({ file }) => `/${file}`),
           '/manifest.webmanifest',
-          '/icon.svg',
+          ...publicIcons,
           ...assets,
         ]),
       ];

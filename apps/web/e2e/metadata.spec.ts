@@ -501,20 +501,26 @@ test('claims no capability that is out of scope (P11, FR-065)', async ({ page })
 test('every referenced asset resolves (FR-085, P7)', async ({ page, request }) => {
   await page.goto('/');
 
-  const urls = await page.evaluate(() => {
-    const found = new Set<string>();
-    for (const link of document.querySelectorAll<HTMLLinkElement>(
-      'link[rel="icon"], link[rel="apple-touch-icon"], link[rel="manifest"]'
-    )) {
-      if (link.href) found.add(link.href);
-    }
-    for (const meta of document.querySelectorAll<HTMLMetaElement>(
-      'meta[property="og:image"], meta[name="twitter:image"]'
-    )) {
-      if (meta.content) found.add(meta.content);
-    }
-    return [...found];
-  });
+  // Collected with their `rel`, not flattened into a bare URL list: L14's rule
+  // is per-`rel`, and a set of hrefs cannot say which tag published which.
+  const { links, metaUrls } = await page.evaluate(() => ({
+    links: [
+      ...document.querySelectorAll<HTMLLinkElement>(
+        'link[rel="icon"], link[rel="apple-touch-icon"], link[rel="manifest"]'
+      ),
+    ]
+      .filter((link) => link.href)
+      .map((link) => ({ rel: link.rel, href: link.href })),
+    metaUrls: [
+      ...document.querySelectorAll<HTMLMetaElement>(
+        'meta[property="og:image"], meta[name="twitter:image"]'
+      ),
+    ]
+      .filter((meta) => meta.content)
+      .map((meta) => meta.content),
+  }));
+
+  const urls = [...new Set([...links.map(({ href }) => href), ...metaUrls])];
 
   /*
    * "Every asset resolves" is vacuously true of a document that references
@@ -541,6 +547,46 @@ test('every referenced asset resolves (FR-085, P7)', async ({ page, request }) =
   const broken = await unresolved(request, urls);
 
   expect(broken, `these referenced assets do not resolve:\n  ${broken.join('\n  ')}`).toEqual([]);
+
+  /*
+   * L14 (FR-176, FR-178): resolving is not the same as usable.
+   *
+   * The assertion this replaced accepted `.svg|.png|.ico` for **every** `rel`,
+   * which is why three features shipped with `rel="apple-touch-icon"` pointing
+   * at an SVG. Safari on iOS does not report that it cannot use the file — it
+   * puts a **screenshot of the page** on the home screen instead. A resolving
+   * reference, a well-formed tag, a passing test, and the wrong tile.
+   *
+   * So the rule has to be per-`rel`. `.svg` is correct for `rel="icon"` and has
+   * been since iOS 15, and wrong for `apple-touch-icon`; no per-document rule
+   * can say both.
+   *
+   * The `rel`s are read from the live document rather than listed here, so a
+   * reference added later is checked by whatever row matches it — and one that
+   * matches no row is reported rather than skipped, because an unknown icon
+   * `rel` is exactly where the next instance of this defect would hide.
+   */
+  const formats: Record<string, RegExp> = {
+    'apple-touch-icon': /\.png$/,
+    icon: /\.(?:svg|png|ico)$/,
+    manifest: /\.webmanifest$/,
+  };
+
+  const wrongFormat = links
+    .filter(({ rel, href }) => {
+      const allowed = formats[rel];
+      return allowed ? !allowed.test(new URL(href).pathname) : true;
+    })
+    .map(({ rel, href }) =>
+      formats[rel]
+        ? `rel="${rel}" points at ${new URL(href).pathname}, which ${rel} cannot render — it must match ${formats[rel]}`
+        : `rel="${rel}" is not a rel this test knows how to check — add it to the format table`
+    );
+
+  expect(
+    wrongFormat,
+    `these references resolve but are in a format the naming platform cannot use:\n  ${wrongFormat.join('\n  ')}`
+  ).toEqual([]);
 });
 
 /**
@@ -590,7 +636,7 @@ async function unresolved(
  */
 test('every icon the manifest names resolves (FR-080, FR-085)', async ({ request }) => {
   const manifest = JSON.parse(await (await request.get('/manifest.webmanifest')).text()) as {
-    icons?: { src: string }[];
+    icons?: { src: string; sizes?: string; type?: string; purpose?: string }[];
   };
 
   const icons = manifest.icons ?? [];
@@ -604,4 +650,94 @@ test('every icon the manifest names resolves (FR-080, FR-085)', async ({ request
   expect(broken, `the manifest names icons that do not resolve:\n  ${broken.join('\n  ')}`).toEqual(
     []
   );
+});
+
+/**
+ * L14, third row (FR-177, FR-178, research D7): the manifest offers rasters, and
+ * they are the size they claim.
+ *
+ * Chromium's guidance is that a manifest provides at least a 192×192 and a
+ * 512×512, and that an SVG icon is paired with a rasterised fallback for engines
+ * that do not support one. This is the same class of defect as the touch icon
+ * above — a platform that cannot use an icon substitutes something rather than
+ * reporting a problem — and the point of L14 is to close the class, not the one
+ * instance of it.
+ *
+ * **Both halves are needed.** "The manifest names a PNG" passes on a 48×48. The
+ * declared `sizes` is what a browser selects on, so it is asserted; and the
+ * bytes are read too, because `sizes` is a string a human writes and a
+ * mislabelled one is chosen for a slot it cannot fill.
+ */
+test('the manifest offers rasters big enough to install with (FR-177, L14)', async ({
+  request,
+}) => {
+  const manifest = JSON.parse(await (await request.get('/manifest.webmanifest')).text()) as {
+    icons?: { src: string; sizes?: string; type?: string }[];
+  };
+
+  const rasters = (manifest.icons ?? []).filter(
+    (icon) => icon.type === 'image/png' || icon.src.endsWith('.png')
+  );
+
+  expect(
+    rasters.length,
+    'the manifest names no raster icon at all — an engine that cannot render SVG has nothing to fall back to'
+  ).toBeGreaterThan(0);
+
+  /** The largest square edge a `sizes` string declares, e.g. "48x48 192x192" → 192. */
+  const declared = (sizes: string | undefined) =>
+    Math.max(
+      0,
+      ...(sizes ?? '')
+        .split(/\s+/)
+        .map((token) => Number.parseInt(token.split('x')[0] ?? '', 10))
+        .filter(Number.isFinite)
+    );
+
+  const measured: { src: string; declared: number; actual: number }[] = [];
+
+  for (const icon of rasters) {
+    const body = await (await request.get(icon.src)).body();
+
+    // PNG: the IHDR width and height are big-endian 32-bit at byte 16 and 20.
+    // Reading the header beats trusting the manifest, and needs no dependency.
+    expect(
+      body.subarray(0, 8).toString('hex'),
+      `${icon.src} is declared a PNG but does not begin with the PNG signature`
+    ).toBe('89504e470d0a1a0a');
+
+    measured.push({
+      src: icon.src,
+      declared: declared(icon.sizes),
+      actual: Math.min(body.readUInt32BE(16), body.readUInt32BE(20)),
+    });
+  }
+
+  const mislabelled = measured
+    .filter(({ declared: d, actual }) => d !== actual)
+    .map(
+      ({ src, declared: d, actual }) =>
+        `${src} declares sizes="${d}x${d}" but the file is ${actual}px — a browser picks by the ` +
+        'declared size and gets something else'
+    );
+
+  expect(mislabelled, mislabelled.join('\n  ')).toEqual([]);
+
+  for (const threshold of [192, 512]) {
+    const found = measured.filter(({ actual }) => actual >= threshold);
+
+    expect(
+      found.length,
+      `no manifest raster is at least ${threshold}×${threshold} — Chromium asks for both a 192 and ` +
+        `a 512, and the largest raster here is ${Math.max(0, ...measured.map((m) => m.actual))}px`
+    ).toBeGreaterThan(0);
+  }
+
+  // A maskable icon is what an installer crops to its own shape; without one it
+  // masks the `any` icon and cuts into the mark (D7).
+  const maskable = (manifest.icons ?? []).filter((icon) =>
+    ((icon as { purpose?: string }).purpose ?? '').split(/\s+/).includes('maskable')
+  );
+
+  expect(maskable.length, 'the manifest names no maskable icon').toBeGreaterThan(0);
 });
