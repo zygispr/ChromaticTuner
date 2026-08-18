@@ -82,6 +82,23 @@ Both apps mirror the same component structure (atoms → molecules → organisms
 `listing/` is outside that graph and depends on nothing: the store copy, the per-store field limits, the
 forbidden vocabulary, the generated store artefacts, and the scripts that check them (`004`).
 
+`listing/scripts/generate-icons.mjs` writes into all three trees — `listing/assets/`,
+`apps/web/public/` and `apps/mobile/assets/` — and that is deliberately one generator writing three
+places rather than one place the others read. **`apps/mobile/assets/` is generated, committed artwork,
+and the mobile app must not point at `listing/`**: `@expo/image-utils` hands an icon path to an image
+library rather than to a resolver, so it resolves against the **working directory**, and a
+`../../listing/…` path holds only while every caller happens to `cd` into `apps/mobile` first. It would
+also invert the dependency this section states (`008` D2).
+
+`listing/assets/artwork.json` is the generated digest-and-palette record that makes raster provenance
+checkable (`008`, contract L15). An SVG carries its own evidence — colour literals to compare against
+the palette, and the generator's marker in a comment — and a PNG carries neither, so the record supplies
+both: a SHA-256 per artefact, and the `--ct-*` values that run drew with. It also gives CI a way to run
+`004`'s V34 ("regenerate and see no diff") without launching the browser `pnpm listing:assets` needs.
+Its `palette` holds only the six tokens the templates actually draw with, derived from the template
+functions' own source — recording all eleven would fail the gate when `--ct-surface` moves and demand a
+regeneration that changes no byte.
+
 **`apps/mobile/app.json` no longer exists.** `app.config.ts` replaced it and _derives_ the app's
 identity from `listing/store-listing.json` — the name, the bundle identifier, the Android package, and
 both iOS microphone purpose strings, which used to be two hand-maintained copies of one sentence inside
@@ -151,7 +168,9 @@ Judge dark surfaces by perceptual lightness, not contrast ratio: the `+0.05` in 
 dominates near black, so a clearly visible step reads as ~1.3:1 and an invisible one as ~1.04:1.
 
 `color.background` is embedded in the generated app icons, so changing it makes `pnpm verify:listing`
-fail on artwork drift. `pnpm listing:assets` regenerates them.
+fail on artwork drift. `pnpm listing:assets` regenerates them — **all twelve**, since `008`: the two
+store icons and the feature graphic in `listing/assets/`, the web app's two SVGs and three PNGs in
+`apps/web/public/`, and the mobile app's own three in `apps/mobile/assets/`.
 
 On the web, nothing currently reads the resolved `appearance` in JavaScript: every colour arrives as
 `var(--ct-*)`, and following the device is the stylesheet's job. `useDeviceAppearance` exists to keep the

@@ -19,7 +19,7 @@ measurements here as work lands, not just checkmarks.
 Principle III is NON-NEGOTIABLE, and this feature is **three bug fixes**, so the constitution's
 stronger clause applies to all of them: *every bug fix MUST add a regression test that fails on the
 unfixed code*. SC-078 restates it. Each of the three defects has one task that writes its gate and one
-that **observes it red before the fix exists** — T017, T023 and T032. A gate for one of these defects
+that **observes it red before the fix exists** — T017, T023 and T029. A gate for one of these defects
 that has never been seen red is not known to work, and this feature exists precisely because three
 gates that looked reasonable never failed on three shipped defects.
 
@@ -715,15 +715,74 @@ out-of-scope capability.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T032 Run the full merge-gate suite: `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:e2e` (V77). `packages/*` is untouched by this feature, so `packages/tokens/tests/contrast.test.ts`, `apps/web/e2e/a11y.spec.ts` and the coverage thresholds must be unchanged and green — if any of them moved, something landed outside this feature's boundary
-- [ ] T033 [P] Run V73's manual half: `pnpm build && pnpm listing:assets && git status --porcelain` reports no diff. This is `004`'s V34, now with the CI-runnable half T012 added
-- [ ] T034 [P] Update `CLAUDE.md`: `apps/mobile/assets/` is a new directory of generated, committed artwork; `listing/assets/artwork.json` is the generated digest-and-palette record that makes raster provenance checkable; the existing note that `color.background` is embedded in the generated icons now reaches the mobile app's own icons too
-- [ ] T035 [P] Append this feature's defects, deviations and measurements to `specs/001-chromatic-guitar-tuner/tasks.md`, which is the cross-feature build log
+- [X] T032 Run the full merge-gate suite: `pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:e2e` (V77). `packages/*` is untouched by this feature, so `packages/tokens/tests/contrast.test.ts`, `apps/web/e2e/a11y.spec.ts` and the coverage thresholds must be unchanged and green — if any of them moved, something landed outside this feature's boundary
+- [X] T033 [P] Run V73's manual half: `pnpm build && pnpm listing:assets && git status --porcelain` reports no diff. This is `004`'s V34, now with the CI-runnable half T012 added
+- [X] T034 [P] Update `CLAUDE.md`: `apps/mobile/assets/` is a new directory of generated, committed artwork; `listing/assets/artwork.json` is the generated digest-and-palette record that makes raster provenance checkable; the existing note that `color.background` is embedded in the generated icons now reaches the mobile app's own icons too
+- [X] T035 [P] **WITHDRAWN** — this task was written against a mistaken premise. `specs/001-chromatic-guitar-tuner/tasks.md` is `001`'s own build log, not a cross-feature one: every feature from `004` onward carries "doubles as the build log" in its **own** `tasks.md`, and none of `004`–`007` appended anything to `001`. Writing this feature's findings there would invent a practice no other feature follows and make `001`'s file wrong about its own scope. The findings live in this file, which is the established home; the parts that outlive the feature went into `CLAUDE.md` in T034
 - [ ] T036 Request code review of the branch against `contracts/app-icons.md` L13–L16 and the hazard table above, with the two manual-only obligations named explicitly
+
+### Phase 6 findings
+
+**T032 — the full merge-gate suite, everything green.**
+
+```text
+pnpm lint            clean (--max-warnings 0)
+pnpm format:check    clean
+pnpm typecheck       apps/web Done, apps/mobile Done
+pnpm test            21 files, 517 tests passed
+pnpm test:coverage   98.56% statements, 95.32% branches, 97.5% functions, 100% lines
+pnpm test:e2e        222 passed
+mobile (jest-expo)   21 suites, 152 tests passed
+```
+
+The boundary held: `packages/tokens/tests/contrast.test.ts` and `apps/web/e2e/a11y.spec.ts` have not been
+touched since `007`, and the unit count (517) and coverage are unchanged from the pre-feature baseline —
+this feature added tests to `apps/mobile` and `apps/web/e2e` only, which is exactly where its changes
+are. Nothing under `packages/*` was modified at any point.
+
+**T033 — V73's manual half passes**: `pnpm build && pnpm listing:assets && git status --porcelain`
+reports **no diff**. Every one of the twelve committed artefacts is byte-identical to what the generator
+produces today, which is the half CI cannot run; the committed digests T012 checks are the half it can.
+
+**T035 is WITHDRAWN, and the reason is worth recording rather than quietly dropping.** The task asked
+for this feature's findings to be appended to `specs/001-chromatic-guitar-tuner/tasks.md`, described as
+"the cross-feature build log". That is not what that file is. `CLAUDE.md`'s line about it — "`001`'s
+`tasks.md` doubles as the build log, including defects and deviations" — is about `001`'s own work, and
+every feature since has repeated the pattern in its **own** file: `004`, `005`, `006` and `007` each
+carry the same "doubles as the build log" sentence, and none of them wrote anything into `001`.
+Appending here would have invented a practice no other feature follows and left `001`'s file describing
+work that is not `001`'s. The findings stay in this file; the parts that outlive the feature went into
+`CLAUDE.md` in T034. Marked in the task line itself, following `007`'s T059 precedent — an unchecked box
+reads as forgotten, and a checked one with no note reads as done.
+
+**A documentation defect in this file, found while closing it.** The header's test-first section named
+the three observe-red tasks as "T017, T023 and **T032**". T032 is the polish suite; the third gate is
+**T029**. Corrected. It was wrong from the moment `/speckit-tasks` generated the file, and it mattered:
+that sentence is the one a reader uses to check the constitutional obligation was met.
+
+**T034 — what went into `CLAUDE.md`**, chosen as the three things a future session would otherwise have
+to rediscover:
+
+- `generate-icons.mjs` writes into **three** trees, and `apps/mobile/assets/` must not be replaced by a
+  path into `listing/` — with the `@expo/image-utils` working-directory reason, because the failure is
+  silent and only shows up when a caller does not happen to `cd` first.
+- `artwork.json` exists because an SVG carries its own evidence and a PNG carries none, and it is what
+  lets CI run `004`'s V34 without a browser.
+- Its `palette` holds six tokens rather than eleven, with the reason — otherwise the next person to see
+  the short list will "fix" it.
+
+---
 
 ### Release gates (manual, real hardware — not merge gates)
 
-These cannot run on CI and are run before a submission, not before a merge.
+These cannot run on CI and are run before a submission, not before a merge. **None of T037–T042 has
+been run**: each needs either a real device or a person looking at a home screen, and neither is
+available to an automated session. They are the two obligations this feature recorded from the start as
+things no gate can see. What *is* proved automatically, and what these still owe, is worth being precise
+about — T020 has already shown that a native project regenerated from scratch produces the mark rather
+than the white square, on both platforms, decoded pixel by pixel. What remains unproved is only what
+the OS does with those bytes: masking, downscaling, and whether the result reads as a tuner at a
+fingernail's width.
 
 - [ ] T037 V79 — iOS home screen (FR-171, SC-074, SC-075): `rm -rf apps/mobile/ios && pnpm --filter @chromatic-tuner/mobile prebuild && pnpm --filter @chromatic-tuner/mobile ios`. The tile is the mark on the app's background, masked once to iOS's superellipse — no double-rounded corners, no white or black fill at the edges. Check the app switcher and a Spotlight result for the same mark
 - [ ] T038 V80 — Android launcher (FR-174): `rm -rf apps/mobile/android && pnpm --filter @chromatic-tuner/mobile android`. Verify against **at least two mask shapes**: the mark stays uncropped and the background reaches every edge with no transparent corner. With themed icons on, expect the **full-colour** icon — no monochrome layer ships, by design (D8)
