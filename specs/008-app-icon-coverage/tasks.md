@@ -60,12 +60,127 @@ pretended into tests:
 **Purpose**: record the three defects as observed facts before anything changes. Each is a red case a
 later task must reproduce, so the evidence has to be captured while the code is still unfixed.
 
-- [ ] T001 Record the mobile defect in this file: run `pnpm --filter @chromatic-tuner/mobile exec expo config --json --type prebuild` and paste the resolved `icon`, `ios.icon` and `android.adaptiveIcon` values (expected: absent/null), then `rm -rf apps/mobile/ios && pnpm --filter @chromatic-tuner/mobile prebuild --platform ios` and record that `apps/mobile/ios/ChromaticTuner/Images.xcassets/AppIcon.appiconset/App-Icon-1024x1024@1x.png` is a blank white 1024×1024
-- [ ] T002 [P] Record the web defect in this file: quote `apps/web/index.html:9` (`<link rel="apple-touch-icon" href="/icon.svg" />`) and the assertion at `apps/web/e2e/metadata.spec.ts:530` that accepts it
-- [ ] T003 [P] Record the documentation defect in this file: quote `listing/submission.md:106-107` ("it is not a console field — it is built into the app") against T001's finding that nothing references it
-- [ ] T004 Confirm the baseline is green before changing anything: `pnpm build && pnpm verify:listing && pnpm test:e2e` — every gate this feature extends must be observed passing on the unfixed code, or a later red result cannot be attributed to the new assertion
+- [X] T001 Record the mobile defect in this file: run `pnpm --filter @chromatic-tuner/mobile exec expo config --json --type prebuild` and paste the resolved `icon`, `ios.icon` and `android.adaptiveIcon` values (expected: absent/null), then `rm -rf apps/mobile/ios && pnpm --filter @chromatic-tuner/mobile prebuild --platform ios` and record that `apps/mobile/ios/ChromaticTuner/Images.xcassets/AppIcon.appiconset/App-Icon-1024x1024@1x.png` is a blank white 1024×1024
+- [X] T002 [P] Record the web defect in this file: quote `apps/web/index.html:9` (`<link rel="apple-touch-icon" href="/icon.svg" />`) and the assertion at `apps/web/e2e/metadata.spec.ts:530` that accepts it
+- [X] T003 [P] Record the documentation defect in this file: quote `listing/submission.md:106-107` ("it is not a console field — it is built into the app") against T001's finding that nothing references it
+- [X] T004 Confirm the baseline is green before changing anything: `pnpm build && pnpm verify:listing && pnpm test:e2e` — every gate this feature extends must be observed passing on the unfixed code, or a later red result cannot be attributed to the new assertion
 
-**Checkpoint**: the three defects are recorded, and the suite is green on the code that contains them.
+**Checkpoint**: reached, with one deviation recorded below (T004). The three defects are recorded, and
+every gate this feature extends passes on the code that contains them.
+
+### Phase 1 findings — the three defects, as measured on 2026-08-18
+
+**T001 — the mobile app is configured with no icon of any kind, and Expo fills the gap.**
+
+The resolved config, read the way L13 will read it
+(`pnpm --filter @chromatic-tuner/mobile exec expo config --json --type prebuild`):
+
+```text
+icon:                   undefined
+ios.icon:               undefined
+android.adaptiveIcon:   undefined
+android keys:           ["package","versionCode","permissions"]
+ios keys:               ["supportsTablet","bundleIdentifier","buildNumber","deploymentTarget","infoPlist"]
+```
+
+Three absent keys, exactly as research D1 predicted. `rm -rf apps/mobile/ios` followed by
+`expo prebuild --platform ios` then wrote
+`apps/mobile/ios/ChromaticTuner/Images.xcassets/AppIcon.appiconset/App-Icon-1024x1024@1x.png` —
+5,856 bytes, 1024×1024, bit depth 8, **PNG colour type 6 (RGBA)**. Fully decoded rather than sampled,
+because a sampled read of the *filtered* bytes is not evidence of anything:
+
+```text
+DECODED — distinct colours in all 1048576 pixels: 1
+  #ffffffff 1048576 px 100.00%
+```
+
+Every one of 1,048,576 pixels is opaque white. This is Expo's `createSquareAsync` placeholder and it is
+what the app ships today. Two details worth keeping:
+
+- The placeholder carries an **alpha channel** (colour type 6). Had it ever reached App Store Connect it
+  would have been rejected for that alone — so the defect's most likely discovery path was a submission
+  failure months from now, not a home screen.
+- The prebuild also emitted `- Updating package.json` / `Using react-native@0.86.2 instead of
+  recommended react-native@0.86.0`. Pre-existing, unrelated to icons, and it reported `no changes`.
+
+**T002 — the touch icon is a format iOS cannot use, and the gate accepts it.**
+
+`apps/web/index.html:7-9`, unchanged:
+
+```html
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/icon.svg" />
+```
+
+Both `rel`s point at the same SVG. Correct for the first, unusable for the second. The assertion that
+lets it through, `apps/web/e2e/metadata.spec.ts:528-530`:
+
+```ts
+const rolesMissing = [
+  ['the web manifest', /manifest\.webmanifest$/],
+  ['an icon', /\.(?:svg|png|ico)$/],
+  ['the preview image', /og-image\.png$/],
+]
+```
+
+One pattern for every `rel`, and `.svg` is in it — so the wrong-format reference satisfies the rule
+that was meant to catch a wrong reference. The manifest has the matching gap
+(`apps/web/vite.config.ts:508-511`): two SVG entries, `sizes: 'any'`, and no raster at all.
+
+Measured green on the unfixed document, which is the fact T023 will invert:
+
+```text
+✓ e2e/metadata.spec.ts:501 › every referenced asset resolves (FR-085, P7)
+✓ e2e/metadata.spec.ts:591 › every icon the manifest names resolves (FR-080, FR-085)
+14 passed
+```
+
+**T003 — the submission checklist asserts the opposite of T001.**
+
+`listing/submission.md:106-107`:
+
+> The adaptive launcher icon (`listing/assets/icon-adaptive-foreground.png`) is not a console field — it
+> is built into the app.
+
+Every reference to that file in the repository, excluding `specs/` and the git-ignored native
+directories:
+
+```text
+listing/limits.json:55            — the table that measures it
+listing/submission.md:106         — the sentence claiming it is built into the app
+listing/scripts/generate-icons.mjs:356 — the generator that writes it
+```
+
+The generator that produces it, the table that measures it, and the sentence that describes it. Nothing
+in `apps/mobile/` — no config, no build step, no copy — so the file is built into nothing. The claim is
+false in the strongest available sense: not stale, never true.
+
+**T004 — baseline, with one deviation.**
+
+`pnpm build` clean (68 modules, 93 ms). `pnpm test:e2e` **221 passed**, including the two icon tests
+quoted above. `pnpm typecheck`, `pnpm lint` and `pnpm test` are exercised by T032 and were not re-run
+here.
+
+**Deviation: `pnpm verify:listing` is red at baseline, and the task said green.** It fails on three
+findings that predate this feature and are unrelated to it — the Android screenshot set, red since
+`005` and recorded as such in the `007` merge commit:
+
+```text
+assets: 2 problems
+  listing/assets/screenshots/android/light/ does not exist — …
+  listing/assets/screenshots/android/dark/ does not exist — …
+appearances: 1 problem
+  android is missing a light screenshot — Principle IV requires both appearances be represented
+```
+
+Every group this feature extends is clean: `artwork: 5 scanned`, `identity: 7 derived values ok`, and
+`assets` reports **no problem with its file table** — only with the screenshot directories, which are a
+different code path in the same group. So the baseline requirement is met in substance: a later red
+result in `assets`' file table, `artwork`, `identity`, or the new groups is attributable to this
+feature's assertions. Left unfixed deliberately — capturing Android screenshots is `004`'s
+`pnpm listing:screenshots` release gate, needs an emulator, and is outside this feature's boundary.
+T019, T031 and T032 must expect these same three lines and must not treat their absence as success.
 
 ---
 
