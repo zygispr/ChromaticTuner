@@ -346,18 +346,147 @@ the home screen. Delivers the entire user-visible value of this feature on its o
 
 ### Gates for User Story 1 (write first, observe red) ⚠️
 
-- [ ] T015 [US1] Extend `apps/mobile/__tests__/app-config.test.ts` with a source-level test asserting the config declares `icon`, `android.adaptiveIcon.foregroundImage` and `android.adaptiveIcon.backgroundImage`, and that each named path resolves to a file that exists on disk relative to `apps/mobile/`. This is the second layer, mirroring how `004` layered L12 — it cannot see what a plugin does, which is why T016 exists
-- [ ] T016 [US1] Extend the `identity` group in `listing/scripts/verify-listing.mjs` with L13, read from the **resolved** config `resolvedMobileConfig()` already fetches: `icon` present, existing, 1024×1024, **no alpha channel**; `android.adaptiveIcon.foregroundImage` present, existing, 1024×1024, **with** alpha; `android.adaptiveIcon.backgroundImage` present, existing, matching the foreground's dimensions; and each of the three paths present in `artwork.json`'s `artefacts`, which is what ties them to this product's mark rather than to any 1024² PNG. Reuse the existing `readPng()` helper
-- [ ] T017 [US1] **Observe T015 and T016 red on the unfixed `app.config.ts`** — run both before T018 exists, and record the failure messages here. `pnpm --filter @chromatic-tuner/mobile test -- app-config` must name the absent keys; `pnpm build && pnpm verify:listing` must fail the `identity` group naming the absent resolved `icon`. This is the defect the feature was opened against (V72), so a gate not seen red on it is not known to work
+- [X] T015 [US1] Extend `apps/mobile/__tests__/app-config.test.ts` with a source-level test asserting the config declares `icon`, `android.adaptiveIcon.foregroundImage` and `android.adaptiveIcon.backgroundImage`, and that each named path resolves to a file that exists on disk relative to `apps/mobile/`. This is the second layer, mirroring how `004` layered L12 — it cannot see what a plugin does, which is why T016 exists
+- [X] T016 [US1] Extend the `identity` group in `listing/scripts/verify-listing.mjs` with L13, read from the **resolved** config `resolvedMobileConfig()` already fetches: `icon` present, existing, 1024×1024, **no alpha channel**; `android.adaptiveIcon.foregroundImage` present, existing, 1024×1024, **with** alpha; `android.adaptiveIcon.backgroundImage` present, existing, matching the foreground's dimensions; and each of the three paths present in `artwork.json`'s `artefacts`, which is what ties them to this product's mark rather than to any 1024² PNG. Reuse the existing `readPng()` helper
+- [X] T017 [US1] **Observe T015 and T016 red on the unfixed `app.config.ts`** — run both before T018 exists, and record the failure messages here. `pnpm --filter @chromatic-tuner/mobile test -- app-config` must name the absent keys; `pnpm build && pnpm verify:listing` must fail the `identity` group naming the absent resolved `icon`. This is the defect the feature was opened against (V72), so a gate not seen red on it is not known to work
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Add `icon: './assets/icon.png'` and `android.adaptiveIcon: { foregroundImage: './assets/icon-adaptive-foreground.png', backgroundImage: './assets/icon-adaptive-background.png' }` to `apps/mobile/app.config.ts`. Project-relative paths, not `../../listing/…` (research D2: Expo resolves the string against the **CWD**, not the project root). No `backgroundColor` (research D3: a hex literal in `apps/**` is a lint error, and the background layer carries the value instead)
-- [ ] T019 [US1] Run `pnpm --filter @chromatic-tuner/mobile test -- app-config` and `pnpm build && pnpm verify:listing` — both green. Record the `identity` group's new label
-- [ ] T020 [US1] Confirm the resolution end to end: `pnpm --filter @chromatic-tuner/mobile exec expo config --json --type prebuild` now reports all three paths, and `rm -rf apps/mobile/ios && pnpm --filter @chromatic-tuner/mobile prebuild --platform ios` writes an `App-Icon-1024x1024@1x.png` that is the mark rather than T001's white square. Record the before/after in this file (SC-077, FR-175)
+- [X] T018 [US1] Add `icon: './assets/icon.png'` and `android.adaptiveIcon: { foregroundImage: './assets/icon-adaptive-foreground.png', backgroundImage: './assets/icon-adaptive-background.png' }` to `apps/mobile/app.config.ts`. Project-relative paths, not `../../listing/…` (research D2: Expo resolves the string against the **CWD**, not the project root). No `backgroundColor` (research D3: a hex literal in `apps/**` is a lint error, and the background layer carries the value instead)
+- [X] T019 [US1] Run `pnpm --filter @chromatic-tuner/mobile test -- app-config` and `pnpm build && pnpm verify:listing` — both green. Record the `identity` group's new label
+- [X] T020 [US1] Confirm the resolution end to end: `pnpm --filter @chromatic-tuner/mobile exec expo config --json --type prebuild` now reports all three paths, and `rm -rf apps/mobile/ios && pnpm --filter @chromatic-tuner/mobile prebuild --platform ios` writes an `App-Icon-1024x1024@1x.png` that is the mark rather than T001's white square. Record the before/after in this file (SC-077, FR-175)
 
-**Checkpoint**: User Story 1 is complete and shippable. The mobile app has an icon, two gates prove it,
-and both were seen red first. Stop here for the MVP.
+**Checkpoint**: reached. The mobile app has an icon, two layered gates prove it, both were seen red
+first, and a native project regenerated from scratch produces the mark. Shippable as the MVP.
+
+### Phase 3 findings
+
+**T017 — both layers red on the unfixed config.** The source layer, `pnpm --filter
+@chromatic-tuner/mobile test -- app-config`:
+
+```text
+✕ declares a top-level icon that exists          expect(received).toBeDefined()  Received: undefined
+✕ declares both adaptive layers, and they exist  expect(received).toBeDefined()  Received: undefined
+✕ points at its own assets rather than reaching into listing/
+                                                 received value must be a string; Received: undefined
+Tests: 3 failed, 6 passed, 9 total
+```
+
+And the resolved layer, `pnpm build && pnpm verify:listing`:
+
+```text
+identity: 3 problems
+  the resolved config has no icon — the app ships Expo's blank white placeholder, which builds
+  and installs without a warning (FR-180, research D1)
+  the resolved config has no android.adaptiveIcon.foregroundImage — …
+  the resolved config has no android.adaptiveIcon.backgroundImage — …
+```
+
+**One of the four new source tests passes on the unfixed code, and that is correct.** "Carries no
+`backgroundColor`" asserts an *absence*, which is trivially true when nothing is declared at all. It is
+not a regression test for this defect and is not counted as one — it guards against a future **wrong
+fix**, the one where someone fills the lower layer by transcribing a hex and reaches for an ESLint
+suppression when the rule fires. Recorded rather than quietly counted among the red.
+
+**Defect introduced and caught during T018, by a clause that was not looking for it.** The
+`adaptiveIcon` edit swallowed the closing brace of the `android` object, so `plugins` and `experiments`
+became properties of `android`. The icon keys still resolved and looked right; what broke was elsewhere:
+
+```text
+identity: 4 problems
+  the resolved config has no plugins["react-native-audio-api"].iosMicrophonePermission —
+  it should derive from claims.purposeSentence
+  …
+```
+
+The microphone purpose string silently stopped reaching `Info.plist`, which is `004`'s FR-105 defect
+returning through an unrelated edit. `jest-expo` reported it too, as a Babel parse failure that
+collected **0 tests** — a suite that runs nothing is a suite that passes nothing, and the count line is
+what makes that visible. Two independent gates, two different symptoms, one missing brace. Worth
+recording because the icon assertions themselves were perfectly happy.
+
+**Finding that corrected the gate: the resolved config does not resolve icon paths.** `expo config
+--json --type prebuild` reports `icon` exactly as written — `"./assets/icon.png"` — not as an absolute
+path. The first version of L13 assumed absolute and relativised against the repository root, so it
+reported three files that exist as missing:
+
+```text
+icon names assets/icon.png, which does not exist
+```
+
+The string is relative to the **mobile project directory**, which is also the only reading under which
+Expo itself finds the file (`@expo/image-utils` hands it to an image library, not a resolver — D2).
+Extracted into `iconPath()` with both forms returned: the absolute path to read the PNG header, the
+repo-relative one to look the artefact up in `artwork.json`.
+
+**The three L13 clauses were then proved to discriminate**, because the path logic changed *after*
+T017's red and a gate re-plumbed after its red observation is a gate not yet known to work. Each
+mutation reverted:
+
+```text
+A  icon → ./assets/icon-adaptive-foreground.png   (exists, recorded, but transparent — the D4 trap)
+   icon names apps/mobile/assets/icon-adaptive-foreground.png, which has an alpha channel. Apple
+   rejects one — and before a submission ever happens, Expo sets removeTransparency and composites
+   it onto white, so the icon ships looking merely wrong rather than failing loudly (research D4)
+
+B  icon → ./assets/stray.png   (a real PNG the generator never produced)
+   icon names apps/mobile/assets/stray.png, which is 1200×630 — Expo expects 1024×1024
+   icon names apps/mobile/assets/stray.png, which artwork.json does not record — nothing ties it
+   to this product's mark rather than to any PNG that happens to be the right shape
+
+C  icon → ./assets/typo.png
+   icon names apps/mobile/assets/typo.png, which does not exist
+```
+
+Case A is the one that matters most: the file exists, is 1024², and is recorded in `artwork.json` — it
+passes every check except the one that reads its alpha channel, and without that check it would have
+shipped as the mark composited onto white.
+
+**T020 — before and after, from a native project deleted and regenerated.**
+
+| | Before (T001) | After |
+| --- | --- | --- |
+| Distinct colours | **1** | **407** |
+| Corners | `#ffffff` | `#121419` — the app background |
+| Centre | `#ffffff` | `#34c46a` — the in-tune marker |
+| Colour type | 6 (RGBA — Apple rejects) | 2 (RGB, no alpha) |
+| Mark extent | none | ±0.2900, matching the source exactly |
+
+**The generated icon is not byte-identical to its source**, and no future gate should assert that it is:
+`App-Icon-1024x1024@1x.png` is 10,783 B against the source's 10,562 B, because Expo decodes and
+re-encodes. The pixels are the mark; the bytes are Expo's. This is another reason L13 checks the
+checked-in artwork rather than the generated output — beyond the git-ignore reason FR-175 already gives.
+
+**Android, generated as well** (`prebuild --platform android`), which T020 did not ask for but which is
+the FR-174 half and cost one command. All three layers land, and research D3's "verified inert" claim is
+now verified in the **output** rather than read out of the plugin's source:
+
+```xml
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background"/>
+    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+</adaptive-icon>
+```
+
+`values/colors.xml` does still hold `<color name="iconBackground">#ffffff</color>` — and nothing
+references it, exactly as D3 predicted. The two decoded layers at xxxhdpi:
+
+```text
+ic_launcher_background.webp  432×432  1 distinct colour, #121419 everywhere, 0% transparent
+ic_launcher_foreground.webp  432×432  355 colours, 97.3% transparent, mark extent ±0.2338
+```
+
+The background is the app's colour rather than white, and the foreground is the safe-zone drawing
+(±0.2338 against the source's ±0.2324, the difference being webp resampling at 432 px).
+
+**Pre-existing, unrelated, unfixed**: the Android prebuild warns `userInterfaceStyle: Install
+expo-system-ui in your project to enable this feature`. It predates this feature and belongs to `005`'s
+appearance work, not to icons.
+
+**Gates**: `pnpm typecheck` clean both apps, `pnpm lint` clean, `pnpm format:check` clean, mobile suite
+**152 passed / 21 suites** (up from 148 — four new source-level tests), `identity: 7 derived values ok,
+3 icons`, `artwork-manifest: 12 artefacts, 6 palette values`. `verify:listing` still red only on Phase
+1's pre-existing Android screenshot lines.
 
 ---
 

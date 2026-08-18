@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import listing from '../../../listing/store-listing.json';
 import appConfig from '../app.config';
 import pkg from '../package.json';
@@ -67,5 +70,73 @@ describe('app.config.ts derives identity from listing/store-listing.json', () =>
 
   it('names the app the way every other surface names it', () => {
     expect(config.name).toBe(listing.claims.appName);
+  });
+});
+
+/**
+ * 008 / L13 (FR-171, FR-175, FR-180): the app declares an icon at all.
+ *
+ * The defect this guards is not a wrong icon, it is **no icon**. Expo's
+ * `withIosIcons` has an `else` branch that writes a blank white 1024×1024 when
+ * none is configured — its own comment says it exists "to mitigate the chance of
+ * a submission failure to the app store" — so an iconless build succeeds
+ * silently and ships a placeholder that looks deliberate. Four features passed
+ * over it.
+ *
+ * **This is the second layer, and on its own it is not the gate.** It reads
+ * `app.config.ts` as written; a plugin can rewrite the config on its way to
+ * `Info.plist` and this test would agree with the source regardless. The
+ * assertion that matters is `verify-listing.mjs`'s `identity` group, against the
+ * *resolved* config — the same split L12 already uses. What this layer adds is
+ * speed and locality: it fails in the mobile suite, next to the file at fault,
+ * without a build or a `pnpm exec expo config` round trip.
+ *
+ * Existence on disk is checked because a path that resolves to nothing is the
+ * failure mode a typo produces, and Expo does not report it — the same `else`
+ * branch swallows a missing file into the same white square.
+ */
+describe('app.config.ts ships this product icon (008, L13)', () => {
+  // Expo resolves an icon path against the project directory, so the test has
+  // to as well. `__dirname` is `apps/mobile/__tests__`.
+  const fromProject = (path: string) => resolve(__dirname, '..', path);
+
+  it('declares a top-level icon that exists', () => {
+    expect(config.icon).toBeDefined();
+    expect(existsSync(fromProject(config.icon as string))).toBe(true);
+  });
+
+  it('declares both adaptive layers, and they exist', () => {
+    // Both, not one. A top-level `icon` alone makes Android skip the layering
+    // system entirely and present a shrunken, unmasked tile — `withAndroidIcons`
+    // says so in its own comment — which is not FR-174.
+    const adaptive = config.android?.adaptiveIcon;
+
+    expect(adaptive?.foregroundImage).toBeDefined();
+    expect(adaptive?.backgroundImage).toBeDefined();
+    expect(existsSync(fromProject(adaptive?.foregroundImage as string))).toBe(true);
+    expect(existsSync(fromProject(adaptive?.backgroundImage as string))).toBe(true);
+  });
+
+  it('carries no backgroundColor, because a hex literal here is a lint error', () => {
+    // research D3: `backgroundColor` takes a hex string, and a literal hex
+    // anywhere in `apps/**` is an ESLint error in this repo. The background
+    // layer is a generated solid PNG so the palette value never gets
+    // transcribed into this file.
+    expect(config.android?.adaptiveIcon?.backgroundColor).toBeUndefined();
+  });
+
+  it('points at its own assets rather than reaching into listing/', () => {
+    // research D2: `@expo/image-utils` hands any non-http path straight to the
+    // image library, so it resolves against the CWD and not the project root. A
+    // `../../listing/…` path holds only while every caller happens to cd into
+    // apps/mobile first, and it would make this app unbuildable without
+    // `listing/`.
+    for (const path of [
+      config.icon,
+      config.android?.adaptiveIcon?.foregroundImage,
+      config.android?.adaptiveIcon?.backgroundImage,
+    ]) {
+      expect(path).toMatch(/^\.\/assets\//);
+    }
   });
 });

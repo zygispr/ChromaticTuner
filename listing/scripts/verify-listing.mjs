@@ -1053,6 +1053,36 @@ group('artwork-manifest', ({ limits, ROOT: root }) => {
 });
 
 /**
+ * Where an icon path in the resolved Expo config actually points (008, L13).
+ *
+ * **The resolved config does not resolve these.** `expo config --type prebuild`
+ * reports `icon` exactly as `app.config.ts` wrote it — `./assets/icon.png` — and
+ * not as an absolute path, which is what the first version of this check assumed
+ * and why it reported three existing files as missing. The string is relative to
+ * the **mobile project directory**, which is also the only reading under which
+ * Expo itself finds the file, since `@expo/image-utils` hands the path to an
+ * image library rather than to a resolver (research D2).
+ *
+ * Returns both forms because the two are needed for different things: the
+ * absolute path to read the PNG header, and the repo-relative one to look the
+ * artefact up in `artwork.json`, which is keyed that way.
+ */
+const MOBILE_PROJECT = 'apps/mobile/';
+
+function iconPath(value, root) {
+  if (value.startsWith('/')) {
+    const rootPath = fileURLToPath(root);
+    return {
+      absolute: value,
+      relative: value.startsWith(rootPath) ? value.slice(rootPath.length) : value,
+    };
+  }
+
+  const relative = `${MOBILE_PROJECT}${value.replace(/^\.\//, '')}`;
+  return { absolute: fileURLToPath(new URL(relative, root)), relative };
+}
+
+/**
  * The Expo configuration as **resolved**, not as written (L12.1, L12.2).
  *
  * Reading the resolved output rather than `app.config.ts` is the point of this
@@ -1194,7 +1224,139 @@ group('identity', ({ listing: doc, ROOT: root }) => {
     );
   }
 
-  return { label: `${derived.length + 2} derived values ok`, failures };
+  /*
+   * L13 (FR-171, FR-175, FR-180): the mobile app declares an icon, and it is
+   * this product's icon.
+   *
+   * L11's title is "artwork derives from tokens, and the app is not left with
+   * two icons". The outcome was worse than the one it guards: the app was left
+   * with **no** icon, and Expo's placeholder branch made that build and ship.
+   * Nothing checked that the mobile app pointed at any of the artwork at all.
+   *
+   * **Read from the resolved config, for two reasons.** Plugins rewrite it, so a
+   * check against `app.config.ts` would agree with the source whatever they did
+   * — the reason L12 above is written this way. And it is the only level at
+   * which this defect is visible *as* a defect: the source's failure mode is an
+   * absent key, and `expo config --type prebuild` is where absence becomes a
+   * value that can be asserted about.
+   *
+   * **Alpha is asserted in both directions**, because they are opposite
+   * requirements with opposite silent failures. An alpha channel on `icon` is
+   * rejected by Apple — but before that ever happens, Expo composites a
+   * transparent source onto white and ships it looking merely wrong. An opaque
+   * `foregroundImage` hides the background layer the launcher draws beneath it.
+   *
+   * **Membership of `artwork.json` is what ties these files to this product.**
+   * Dimensions and colour type are true of any 1024² PNG, Expo's white square
+   * included. The digest recorded in L15 is what says this is the mark.
+   */
+  const iconChecks = [
+    ['icon', config.icon, 1024, 'forbidden'],
+    [
+      'android.adaptiveIcon.foregroundImage',
+      config.android?.adaptiveIcon?.foregroundImage,
+      1024,
+      'required',
+    ],
+    [
+      'android.adaptiveIcon.backgroundImage',
+      config.android?.adaptiveIcon?.backgroundImage,
+      1024,
+      'any',
+    ],
+  ];
+
+  const artwork = (() => {
+    try {
+      return readJson(new URL('listing/assets/artwork.json', root), 'artwork.json').artefacts ?? {};
+    } catch {
+      return {};
+    }
+  })();
+
+  for (const [key, value, expectedSize, alpha] of iconChecks) {
+    if (value === undefined || value === null) {
+      failures.push(
+        `the resolved config has no ${key} — the app ships Expo's blank white placeholder, which ` +
+          'builds and installs without a warning (FR-180, research D1)'
+      );
+      continue;
+    }
+
+    const { absolute, relative } = iconPath(value, root);
+
+    let png;
+    try {
+      png = readPng(absolute);
+    } catch {
+      failures.push(`${key} names ${relative}, which does not exist`);
+      continue;
+    }
+
+    if (png.error) {
+      failures.push(`${key} names ${relative}, which ${png.error}`);
+      continue;
+    }
+
+    if (png.width !== expectedSize || png.height !== expectedSize) {
+      failures.push(
+        `${key} names ${relative}, which is ${png.width}×${png.height} — Expo expects ` +
+          `${expectedSize}×${expectedSize}`
+      );
+    }
+
+    if (alpha === 'forbidden' && png.hasAlpha) {
+      failures.push(
+        `${key} names ${relative}, which has an alpha channel. Apple rejects one — and before a ` +
+          'submission ever happens, Expo sets removeTransparency and composites it onto white, so ' +
+          'the icon ships looking merely wrong rather than failing loudly (research D4)'
+      );
+    }
+
+    if (alpha === 'required' && !png.hasAlpha) {
+      failures.push(
+        `${key} names ${relative}, which has no alpha channel — the launcher composites it over ` +
+          'the background layer, and an opaque foreground hides that layer entirely'
+      );
+    }
+
+    if (!(relative in artwork)) {
+      failures.push(
+        `${key} names ${relative}, which artwork.json does not record — nothing ties it to this ` +
+          "product's mark rather than to any PNG that happens to be the right shape"
+      );
+    }
+  }
+
+  // Expo requires the two adaptive layers to share dimensions; a mismatch is
+  // composited rather than reported.
+  const layers = [
+    config.android?.adaptiveIcon?.foregroundImage,
+    config.android?.adaptiveIcon?.backgroundImage,
+  ];
+
+  if (layers.every((path) => typeof path === 'string')) {
+    const sizes = layers.map((path) => {
+      try {
+        const png = readPng(iconPath(path, root).absolute);
+        return png.error ? null : `${png.width}×${png.height}`;
+      } catch {
+        return null;
+      }
+    });
+
+    if (sizes[0] && sizes[1] && sizes[0] !== sizes[1]) {
+      failures.push(
+        `the adaptive foreground is ${sizes[0]} and the background is ${sizes[1]} — Expo requires ` +
+          'the two layers to match, and composites a mismatch rather than reporting it'
+      );
+    }
+  }
+
+  return {
+    label: `${derived.length + 2} derived values ok, ${iconChecks.length} icons`,
+    failures,
+  };
 });
 
 /**
