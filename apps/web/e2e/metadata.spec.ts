@@ -504,12 +504,18 @@ test('every referenced asset resolves (FR-085, P7)', async ({ page, request }) =
   // Collected with their `rel`, not flattened into a bare URL list: L14's rule
   // is per-`rel`, and a set of hrefs cannot say which tag published which.
   const { links, metaUrls } = await page.evaluate(() => ({
-    links: [
-      ...document.querySelectorAll<HTMLLinkElement>(
-        'link[rel="icon"], link[rel="apple-touch-icon"], link[rel="manifest"]'
-      ),
-    ]
-      .filter((link) => link.href)
+    /*
+     * Every icon-ish `rel`, not three named ones.
+     *
+     * The first version of this selected `link[rel="icon"], link[rel="apple-touch-icon"],
+     * link[rel="manifest"]` — which made the "a `rel` we do not know is reported"
+     * branch below **unreachable**, because only those three could ever be
+     * collected. `apple-touch-icon-precomposed` and `mask-icon` were selected by
+     * nothing, so they were neither format-checked nor even fetched: exactly the
+     * hiding place that branch exists to close.
+     */
+    links: [...document.querySelectorAll<HTMLLinkElement>('link[rel]')]
+      .filter((link) => link.href && (/icon/i.test(link.rel) || link.rel === 'manifest'))
       .map((link) => ({ rel: link.rel, href: link.href })),
     metaUrls: [
       ...document.querySelectorAll<HTMLMetaElement>(
@@ -525,11 +531,13 @@ test('every referenced asset resolves (FR-085, P7)', async ({ page, request }) =
   /*
    * "Every asset resolves" is vacuously true of a document that references
    * none, so the selectors have to be shown to match something. Asserted by
-   * role rather than by count: the first version demanded four URLs and failed
-   * on a correct build, because `apple-touch-icon` reuses `icon.svg` and
-   * `twitter:image` reuses `og-image.png`, so the set collapses to three. A
-   * magic number would also have broken the day someone added a distinct
-   * touch icon — a legitimate change failing a gate for no reason.
+   * role rather than by count, and the count is exactly why: it demanded four
+   * URLs once and failed on a correct build, because `twitter:image` reuses
+   * `og-image.png` and `apple-touch-icon` then reused `icon.svg` too, collapsing
+   * the set to three. `008` gave the touch icon its own file and the set is four
+   * again — which is the point. A magic number would have had to be edited by
+   * the very change that fixed a defect, and a gate that a legitimate fix breaks
+   * is a gate people learn to edit rather than trust.
    */
   const rolesMissing = [
     ['the web manifest', /manifest\.webmanifest$/],

@@ -1078,8 +1078,28 @@ function iconPath(value, root) {
     };
   }
 
-  const relative = `${MOBILE_PROJECT}${value.replace(/^\.\//, '')}`;
-  return { absolute: fileURLToPath(new URL(relative, root)), relative };
+  /*
+   * Normalised through `new URL()`, not concatenated.
+   *
+   * Concatenation and `new URL()` disagree the moment a path climbs, and the
+   * path that climbs is the exact mistake research D2 exists to prevent. Point
+   * `icon` at `../../listing/assets/icon-ios-1024.png` and the unnormalised form
+   * is `apps/mobile/../../listing/assets/icon-ios-1024.png`, which matches no key
+   * in `artwork.json` — so the gate reported "artwork.json does not record it"
+   * about a file it records perfectly well, and `submission-icons` filed a
+   * built-in icon under console field. Still red, on the wrong sentence, which
+   * costs the reader the diagnosis the message exists to give.
+   */
+  const absolute = new URL(`${MOBILE_PROJECT}${value.replace(/^\.\//, '')}`, root);
+  const rootPath = fileURLToPath(root);
+  const absolutePath = fileURLToPath(absolute);
+
+  return {
+    absolute: absolutePath,
+    relative: absolutePath.startsWith(rootPath)
+      ? absolutePath.slice(rootPath.length)
+      : absolutePath,
+  };
 }
 
 /**
@@ -1523,7 +1543,23 @@ group('submission-icons', ({ limits, ROOT: root }) => {
    * Requiring a table row fixes the wrapping (a row is one line by construction)
    * and gives a person a place to look; rejecting negations fixes the rest.
    */
-  const NEGATION = /\bnot\s+(?:a\s+|an\s+)?(?:console field|built into|served by)/i;
+  /*
+   * Built from CATEGORIES rather than typed out, because the first version
+   * listed three of the four by hand and omitted `reference copy` — leaving the
+   * trap open on the one artefact this whole clause was written against. A row
+   * reading "**Not a reference copy** — it is built into the app" against a file
+   * that *is* a reference copy passed both checks: the negation did not match,
+   * and the positive check was satisfied **by the negation itself**. That is the
+   * T029 failure exactly, reintroduced in the fix for it.
+   *
+   * Deriving it means a fifth category cannot arrive without its negation.
+   */
+  const NEGATION = new RegExp(
+    `\\bnot\\s+(?:an?\\s+)?(?:${Object.values(CATEGORIES)
+      .map((category) => category.replace(/ the app$| the web app$/, ''))
+      .join('|')})`,
+    'i'
+  );
 
   for (const relative of paths) {
     const expected = CATEGORIES[categoryOf(relative)];

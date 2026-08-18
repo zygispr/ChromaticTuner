@@ -15,7 +15,7 @@
  * environment proves nothing about the other.
  */
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const APP = fileURLToPath(new URL('..', import.meta.url));
@@ -145,6 +145,48 @@ if (serviceWorker) {
   check(
     leaked.length === 0,
     `the service worker precaches crawler-only files: ${leaked.join(', ')} — exclude them from the manifest`
+  );
+
+  /*
+   * …and every file it DOES precache exists (008).
+   *
+   * The check above is about what must not be in the list; this is about the
+   * list being true. `precache()` sweeps the bundle automatically, but public
+   * files are copied past it, so those five icons are a hand-written array 370
+   * lines from the manifest that names them — and nothing compared it to disk.
+   *
+   * The failure is total and silent: `cache.addAll` rejects atomically on one
+   * missing entry, so a single renamed icon means the service worker never
+   * installs and the app is simply not offline-capable. Online it is
+   * indistinguishable from a working build, which is what makes this worth a
+   * gate rather than a habit. `008` fixed exactly this shape of omission —
+   * `/icon-maskable.svg` had been absent from the list since it was added — and
+   * a hand-maintained list will drift again.
+   */
+  // Parsed, not regexed. `precache()` writes this array with `JSON.stringify`,
+  // so it is double-quoted JSON — a first attempt here scanned for single quotes
+  // and matched nothing, which made the check below fail on every build instead
+  // of on a broken one. A gate that cannot read its input is worse than absent:
+  // it is red for a reason nobody will believe twice.
+  const precached = (() => {
+    try {
+      return JSON.parse(manifest);
+    } catch {
+      return [];
+    }
+  })();
+
+  check(precached.length > 0, 'the service worker precaches nothing — PRECACHE could not be read');
+
+  const missing = precached
+    .filter((entry) => entry !== '/')
+    .filter((entry) => !existsSync(new URL(`.${entry}`, DIST)));
+
+  check(
+    missing.length === 0,
+    `the service worker precaches files dist/ does not hold: ${missing.join(', ')} — ` +
+      'cache.addAll rejects atomically, so the worker never installs and the app is silently ' +
+      'not offline-capable'
   );
 }
 

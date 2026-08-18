@@ -507,9 +507,23 @@ function writeArtefact(file, bytes, { width, height }) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, bytes);
 
+  /*
+   * Dimensions read back out of the PNG header, not copied from the target that
+   * asked for them — the same reason the digest is taken over the bytes actually
+   * written. A recorded size that came from the request rather than the result
+   * is a record of an intention, and the four artefacts absent from
+   * `limits.json` (the two manifest rasters and both SVGs) have nothing else
+   * checking their size at all, so a screenshot that came back at an unexpected
+   * resolution would be recorded looking truthful and be silently wrong.
+   *
+   * An SVG has no header to read; its size is the viewBox the template was given,
+   * which is the authored value rather than a rendered one.
+   */
+  const isPng = bytes.subarray(0, 8).toString('hex') === '89504e470d0a1a0a';
+
   artefacts[file] = {
-    width,
-    height,
+    width: isPng ? bytes.readUInt32BE(16) : width,
+    height: isPng ? bytes.readUInt32BE(20) : height,
     sha256: createHash('sha256').update(bytes).digest('hex'),
   };
 

@@ -538,10 +538,17 @@ href — and L14's rule is per-`rel`: `.svg` is correct for `rel="icon"` and wro
 the collection to carry `{ rel, href }` pairs first, and the format table follows from that. The
 `rel`s are still read from the live document; only the *rules* are written down.
 
-**A `rel` the table does not know is reported, not skipped.** That is deliberate: skipping unknown
-`rel`s is exactly where the next instance of this defect would hide — a new icon reference added later,
-silently unchecked, in a file whose whole purpose is to notice that. The failure text says to add the
-row rather than pretending the reference is fine.
+**A `rel` the table does not know is reported, not skipped.** Skipping unknown `rel`s is exactly where
+the next instance of this defect would hide — a new icon reference added later, silently unchecked, in
+a file whose whole purpose is to notice that. The failure text says to add the row rather than
+pretending the reference is fine.
+
+> **Correction, from T036.** As written in this phase that branch was **unreachable**, and this note
+> claimed a guarantee the code did not provide. The selector named three exact `rel` values, so the
+> "unknown `rel`" case could never occur and `apple-touch-icon-precomposed` was not checked at all. The
+> Phase 6 entry records the fix and its red case. Left in place with this correction rather than
+> rewritten, because a build log that quietly repairs its own claims is worth less than one that shows
+> where it was wrong.
 
 **T022 asserts the declared `sizes` and the bytes, because either alone is defeatable.** "The manifest
 names a PNG" passes on a 48×48; a browser selects on the declared `sizes` string, which is written by
@@ -719,7 +726,7 @@ out-of-scope capability.
 - [X] T033 [P] Run V73's manual half: `pnpm build && pnpm listing:assets && git status --porcelain` reports no diff. This is `004`'s V34, now with the CI-runnable half T012 added
 - [X] T034 [P] Update `CLAUDE.md`: `apps/mobile/assets/` is a new directory of generated, committed artwork; `listing/assets/artwork.json` is the generated digest-and-palette record that makes raster provenance checkable; the existing note that `color.background` is embedded in the generated icons now reaches the mobile app's own icons too
 - [X] T035 [P] **WITHDRAWN** — this task was written against a mistaken premise. `specs/001-chromatic-guitar-tuner/tasks.md` is `001`'s own build log, not a cross-feature one: every feature from `004` onward carries "doubles as the build log" in its **own** `tasks.md`, and none of `004`–`007` appended anything to `001`. Writing this feature's findings there would invent a practice no other feature follows and make `001`'s file wrong about its own scope. The findings live in this file, which is the established home; the parts that outlive the feature went into `CLAUDE.md` in T034
-- [ ] T036 Request code review of the branch against `contracts/app-icons.md` L13–L16 and the hazard table above, with the two manual-only obligations named explicitly
+- [X] T036 Request code review of the branch against `contracts/app-icons.md` L13–L16 and the hazard table above, with the two manual-only obligations named explicitly
 
 ### Phase 6 findings
 
@@ -759,6 +766,64 @@ reads as forgotten, and a checked one with no note reads as done.
 the three observe-red tasks as "T017, T023 and **T032**". T032 is the polish suite; the third gate is
 **T029**. Corrected. It was wrong from the moment `/speckit-tasks` generated the file, and it mattered:
 that sentence is the one a reader uses to check the constitutional obligation was met.
+
+**T036 — code review, and it found two of this feature's gates were dead code.** Seven findings; six
+fixed, one referred. The two that matter most are both cases of a gate that reads as correct and checks
+nothing — which is this feature's own subject, arriving one level up:
+
+**1. The "an unknown `rel` is reported, not skipped" guarantee was unreachable.** `metadata.spec.ts`
+selected `link[rel="icon"], link[rel="apple-touch-icon"], link[rel="manifest"]` — three exact values —
+so `formats[rel]` was always defined and the branch that reports an unchecked `rel` could never run.
+`<link rel="apple-touch-icon-precomposed">` and `<link rel="mask-icon">` were selected by nothing: not
+format-checked, not even fetched. That is precisely the hiding place the Phase 4 note claimed to close,
+and **the claim in that note and in the Phase 4 commit message was false as implemented**. Fixed by
+selecting `link[rel]` and filtering to icon-ish rels; observed red by adding a `precomposed` link, which
+now reports `rel="apple-touch-icon-precomposed" is not a rel this test knows how to check`.
+
+**2. `NEGATION` listed three of the four categories and omitted `reference copy`** — the category
+belonging to the one artefact the whole L16 clause was written against. A row reading
+`**Not a reference copy** — it is built into the app` against a file that *is* a reference copy passed
+both checks: the negation did not match, and the positive check was satisfied **by the negation
+itself**. That is the T029 failure, reintroduced inside the fix for T029. Fixed by deriving the pattern
+from `CATEGORIES` so a fifth category cannot arrive without its negation; observed red on exactly that
+row.
+
+The other four fixed:
+
+- **The `precache` list was checked for what it must not contain and never for whether it is true.**
+  `verify-build-output.mjs` asserted `robots.txt`/`sitemap.xml` are absent and nothing more, while the
+  five public icons are a hand-written array 370 lines from the manifest naming them. `cache.addAll`
+  rejects **atomically**, so one renamed icon means the worker never installs and the app is silently
+  not offline-capable — indistinguishable from working while online. This feature had just fixed one
+  instance of that omission (`/icon-maskable.svg`, missing since it was added); now the mechanism is
+  gated. Observed red by adding a public icon the build does not emit.
+- **A stale comment this branch itself falsified**, explaining that the URL set "collapses to three"
+  because `apple-touch-icon` reuses `icon.svg`. It reuses nothing now and the set is four. Rewritten to
+  say why the assertion is by role rather than count — which the change strengthens rather than breaks.
+- **`iconPath` concatenated where `new URL()` normalises**, so an `icon` pointing at
+  `../../listing/…` — the exact mistake D2 exists to prevent — produced a `relative` of
+  `apps/mobile/../../listing/…`, matching no `artwork.json` key. The gate stayed red but reported
+  "artwork.json does not record it" about a file it records, and `submission-icons` filed a built-in
+  icon under console field. Right verdict, wrong sentence, which costs the reader the diagnosis.
+- **`writeArtefact` recorded the dimensions the target asked for**, not the ones the bytes have, while
+  its own docstring stresses that the digest is taken over the bytes actually written. The two manifest
+  rasters and both SVGs appear in no `limits.json` entry, so nothing else compares their size to the
+  file. Now read back out of the IHDR for PNGs. Regenerating after the change produced no diff, which
+  confirms the recorded sizes were already truthful — the gap was that nothing made them so.
+
+**One finding referred rather than fixed**, because it is a design decision the plan already ruled on:
+`icon-192.png` is drawn full-bleed and `icon-512.png` at safe-zone scale, and both are offered as
+`purpose: 'any'`. An engine choosing the 512 for an `any` slot renders the mark at 80% of the size the
+192 shows it. Fixing it properly means a thirteenth artefact — a full-bleed `any` 512 beside the
+safe-zone `maskable` one — because simply dropping `any` from the 512 would undo D7's raster-fallback
+intent at that size. `data-model.md` specifies the current geometry deliberately, so this is recorded
+for a decision rather than changed unilaterally. It is cosmetic and cross-engine: the two scales never
+appear side by side.
+
+**A note on the review's own scope.** It also confirmed, independently, the premises this feature was
+built on — reading the installed `@expo/prebuild-config` for `withIosIcons`'s white-square fallback,
+`removeTransparency`, and `createAdaptiveIconXmlString`'s preference for the background drawable, and
+verifying all twelve digests against the committed bytes.
 
 **T034 — what went into `CLAUDE.md`**, chosen as the three things a future session would otherwise have
 to rediscover:
