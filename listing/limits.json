@@ -67,6 +67,38 @@
         "alpha": "forbidden",
         "requiredBy": "Google Play",
         "note": "REJECTION CONDITION. Play will not publish a listing without a feature graphic, and it is the asset most easily forgotten because no other store has an equivalent."
+      },
+      "apps/mobile/assets/icon.png": {
+        "width": 1024,
+        "height": 1024,
+        "format": "png",
+        "alpha": "forbidden",
+        "requiredBy": "the iOS app icon built into the binary",
+        "note": "REJECTION CONDITION, and a silent one first. Apple rejects an alpha channel, but before a submission ever happens Expo's generateUniversalIconAsync sets removeTransparency:true and an opaque white backgroundColor for this variant — so a transparent source is composited onto WHITE and ships looking merely wrong rather than failing (008 D4). Byte-identical to icon-ios-1024.png by construction; artwork.json records the same digest for both."
+      },
+      "apps/mobile/assets/icon-adaptive-foreground.png": {
+        "width": 1024,
+        "height": 1024,
+        "format": "png",
+        "alpha": "required",
+        "requiredBy": "the Android adaptive launcher icon built into the binary",
+        "note": "Transparency is the point: the launcher composites this over the background layer below, and an opaque foreground hides that layer entirely. Drawn at the safe-zone scale, unlike the listing copy of the same name, because the mask may be a circle (FR-174)."
+      },
+      "apps/mobile/assets/icon-adaptive-background.png": {
+        "width": 1024,
+        "height": 1024,
+        "format": "png",
+        "alpha": "allowed",
+        "requiredBy": "the Android adaptive launcher icon built into the binary",
+        "note": "A solid --ct-background field, not artwork. It exists so app.config.ts can name a backgroundImage and never a backgroundColor hex string, which would be an ESLint error in apps/** (008 D3). Expo requires it to match the foreground's dimensions."
+      },
+      "apps/web/public/apple-touch-icon.png": {
+        "width": 180,
+        "height": 180,
+        "format": "png",
+        "alpha": "forbidden",
+        "requiredBy": "iOS Safari — Add to Home Screen",
+        "note": "Three ways to get this wrong, all of which look right in a file browser. SVG is not accepted here at all and degrades to a screenshot of the page. Transparency is filled with solid BLACK. And the source must be SQUARE: icon.svg is generated pre-rounded for a favicon, and iOS masks again, cutting the corners twice (008 D6). 180 is the largest size iOS asks for and it downscales for the rest."
       }
     },
     "appearances": ["light", "dark"],

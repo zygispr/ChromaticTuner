@@ -27,6 +27,7 @@
  * muted, so every failure names the specific field or file at fault.
  */
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -889,6 +890,166 @@ group('artwork', ({ ROOT: root }) => {
   }
 
   return { label: `${scanned} scanned`, failures };
+});
+
+/**
+ * L15 (FR-173, FR-179, FR-182): every generated artefact is recorded, unmodified
+ * and drawn from the current palette.
+ *
+ * **Why this group exists beside `artwork` rather than inside it.** The group
+ * above proves two things about the committed SVGs by reading them: every colour
+ * literal is a palette value, and the file carries the generator's marker.
+ * Neither transposes to a raster — a PNG has no literals and no comment. This
+ * group reproduces both properties from a sidecar record: the recorded palette
+ * is the literal, and the digest is the marker (research D5).
+ *
+ * All four checks are needed and none is redundant:
+ *
+ * 1. digests — catches a hand-edited or design-tool-exported file;
+ * 2. palette — catches a token that moved without the artwork being regenerated.
+ *    Check 1 passes on correctly-transcribed-then-stale artwork, which is exactly
+ *    the defect 004's D5 found, and check 2 passes on a hand-drawn file whose
+ *    recorded palette happens to be current. Each alone is half a gate;
+ * 3. completeness — catches a new generator target that ships unrecorded, which
+ *    would otherwise be an artefact nothing checks at all;
+ * 4. limits agreement — the two records answer different questions ("what does a
+ *    platform demand" vs "what did the generator produce"), and an artefact in
+ *    one but not the other is a gap in one of them.
+ *
+ * It also converts 004's V34 into something CI can run. "Regenerate and see no
+ * diff" needs the browser `pnpm listing:assets` launches, which CI's Ubuntu
+ * runners do not have; recomputing a committed digest launches nothing.
+ */
+group('artwork-manifest', ({ limits, ROOT: root }) => {
+  const failures = [];
+
+  let manifest;
+  try {
+    manifest = readJson(
+      new URL('listing/assets/artwork.json', root),
+      'listing/assets/artwork.json'
+    );
+  } catch {
+    return {
+      label: '0',
+      failures: [
+        'listing/assets/artwork.json is missing or unreadable — run `pnpm build && pnpm listing:assets`',
+      ],
+    };
+  }
+
+  const recorded = manifest.artefacts ?? {};
+
+  // 1 — every recorded artefact is present and its bytes are the recorded bytes.
+  for (const [relative, spec] of Object.entries(recorded)) {
+    let bytes;
+    try {
+      bytes = readFileSync(fileURLToPath(new URL(relative, root)));
+    } catch {
+      failures.push(`${relative} is recorded in artwork.json but is not on disk`);
+      continue;
+    }
+
+    const digest = createHash('sha256').update(bytes).digest('hex');
+    if (digest !== spec.sha256) {
+      failures.push(
+        `${relative} does not match its recorded digest (recorded ${String(spec.sha256).slice(0, 12)}…, ` +
+          `found ${digest.slice(0, 12)}…) — it has been edited by hand, or regenerated without ` +
+          'committing artwork.json alongside it'
+      );
+    }
+  }
+
+  // 2 — every colour the artefacts were drawn with is still a current token.
+  const tokenBlock = (() => {
+    try {
+      const html = readFileSync(fileURLToPath(new URL('apps/web/dist/index.html', root)), 'utf8');
+      return /<style data-chromatic-tuner="tokens">([\s\S]*?)<\/style>/.exec(html)?.[1] ?? null;
+    } catch {
+      return null;
+    }
+  })();
+
+  if (!tokenBlock) {
+    failures.push(
+      'apps/web/dist/index.html has no token <style> block to compare the recorded palette ' +
+        'against — run `pnpm build` first'
+    );
+  } else {
+    const current = new Set(
+      (tokenBlock.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).map((c) => c.toLowerCase())
+    );
+
+    for (const [token, value] of Object.entries(manifest.palette ?? {})) {
+      if (!current.has(String(value).toLowerCase())) {
+        failures.push(
+          `the artwork was drawn with ${token}: ${value}, which is no longer a --ct-* token value — ` +
+            'the palette moved and the artwork was not regenerated (`pnpm listing:assets`)'
+        );
+      }
+    }
+  }
+
+  /*
+   * 3 — the generator's target list and the manifest's key set are equal.
+   *
+   * Read out of the generator's source rather than imported: that module
+   * launches Chromium at the top level, so importing it here would put a browser
+   * in the merge gate — the one thing this whole design is arranged to avoid.
+   * The coupling is to the literal `file: '…'` shape of a TARGETS/SVGS entry,
+   * which Prettier's single-quote rule keeps stable, and a drift in that shape
+   * surfaces as this check reporting a missing artefact rather than as a silent
+   * pass: an empty target list would fail against a populated manifest.
+   */
+  const generatorSource = readFileSync(
+    fileURLToPath(new URL('listing/scripts/generate-icons.mjs', root)),
+    'utf8'
+  );
+  const declared = new Set(
+    [...generatorSource.matchAll(/file:\s*'([^']+)'/g)].map(([, file]) => file)
+  );
+
+  if (declared.size === 0) {
+    failures.push(
+      'no `file:` targets could be read out of listing/scripts/generate-icons.mjs — the ' +
+        'generator changed shape and this check can no longer see what it produces'
+    );
+  }
+
+  for (const file of declared) {
+    if (!(file in recorded)) {
+      failures.push(
+        `generate-icons.mjs writes ${file}, but artwork.json does not record it — a shipped ` +
+          'artefact that no check can see'
+      );
+    }
+  }
+
+  for (const file of Object.keys(recorded)) {
+    if (!declared.has(file)) {
+      failures.push(
+        `artwork.json records ${file}, but no generator target writes it — the record has ` +
+          'outlived its artefact'
+      );
+    }
+  }
+
+  // 4 — every icon the limits table measures is also an artefact the generator
+  // produced. Screenshots are captured, not generated, so they are excluded by
+  // the same `assets.files`/`assets.screenshots` split limits.json already makes.
+  for (const relative of Object.keys(limits.assets?.files ?? {})) {
+    if (!(relative in recorded)) {
+      failures.push(
+        `limits.json requires ${relative}, but artwork.json does not record it — either the ` +
+          'generator does not produce it, or it is hand-authored artwork pretending otherwise'
+      );
+    }
+  }
+
+  return {
+    label: `${Object.keys(recorded).length} artefacts, ${Object.keys(manifest.palette ?? {}).length} palette values`,
+    failures,
+  };
 });
 
 /**

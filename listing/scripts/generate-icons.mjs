@@ -30,7 +30,9 @@
  * request.
  */
 import { chromium } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { deflateSync, inflateSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
@@ -93,9 +95,18 @@ const palette = darkPalette();
  * see, and it is drawn from the same tokens.
  *
  * Every dimension is a fraction of the canvas so one template serves every size.
- * The extreme extent is 0.22 + 0.03 = **0.25 of the width from centre**, so the
- * whole mark sits inside the centre 50% — comfortably within the 66% safe zone
- * an adaptive launcher mask can cut to, with room for the mask to be a circle.
+ * The extreme extent is `dotOffset + dotRadius` = 0.26 + 0.03 = **0.29 of the
+ * width from centre**, measured off the decoded pixels in 008's T010 and not
+ * only computed. The comment here read 0.22 + 0.03 = 0.25 until then, which was
+ * the arithmetic for a `dotOffset` this file has not held for some time.
+ *
+ * The correction matters, because 0.29 is what the safe-zone judgement rests on.
+ * An adaptive launcher mask is worst-cased as a **circle** of radius 0.3056 (the
+ * central 66 of 108 dp), and the mark's widest points are the two dots, on the
+ * horizontal axis, so their 0.29 is a true radius rather than a corner. It fits
+ * — by 0.015 of the width, which is margin enough to be correct and thin enough
+ * that the raster the launcher actually masks is drawn at `safeZone` scale
+ * (0.29 × 0.8 = 0.232) rather than relying on this.
  *
  * The proportions are deliberately heavier than the app's own: at 48 px the
  * marker is under 4 px wide and the dots under 3 px across, which is the
@@ -119,8 +130,23 @@ const MARK = {
   tickHeight: 0.1,
 };
 
-function markup({ width, height, background }) {
-  const unit = Math.min(width, height);
+/**
+ * `safeZone` and `mark` exist for the two Android adaptive layers (008, D3).
+ *
+ * `safeZone` shrinks the mark by the same 0.8 `svg()` already applies, so the
+ * raster foreground and the maskable SVG are the same picture at the same scale
+ * rather than two drawings that happen to look alike. A launcher mask cuts to a
+ * device-chosen shape, so anything meaningful has to sit well inside the circle
+ * that shape is worst-cased as (FR-174).
+ *
+ * `mark: false` draws the background field alone. It is what lets
+ * `android.adaptiveIcon` take a `backgroundImage` instead of a
+ * `backgroundColor` — the latter is a hex string, and a hex literal anywhere in
+ * `apps/**` is an ESLint error here. A generated solid PNG carries the same
+ * palette value with no literal to transcribe and nothing to keep in sync.
+ */
+function markup({ width, height, background, safeZone = false, mark = true }) {
+  const unit = Math.min(width, height) * (safeZone ? 0.8 : 1);
   const px = (fraction) => (fraction * unit).toFixed(2);
 
   return `<!doctype html>
@@ -179,14 +205,18 @@ function markup({ width, height, background }) {
     </style>
   </head>
   <body>
-    <div class="mark">
+${
+  mark
+    ? `    <div class="mark">
       <div class="line"></div>
       <div class="tick tick-left"></div>
       <div class="tick tick-right"></div>
       <div class="dot flat"></div>
       <div class="dot sharp"></div>
       <div class="marker"></div>
-    </div>
+    </div>`
+    : '    <!-- background layer only: the launcher composites the foreground over this -->'
+}
   </body>
 </html>`;
 }
@@ -368,9 +398,123 @@ const TARGETS = [
     background: true,
     alpha: false,
   },
+
+  /* ----------------------------------------------------------------------- *
+   * The mobile app's own icons (008 — FR-171, FR-175; research D2, D3, D4).
+   *
+   * Separate files from the `listing/assets/` ones above rather than a path
+   * into them, because Expo hands an icon path to an image library, not to a
+   * resolver: `@expo/image-utils` returns any non-`http` string unchanged, so
+   * it resolves against the **current working directory**. A `../../listing/…`
+   * path holds only while every caller happens to `cd` into `apps/mobile`
+   * first, and it would make `apps/mobile` unbuildable without `listing/`,
+   * inverting a dependency this repo states. Duplication of *output* from one
+   * generator, one mark and one palette — and `artwork.json` makes it checkable.
+   * ----------------------------------------------------------------------- */
+  {
+    file: 'apps/mobile/assets/icon.png',
+    width: 1024,
+    height: 1024,
+    background: true,
+    // Must be opaque, and Apple's no-alpha rule is the lesser reason. Expo's
+    // `generateUniversalIconAsync` sets `removeTransparency: true` and an
+    // opaque white `backgroundColor` for this variant, so a transparent source
+    // is composited onto **white** and ships looking merely wrong (D4). A
+    // rejection would at least be loud; this is not.
+    //
+    // The colour is deliberately described rather than quoted: the `artwork`
+    // group scans this file for colour literals, and it is right to — a hex in
+    // a comment today is a hex in a template tomorrow.
+    alpha: false,
+  },
+  {
+    file: 'apps/mobile/assets/icon-adaptive-foreground.png',
+    width: 1024,
+    height: 1024,
+    background: false,
+    // Alpha is the point: the launcher composites this over the background
+    // layer, and an opaque foreground hides that layer entirely.
+    alpha: true,
+    // The mask is a shape the device chooses and may be a circle, so the mark
+    // shrinks into the safe zone rather than relying on its own extent (FR-174).
+    safeZone: true,
+  },
+  {
+    file: 'apps/mobile/assets/icon-adaptive-background.png',
+    width: 1024,
+    height: 1024,
+    background: true,
+    alpha: true,
+    // A solid field, not artwork. It exists so `app.config.ts` can name a
+    // `backgroundImage` and never a `backgroundColor` hex literal (D3).
+    mark: false,
+  },
+
+  /* ----------------------------------------------------------------------- *
+   * The web app's rasters (008 — FR-176, FR-177; research D6, D7).
+   * ----------------------------------------------------------------------- */
+  {
+    file: 'apps/web/public/apple-touch-icon.png',
+    // 180 is the largest size iOS asks for (60pt at @3x) and it downscales for
+    // every smaller slot, so one file serves all of them (D6).
+    width: 180,
+    height: 180,
+    background: true,
+    // iOS fills a transparent touch icon with solid **black**, so this one is
+    // opaque for a different reason than `icon.png` above.
+    alpha: false,
+    // Deliberately NOT rounded, and this is the switch most likely to be got
+    // wrong because reusing `icon.svg` looks right in a file browser. That file
+    // is generated `rounded: true` for a favicon, which masks nothing; iOS
+    // applies its own superellipse, so a pre-rounded source is cut twice and
+    // the wallpaper shows through at four corners.
+  },
+  {
+    file: 'apps/web/public/icon-192.png',
+    width: 192,
+    height: 192,
+    background: true,
+    alpha: true,
+  },
+  {
+    file: 'apps/web/public/icon-512.png',
+    width: 512,
+    height: 512,
+    background: true,
+    alpha: true,
+    // Declared `any maskable` in the manifest, so it is drawn at the safe-zone
+    // scale for the same reason `icon-maskable.svg` is.
+    safeZone: true,
+  },
 ];
 
-mkdirSync(fileURLToPath(new URL('listing/assets', ROOT)), { recursive: true });
+/**
+ * Writes one artefact and records it for `artwork.json` (008 — contract L15).
+ *
+ * The directory is created per artefact rather than once up front, so adding a
+ * target that writes somewhere new is a data edit and not also a code edit —
+ * `apps/mobile/assets/` did not exist before this feature, and the next one
+ * will not either.
+ *
+ * The digest is taken over the bytes **actually written**, after `stripAlpha`
+ * has re-encoded them. Digesting Chromium's screenshot instead would record a
+ * hash of something no file on disk ever holds.
+ */
+const artefacts = {};
+
+function writeArtefact(file, bytes, { width, height }) {
+  const path = fileURLToPath(new URL(file, ROOT));
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, bytes);
+
+  artefacts[file] = {
+    width,
+    height,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+  };
+
+  return bytes.length;
+}
 
 const browser = await chromium.launch();
 const written = [];
@@ -387,10 +531,9 @@ for (const target of TARGETS) {
   await page.close();
 
   const bytes = target.alpha ? shot : stripAlpha(shot);
-  const path = fileURLToPath(new URL(target.file, ROOT));
-  writeFileSync(path, bytes);
+  const size = writeArtefact(target.file, bytes, target);
 
-  written.push(`${target.file} ${target.width}×${target.height} ${bytes.length} B`);
+  written.push(`${target.file} ${target.width}×${target.height} ${size} B`);
 }
 
 await browser.close();
@@ -432,10 +575,79 @@ const SVGS = [
   { file: 'apps/web/public/icon-maskable.svg', rounded: false, safeZone: true },
 ];
 
+const SVG_SIZE = 512;
+
 for (const { file, rounded, safeZone } of SVGS) {
-  writeFileSync(fileURLToPath(new URL(file, ROOT)), svg({ size: 512, rounded, safeZone }));
-  written.push(`${file} 512×512`);
+  const source = Buffer.from(svg({ size: SVG_SIZE, rounded, safeZone }));
+  writeArtefact(file, source, { width: SVG_SIZE, height: SVG_SIZE });
+  written.push(`${file} ${SVG_SIZE}×${SVG_SIZE}`);
 }
+
+/* ------------------------------------------------------------------------- *
+ * The artwork manifest (008 — contract L15, research D5).
+ *
+ * A raster carries neither of the two things `verify-listing.mjs` proves about
+ * an SVG. It has no colour literal to check against the palette, and no comment
+ * to carry this generator's marker. This record supplies both: the recorded
+ * palette is the literal, and the digest is the marker.
+ *
+ * It also converts 004's V34 — "regenerate and see no diff" — into something CI
+ * can run. That check is manual because `pnpm listing:assets` needs a browser
+ * CI's Ubuntu runners do not have; a committed digest proves the same bytes are
+ * still there while launching nothing.
+ *
+ * `artwork.json` is deliberately absent from its own `artefacts` map. A record
+ * cannot digest itself, and the verifier's completeness check compares this map
+ * against the generator's target list, which does not include it either.
+ * ------------------------------------------------------------------------- */
+const MANIFEST = 'listing/assets/artwork.json';
+
+/**
+ * The tokens the templates actually drew with — not the whole dark block.
+ *
+ * Derived from the two template functions' own source rather than listed by
+ * hand, so adding a colour to the mark records it automatically and no list can
+ * fall behind the drawing. `markup()` names them as `var(--ct-x)` and `svg()` as
+ * `palette['--ct-x']`; one pattern catches both.
+ *
+ * Recording all eleven instead would be the easier line of code and a worse
+ * gate: `--ct-surface` and `--ct-scrim` appear in no icon, so a change to either
+ * would fail the check and demand a regeneration that alters no byte. A gate
+ * that cries wolf teaches people to regenerate reflexively, which is the habit
+ * that lets real drift through.
+ */
+const drawnWith = Object.fromEntries(
+  [...new Set([...markup.toString(), ...svg.toString()].join('').match(/--ct-[a-z-]+/g) ?? [])]
+    .sort()
+    .map((name) => [name, palette[name]])
+);
+
+if (Object.values(drawnWith).some((value) => value === undefined)) {
+  console.error(
+    `a template names a token the palette has no value for: ${JSON.stringify(drawnWith)}`
+  );
+  process.exit(1);
+}
+
+writeFileSync(
+  fileURLToPath(new URL(MANIFEST, ROOT)),
+  `${JSON.stringify(
+    {
+      $note: `Generated by ${GENERATED_BY}. Do not edit by hand: verify-listing.mjs recomputes every digest here against the committed bytes and checks every palette value against the built token block.`,
+      generatedBy: GENERATED_BY,
+      palette: drawnWith,
+      // Sorted so a regenerated manifest diffs against the previous one line by
+      // line. Object key order is insertion order in JSON, and TARGETS order is
+      // an authoring convenience that will change.
+      artefacts: Object.fromEntries(
+        Object.entries(artefacts).sort(([a], [b]) => a.localeCompare(b))
+      ),
+    },
+    null,
+    2
+  )}\n`
+);
 
 console.log(`Wrote ${written.length} artefacts from the built token block:`);
 for (const line of written) console.log(`  ${line}`);
+console.log(`  ${MANIFEST} — ${Object.keys(artefacts).length} recorded`);

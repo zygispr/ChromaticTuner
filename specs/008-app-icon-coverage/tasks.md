@@ -197,19 +197,142 @@ against absence — its red cases are *mutations* of a record that has to exist 
 moved token, an unrecorded target). T014 performs all four and is the observed-red task for L15. The
 three **defect** gates keep the strict order, in Phases 3–5.
 
-- [ ] T005 Extend `markup({ width, height, background })` in `listing/scripts/generate-icons.mjs` with two switches the raster path does not have yet: `safeZone` (scale the mark by 0.8, matching `svg()`'s existing `scale`) and `mark` (omit the mark entirely, for the solid adaptive background layer). Keep every colour a `var(--ct-*)` — the `artwork` group scans this file for colour literals and fails on one
-- [ ] T006 Add the six new entries to `TARGETS` in `listing/scripts/generate-icons.mjs`, per the artefact table in [data-model.md](./data-model.md): `apps/mobile/assets/icon.png` (1024², background, full, **alpha false**), `apps/mobile/assets/icon-adaptive-foreground.png` (1024², no background, **safeZone**, alpha true), `apps/mobile/assets/icon-adaptive-background.png` (1024², background, **mark false**, alpha true), `apps/web/public/apple-touch-icon.png` (180², background, full, **not rounded**, alpha false), `apps/web/public/icon-192.png` (192², background, full, alpha true), `apps/web/public/icon-512.png` (512², background, **safeZone**, alpha true). Comment the three switches that are counter-intuitive — the un-rounded touch icon (D6), the no-alpha `icon.png` (D4), the safe-zone foreground (FR-174)
-- [ ] T007 `mkdirSync` `apps/mobile/assets` and `apps/web/public` alongside the existing `listing/assets` call in `listing/scripts/generate-icons.mjs`, so a clean checkout generates without a missing-directory failure
-- [ ] T008 Write `listing/assets/artwork.json` from `listing/scripts/generate-icons.mjs`: `$note`, `generatedBy`, the `palette` object holding every `--ct-*` value `darkPalette()` resolved on this run, and an `artefacts` map keyed by repo-relative path with `{ width, height, sha256 }`. Digest the **bytes actually written** (post-`stripAlpha`), cover the SVG targets too, and exclude `artwork.json` itself — a record cannot digest itself
-- [ ] T009 Run `pnpm build && pnpm listing:assets` and commit the seven new files (six PNGs plus `artwork.json`) plus any regenerated existing artefact
-- [ ] T010 Verify the emitted bytes against the data-model table before trusting them downstream: `apps/mobile/assets/icon.png` and `apps/web/public/apple-touch-icon.png` are PNG colour type 2 (no alpha), `icon-adaptive-foreground.png` is colour type 6 with real transparency outside the mark, `icon-adaptive-background.png` matches the foreground's dimensions, and `apple-touch-icon.png` has square corners. Record the header values in this file
-- [ ] T011 Add four `assets.files` entries to `listing/limits.json` for the artefacts a platform imposes a hard rule on: `apps/mobile/assets/icon.png` (1024², `alpha: "forbidden"`, `requiredBy: "iOS app icon"`, note the Expo-composites-onto-white failure), `apps/mobile/assets/icon-adaptive-foreground.png` (1024², `alpha: "required"`), `apps/mobile/assets/icon-adaptive-background.png` (1024², `alpha: "allowed"`), `apps/web/public/apple-touch-icon.png` (180², `alpha: "forbidden"`, note that iOS fills transparency with solid black). The two manifest rasters carry no platform-enforced rule and are gated by L14 and L15 instead
-- [ ] T012 Add an `artwork-manifest` group to `listing/scripts/verify-listing.mjs` implementing L15 checks 1 and 2: every path in `artwork.json`'s `artefacts` exists and its bytes digest to the recorded `sha256`; every value in `palette` still appears in the built document's `<style data-chromatic-tuner="tokens">` block. Reuse the token-block read the existing `artwork` group already does, and fail with the `pnpm build` hint that group already gives
-- [ ] T013 Extend the `artwork-manifest` group with L15 checks 3 and 4: the manifest's key set equals the generator's declared target list (import or re-read `TARGETS`/`SVGS` from `generate-icons.mjs` without launching its browser — or assert against an exported list, whichever keeps the generator single-source), and every icon path in `limits.json`'s `assets.files` also appears in `artefacts`
-- [ ] T014 **Observe L15 red four ways**, reverting each: flip one byte in a committed PNG (check 1); change `color.background` in `packages/tokens`, rebuild and rerun without regenerating (check 2, = V74); delete one entry from `artwork.json`'s `artefacts` (check 3); add a `limits.json` entry naming a file no target produces (check 4). Record each failure message in this file — a four-part gate needs each part seen red separately
+- [X] T005 Extend `markup({ width, height, background })` in `listing/scripts/generate-icons.mjs` with two switches the raster path does not have yet: `safeZone` (scale the mark by 0.8, matching `svg()`'s existing `scale`) and `mark` (omit the mark entirely, for the solid adaptive background layer). Keep every colour a `var(--ct-*)` — the `artwork` group scans this file for colour literals and fails on one
+- [X] T006 Add the six new entries to `TARGETS` in `listing/scripts/generate-icons.mjs`, per the artefact table in [data-model.md](./data-model.md): `apps/mobile/assets/icon.png` (1024², background, full, **alpha false**), `apps/mobile/assets/icon-adaptive-foreground.png` (1024², no background, **safeZone**, alpha true), `apps/mobile/assets/icon-adaptive-background.png` (1024², background, **mark false**, alpha true), `apps/web/public/apple-touch-icon.png` (180², background, full, **not rounded**, alpha false), `apps/web/public/icon-192.png` (192², background, full, alpha true), `apps/web/public/icon-512.png` (512², background, **safeZone**, alpha true). Comment the three switches that are counter-intuitive — the un-rounded touch icon (D6), the no-alpha `icon.png` (D4), the safe-zone foreground (FR-174)
+- [X] T007 `mkdirSync` `apps/mobile/assets` and `apps/web/public` alongside the existing `listing/assets` call in `listing/scripts/generate-icons.mjs`, so a clean checkout generates without a missing-directory failure
+- [X] T008 Write `listing/assets/artwork.json` from `listing/scripts/generate-icons.mjs`: `$note`, `generatedBy`, the `palette` object holding every `--ct-*` value `darkPalette()` resolved on this run, and an `artefacts` map keyed by repo-relative path with `{ width, height, sha256 }`. Digest the **bytes actually written** (post-`stripAlpha`), cover the SVG targets too, and exclude `artwork.json` itself — a record cannot digest itself
+- [X] T009 Run `pnpm build && pnpm listing:assets` and commit the seven new files (six PNGs plus `artwork.json`) plus any regenerated existing artefact
+- [X] T010 Verify the emitted bytes against the data-model table before trusting them downstream: `apps/mobile/assets/icon.png` and `apps/web/public/apple-touch-icon.png` are PNG colour type 2 (no alpha), `icon-adaptive-foreground.png` is colour type 6 with real transparency outside the mark, `icon-adaptive-background.png` matches the foreground's dimensions, and `apple-touch-icon.png` has square corners. Record the header values in this file
+- [X] T011 Add four `assets.files` entries to `listing/limits.json` for the artefacts a platform imposes a hard rule on: `apps/mobile/assets/icon.png` (1024², `alpha: "forbidden"`, `requiredBy: "iOS app icon"`, note the Expo-composites-onto-white failure), `apps/mobile/assets/icon-adaptive-foreground.png` (1024², `alpha: "required"`), `apps/mobile/assets/icon-adaptive-background.png` (1024², `alpha: "allowed"`), `apps/web/public/apple-touch-icon.png` (180², `alpha: "forbidden"`, note that iOS fills transparency with solid black). The two manifest rasters carry no platform-enforced rule and are gated by L14 and L15 instead
+- [X] T012 Add an `artwork-manifest` group to `listing/scripts/verify-listing.mjs` implementing L15 checks 1 and 2: every path in `artwork.json`'s `artefacts` exists and its bytes digest to the recorded `sha256`; every value in `palette` still appears in the built document's `<style data-chromatic-tuner="tokens">` block. Reuse the token-block read the existing `artwork` group already does, and fail with the `pnpm build` hint that group already gives
+- [X] T013 Extend the `artwork-manifest` group with L15 checks 3 and 4: the manifest's key set equals the generator's declared target list (import or re-read `TARGETS`/`SVGS` from `generate-icons.mjs` without launching its browser — or assert against an exported list, whichever keeps the generator single-source), and every icon path in `limits.json`'s `assets.files` also appears in `artefacts`
+- [X] T014 **Observe L15 red four ways**, reverting each: flip one byte in a committed PNG (check 1); change `color.background` in `packages/tokens`, rebuild and rerun without regenerating (check 2, = V74); delete one entry from `artwork.json`'s `artefacts` (check 3); add a `limits.json` entry naming a file no target produces (check 4). Record each failure message in this file — a four-part gate needs each part seen red separately
 
-**Checkpoint**: every icon this feature ships exists, is committed, is recorded, and is checked. Nothing
-consumes them yet, and `pnpm verify:listing` is green.
+**Checkpoint**: reached. Twelve artefacts exist, are recorded and are checked; nothing consumes the six
+new ones yet. `verify:listing` is green apart from Phase 1's pre-existing Android screenshot lines.
+
+### Phase 2 findings
+
+**What the generator emits now.** Twelve artefacts from one mark and one palette, up from six:
+
+```text
+listing/assets/icon-ios-1024.png              1024×1024  10562 B
+listing/assets/icon-play-512.png               512×512    4576 B
+listing/assets/icon-adaptive-foreground.png   1024×1024  11827 B
+listing/assets/feature-graphic-1024x500.png   1024×500    5270 B
+apps/mobile/assets/icon.png                   1024×1024  10562 B   new
+apps/mobile/assets/icon-adaptive-foreground.png 1024×1024 10884 B  new
+apps/mobile/assets/icon-adaptive-background.png 1024×1024  5236 B  new
+apps/web/public/apple-touch-icon.png           180×180    1402 B   new
+apps/web/public/icon-192.png                   192×192    1543 B   new
+apps/web/public/icon-512.png                   512×512    4034 B   new
+apps/web/public/icon.svg                       512×512
+apps/web/public/icon-maskable.svg              512×512
+listing/assets/artwork.json — 12 recorded
+```
+
+**T010 — the emitted bytes, decoded rather than assumed.** Every PNG was fully unfiltered and its
+pixels counted; the switch each artefact depends on was read off the result, not off the target entry
+that asked for it.
+
+| Artefact | Colour type | Corners | Transparent | Mark extent from centre |
+| --- | --- | --- | --- | --- |
+| `apps/mobile/assets/icon.png` | 2 — RGB, no alpha | `#121419` | — | ±0.2900 |
+| `apps/mobile/assets/icon-adaptive-foreground.png` | 6 — RGBA | `00000000` | 97.4% | ±0.2324 |
+| `apps/mobile/assets/icon-adaptive-background.png` | 2 — RGB | `#121419` | — | uniform, 1 colour |
+| `apps/web/public/apple-touch-icon.png` | 2 — RGB, no alpha | `#121419` | — | ±0.2889 |
+| `apps/web/public/icon-192.png` | 2 — RGB | `#121419` | — | ±0.2917 |
+| `apps/web/public/icon-512.png` | 2 — RGB | `#121419` | — | ±0.2324 |
+
+Four things this confirmed that a target entry alone would not have:
+
+- **The safe-zone switch works, and the number proves it**: 0.2324 ÷ 0.2900 = 0.8014. The two artefacts
+  a mask crops are the two drawn small, and no other artefact was shrunk by accident.
+- **`apple-touch-icon.png`'s corners are the background colour**, not transparent and not rounded. That
+  is the D6 trap closed: a pre-rounded source would show the wallpaper at four points after iOS masks it
+  a second time, and it looks correct in a file browser either way.
+- **The adaptive foreground is 97.4% fully transparent** — real transparency, not an opaque field with an
+  alpha channel bolted on, which is what would hide the background layer beneath it.
+- **`apps/mobile/assets/icon.png` and `listing/assets/icon-ios-1024.png` have the same SHA-256**
+  (`e4f10478…`). Byte-identical, so FR-172's "no second mark" is proved rather than asserted, and D2's
+  accepted duplication is duplication of output in the strictest sense.
+
+**A target's `alpha: true` does not mean the file has an alpha channel**, and anyone writing a future
+gate needs to know it. The flag only means "do not run `stripAlpha`"; Chromium's PNG encoder then emits
+colour type **2** anyway whenever nothing in the image is actually transparent. So
+`icon-adaptive-background.png`, `icon-192.png` and `icon-512.png` are all declared `alpha: true` and all
+come out without an alpha channel, while `icon-adaptive-foreground.png` — the one artefact with real
+transparency — comes out type 6. Nothing here is wrong: `limits.json` asks these for `allowed`, and the
+only two files with a hard requirement (`forbidden` on the two opaque icons, `required` on the
+foreground) get exactly what they need. But an assertion phrased as "every `alpha: true` target has an
+alpha channel" would fail on a correct build.
+
+**Deviation, T008 — the recorded palette is six tokens, not eleven.** The first implementation recorded
+the whole resolved dark block. That is the easier line of code and a worse gate: `--ct-surface` and
+`--ct-scrim` appear in no icon, so moving either would fail L15 check 2 and demand a regeneration that
+alters no byte. A gate that cries wolf teaches people to regenerate reflexively, which is the habit that
+lets real drift through. The record now holds only what the templates drew with — the six data-model
+names it — derived from `markup.toString()` and `svg.toString()` rather than from a hand-kept list, so
+adding a colour to the mark records it automatically:
+
+```json
+{ "--ct-background": "#121419", "--ct-flat": "#4C93F0", "--ct-in-tune": "#34C46A",
+  "--ct-line": "#6B7280", "--ct-no-reading": "#9BA2B0", "--ct-sharp": "#FFC978" }
+```
+
+**Defect found and fixed in this phase: the `artwork` gate caught this feature's own comment.** The first
+draft of the `icon.png` target explained D4 by quoting Expo's `backgroundColor: '#ffffff'`. That is a
+colour literal in `listing/scripts/*.mjs`, which the `artwork` group scans and fails on, and it did:
+
+```text
+artwork: 1 problem
+  listing/scripts/generate-icons.mjs contains colour literals (#ffffff) — artwork colours must
+  come from the built token block, not from the template (D5, D6)
+```
+
+Fixed by describing the colour instead of quoting it, in the generator and in the `limits.json` note that
+had copied the same hex. The gate is right to be this blunt — a hex in a comment today is a hex in a
+template tomorrow — and it is worth recording that the rule fired on the person adding icons, which is
+the only kind of evidence that a gate is load-bearing rather than decorative.
+
+**Correction to a pre-existing comment, found by T010's measurement.** `generate-icons.mjs` claimed the
+mark's extreme extent was `0.22 + 0.03 = 0.25 of the width from centre`. The measured extent is **0.29**,
+because `dotOffset` is 0.26 and has been for some time — the comment was arithmetic for a constant the
+file no longer holds. It matters because that number is what the safe-zone judgement rests on: a circular
+mask's radius is 0.3056 of the canvas, so the true margin is 0.015 rather than the 0.055 the comment
+implied. Still a fit, and thin enough to justify drawing the masked raster at `safeZone` scale (0.232)
+instead of relying on it. Comment corrected in place with the measurement and the reasoning.
+
+**T014 — L15 observed red four times, each reverted.** Four checks, four distinct failures, each naming
+the file or token at fault:
+
+```text
+1  flipped one byte in apps/mobile/assets/icon.png
+   apps/mobile/assets/icon.png does not match its recorded digest (recorded e4f10478b6a8…,
+   found 663a0aadd43f…) — it has been edited by hand, or regenerated without committing
+   artwork.json alongside it
+
+2  packages/tokens color.background dark #121419 → #101318, rebuilt, not regenerated  (= V74)
+   the artwork was drawn with --ct-background: #121419, which is no longer a --ct-* token
+   value — the palette moved and the artwork was not regenerated (`pnpm listing:assets`)
+
+3  deleted the apps/web/public/icon-512.png entry from artwork.json
+   generate-icons.mjs writes apps/web/public/icon-512.png, but artwork.json does not record
+   it — a shipped artefact that no check can see
+
+4  added a limits.json entry for a file no target produces
+   limits.json requires listing/assets/icon-nonexistent-256.png, but artwork.json does not
+   record it — either the generator does not produce it, or it is hand-authored artwork
+   pretending otherwise
+```
+
+Case 2 also turned the existing `artwork` group red, which is correct and worth noting: that group
+catches the drift for the two SVGs by grepping their literals, and `artwork-manifest` catches it for the
+ten rasters that have no literals to grep. The two halves of L11's idea now cover the whole artefact set.
+
+**Determinism.** After Prettier reformatted both scripts, `pnpm listing:assets` reproduced every
+previously committed artefact byte-for-byte — `git status` shows the six new files and nothing modified
+under `listing/assets/` or `apps/web/public/`. `pnpm lint` and `pnpm format:check` are clean.
 
 ---
 
