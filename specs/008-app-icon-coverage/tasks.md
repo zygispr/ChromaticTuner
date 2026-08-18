@@ -605,16 +605,111 @@ actually in the binary there is no true statement to write.
 
 ### Gate for User Story 3 (write first, observe red) ⚠️
 
-- [ ] T028 [US3] Add a `submission-icons` group to `listing/scripts/verify-listing.mjs` implementing L16: every artefact path the **resolved** Expo config consumes must be described in `listing/submission.md` as built into the app, and every icon path in `limits.json` that no configuration consumes must be described as a console field. Drive it from the resolved config and `artwork.json` rather than from a hand-written list, so a new artefact fails the gate instead of slipping past it (FR-181)
-- [ ] T029 [US3] **Observe T028 red**, twice, and record both: (a) against the unfixed `submission.md` sentence at line 106 claiming the adaptive foreground "is built into the app" while the resolved config consumed nothing — reconstruct by temporarily reverting T018; and (b) by changing one row of the corrected document to the wrong category. Case (a) is the historical defect, case (b) proves the gate reads the document rather than only the artefacts (V76)
+- [X] T028 [US3] Add a `submission-icons` group to `listing/scripts/verify-listing.mjs` implementing L16: every artefact path the **resolved** Expo config consumes must be described in `listing/submission.md` as built into the app, and every icon path in `limits.json` that no configuration consumes must be described as a console field. Drive it from the resolved config and `artwork.json` rather than from a hand-written list, so a new artefact fails the gate instead of slipping past it (FR-181)
+- [X] T029 [US3] **Observe T028 red**, twice, and record both: (a) against the unfixed `submission.md` sentence at line 106 claiming the adaptive foreground "is built into the app" while the resolved config consumed nothing — reconstruct by temporarily reverting T018; and (b) by changing one row of the corrected document to the wrong category. Case (a) is the historical defect, case (b) proves the gate reads the document rather than only the artefacts (V76)
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Correct `listing/submission.md`: delete the false sentence at lines 106–107, and add a table stating for each icon artefact whether it is a console field or built into the app — `listing/assets/icon-ios-1024.png` and `icon-play-512.png` and the feature graphic are console fields; `apps/mobile/assets/*.png` are built in via `app.config.ts`; `apps/web/public/*` are served by the web app. Note that `listing/assets/icon-adaptive-foreground.png` is a **console reference copy**, and that the bytes Android actually ships come from `apps/mobile/assets/` (research D2)
-- [ ] T031 [US3] Run `pnpm build && pnpm verify:listing` green, with `assets`, `artwork`, `artwork-manifest`, `identity` and `submission-icons` all passing. Record the group labels here
+- [X] T030 [US3] Correct `listing/submission.md`: delete the false sentence at lines 106–107, and add a table stating for each icon artefact whether it is a console field or built into the app — `listing/assets/icon-ios-1024.png` and `icon-play-512.png` and the feature graphic are console fields; `apps/mobile/assets/*.png` are built in via `app.config.ts`; `apps/web/public/*` are served by the web app. Note that `listing/assets/icon-adaptive-foreground.png` is a **console reference copy**, and that the bytes Android actually ships come from `apps/mobile/assets/` (research D2)
+- [X] T031 [US3] Run `pnpm build && pnpm verify:listing` green, with `assets`, `artwork`, `artwork-manifest`, `identity` and `submission-icons` all passing. Record the group labels here
 
-**Checkpoint**: all three user stories are independently functional, and each of the three defects has a
-gate that was seen red on the unfixed code (SC-078).
+**Checkpoint**: reached. All three user stories are independently functional, and each of the three
+defects has a gate that was seen red on the unfixed code (SC-078).
+
+### Phase 5 findings
+
+**T029(a) is the most valuable thing in this feature: the first version of L16 PASSED on the historical
+defect.** Reverting T018 so the resolved config consumed nothing, the gate reported the adaptive
+foreground's row as *correct* — while the document said it was "built into the app" and nothing built it
+in. Two independent causes, both worth knowing:
+
+```text
+The adaptive launcher icon (`listing/assets/icon-adaptive-foreground.png`) is not a console field — it is
+built into the app.
+```
+
+1. **The sentence wraps.** A line-oriented read of the line containing the path sees
+   `…is not a console field — it is` and never reaches the claim, which is on the next line.
+2. **A negation contains the phrase it denies.** The check asked whether the row said "console field".
+   `not a console field` says it. So the document asserting the exact opposite of the truth scored as
+   correct.
+
+The second is not a novel trap — `CLAUDE.md` already records it for the out-of-scope vocabulary, which
+is forbidden *including inside a negation* because "no accounts needed" names the capability it denies.
+The same shape, one document over, and it was reproduced from scratch rather than remembered.
+
+**The fix is two changes, each aimed at one cause.** The claim must be a **table row**, which is one
+line by construction so nothing can wrap out of view and a person gets a place to look; and a negated
+form is rejected outright rather than scored:
+
+```text
+listing/submission.md has no table row for listing/assets/icon-adaptive-foreground.png — it is
+mentioned in prose, which this check deliberately does not read: a wrapped sentence hides half its
+claim and a negation reads as the thing it denies. It is reference copy
+```
+
+**A fourth category, and the reason is the same artefact.** L16 is phrased as built-in versus console
+field, which was exact for `004` because every icon then was one or the other. Two of this feature's
+additions are neither. `apps/web/public/*` is served by the web app. And
+`listing/assets/icon-adaptive-foreground.png` is consumed by no configuration at all now that the app
+ships its own copy — but calling it a console field would be a **fresh false claim**, because Play has
+no adaptive-foreground upload: an Android adaptive icon comes out of the binary. Forcing it into a
+two-way split to satisfy the contract's wording would put a new untrue sentence into the document this
+clause exists to keep true, which is the same mistake in the opposite direction. So the gate has four:
+
+| Category | Derived from |
+| --- | --- |
+| `built into the app` | the resolved Expo config names it |
+| `served by the web app` | it is under `apps/web/public/` and appears in `dist/` |
+| `console field` | `limits.json`'s `requiredBy` names App Store or Google Play |
+| `reference copy` | none of the above — generated, committed, consumed by nothing |
+
+Recorded as a deliberate widening of L16 rather than a deviation: the property the clause protects is
+that the stated home matches the real one, and two more real homes need two more labels.
+
+**Consumption is read from resolved output on both sides**, never from source — the Expo config through
+`expo config --type prebuild`, and the web references from `dist/index.html`, `dist/manifest.webmanifest`
+and `dist/sw.js`. `index.html` and `vite.config.ts` would not do: the manifest and the precache list are
+both generated by plugins, so the icon URLs do not exist as text in any source file.
+
+**T029(b) — the gate reads the document, not only the artefacts.** Two mutations of the corrected table,
+each reverted:
+
+```text
+b1  apps/mobile/assets/icon.png relabelled "Console field"
+    listing/submission.md describes apps/mobile/assets/icon.png as "console field", but it is built
+    into the app — the document and the artefacts disagree, and the document is the one a person
+    reads months from now with no other source
+
+b2  icon-play-512.png stated as "not a console field, obviously"
+    listing/submission.md states where listing/assets/icon-play-512.png is consumed by saying where
+    it is not — say "console field" plainly, because a negation names the category it denies and
+    reads as a claim to anyone skimming
+```
+
+**T030 — what replaced the sentence.** A twelve-row table, one row per artefact, plus a note on the
+reference copy explaining that the bytes Android ships are `apps/mobile/assets/…` and why they are a
+separate file (D2). The section opens by stating what the document used to claim and that it was false,
+because the next reader deserves to know the checklist has been wrong before.
+
+**T031 — the whole verifier**, everything green but Phase 1's pre-existing Android screenshot lines:
+
+```text
+claims: 25 fields ok            vocabulary: 41 strings clean, plus the built privacy page
+fields: 8 ok                    agreement: 7 claims × 2 stores
+names: 2 ok                     corroboration: 7 corroborated
+openings: 2 ok                  artwork: 5 scanned
+assets: 2 problems  ← pre-existing (Android screenshots, red since 005)
+appearances: 1 problem  ← pre-existing
+artwork-manifest: 12 artefacts, 6 palette values
+identity: 7 derived values ok, 3 icons
+submission-icons: 12 artefacts placed (3 built in, 5 web, 3 console, 1 reference)
+privacy: policy at /privacy.html, 0 data collected
+```
+
+`pnpm lint` and `pnpm format:check` clean. The `vocabulary` group still passes over the rewritten
+`submission.md`, which matters: that document gained several hundred words and none of them names an
+out-of-scope capability.
 
 ---
 

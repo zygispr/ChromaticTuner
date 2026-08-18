@@ -103,8 +103,47 @@ action 1.
 | Package name               | `claims.identifier`                                                                                                                        |
 | Version code / name        | `BUILD_NUMBER` in `app.config.ts` / `apps/mobile/package.json`'s `version`                                                                 |
 
-The adaptive launcher icon (`listing/assets/icon-adaptive-foreground.png`) is not a console field — it is
-built into the app.
+## Where each icon comes from
+
+Every icon this product ships, and what you do with it at submission time. `pnpm verify:listing`
+checks this table against the resolved Expo config and the built web output, so a row that stops being
+true fails a gate rather than misleading the next reader (contract L16).
+
+Until `008` this section was a single sentence claiming the adaptive launcher icon was "built into the
+app". It was not: nothing referenced it, and the app shipped Expo's blank white placeholder. A
+checklist that asserts a false thing is worse than one that omits it, because it is the sentence that
+stops you checking.
+
+| Artefact                                          | Where it is consumed                                                         |
+| ------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `listing/assets/icon-ios-1024.png`                | **Console field** — App Store Connect, App Icon                              |
+| `listing/assets/icon-play-512.png`                | **Console field** — Play Console, App icon                                   |
+| `listing/assets/feature-graphic-1024x500.png`     | **Console field** — Play Console, Feature graphic                            |
+| `listing/assets/icon-adaptive-foreground.png`     | **Reference copy** — see the note below                                      |
+| `apps/mobile/assets/icon.png`                     | **Built into the app** — `app.config.ts` `icon` → the iOS AppIcon set        |
+| `apps/mobile/assets/icon-adaptive-foreground.png` | **Built into the app** — `android.adaptiveIcon.foregroundImage`              |
+| `apps/mobile/assets/icon-adaptive-background.png` | **Built into the app** — `android.adaptiveIcon.backgroundImage`              |
+| `apps/web/public/icon.svg`                        | **Served by the web app** — `rel="icon"`, and the manifest's `any` icon      |
+| `apps/web/public/icon-maskable.svg`               | **Served by the web app** — the manifest's `maskable` icon                   |
+| `apps/web/public/apple-touch-icon.png`            | **Served by the web app** — `rel="apple-touch-icon"`; iOS Add to Home Screen |
+| `apps/web/public/icon-192.png`                    | **Served by the web app** — manifest raster                                  |
+| `apps/web/public/icon-512.png`                    | **Served by the web app** — manifest raster, `any maskable`                  |
+
+**Nothing in this table is uploaded twice.** The four console fields are the only ones you touch by
+hand; everything else reaches a user through a build.
+
+**On `listing/assets/icon-adaptive-foreground.png` — a reference copy, and deliberately not a console
+field.** Play has no adaptive-foreground upload: an Android adaptive icon comes out of the binary, not
+out of the console. This file exists as the reference `004` drew for that design, and the bytes Android
+actually ships are `apps/mobile/assets/icon-adaptive-foreground.png` — a separate file, drawn at the
+safe-zone scale, because Expo resolves an icon path against the working directory rather than the
+project root and pointing the native build at `listing/` would make `apps/mobile` unbuildable without
+it (research `008` D2). Both are generated from the same mark and the same palette by
+`listing/scripts/generate-icons.mjs`, and `listing/assets/artwork.json` records a digest for each.
+
+**Regenerating.** `pnpm build && pnpm listing:assets` rewrites every artefact above from the shipped
+colour tokens. It needs the Playwright Chromium and so is a release step, not a merge gate; the
+committed digests are what CI checks instead.
 
 ---
 
