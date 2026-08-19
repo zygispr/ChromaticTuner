@@ -749,3 +749,60 @@ test('the manifest offers rasters big enough to install with (FR-177, L14)', asy
 
   expect(maskable.length, 'the manifest names no maskable icon').toBeGreaterThan(0);
 });
+
+/**
+ * L14 (FR-177, research D7): no *installable* icon declares the `any` size
+ * keyword — because Chromium refuses to install the app when one does.
+ *
+ * D7 recorded this as an open risk to observe rather than a finding, because
+ * the tracker entry could not be read. T041 observed it, and it is real. On
+ * Chromium 151, `Page.getInstallabilityErrors` against this manifest returned
+ * `no-acceptable-icon { minimum-icon-size-in-pixels: 144 }` — while the same
+ * browser reported no errors for two known-installable PWAs, and had just
+ * decoded this manifest's own 192 and 512 PNGs at full size. Serving the same
+ * build from four origins that differed only in the manifest's `icons` array
+ * isolated it:
+ *
+ * | icons                                       | installable |
+ * | ------------------------------------------- | ----------- |
+ * | the four that shipped                       | no          |
+ * | the two PNGs alone                          | **yes**     |
+ * | the PNGs listed *first*, then the SVGs      | no          |
+ * | `icon.svg` (`purpose: any`, `sizes: any`)   | no          |
+ * | `icon-maskable.svg` (`purpose: maskable`)   | **yes**     |
+ * | both SVGs at `sizes: "512x512"`             | **yes**     |
+ * | both SVGs at `sizes: "any 512x512"`         | no          |
+ *
+ * So it is specifically an icon that is a *candidate for installation* —
+ * `purpose` containing `any`, which is also the value the spec defaults to when
+ * `purpose` is absent — declaring the `any` size keyword. Chromium selects it,
+ * cannot prove it meets the 144px floor, and then does **not** fall back to the
+ * rasters. Order does not help, and pairing `any` with a concrete size does not
+ * help: the keyword has to go. A `maskable`-only icon may keep it, since
+ * installability never considers one.
+ *
+ * This is asserted statically rather than by driving a real install: the
+ * measurement above used a deprecated CDP method and a built service worker,
+ * and the property that actually needs defending is a one-line manifest fact
+ * that a future edit could silently reintroduce.
+ */
+test('no installable icon declares the "any" size keyword (FR-177, research D7)', async ({
+  request,
+}) => {
+  const manifest = JSON.parse(await (await request.get('/manifest.webmanifest')).text()) as {
+    icons?: { src: string; sizes?: string; purpose?: string }[];
+  };
+
+  const offenders = (manifest.icons ?? [])
+    // An absent `purpose` means `any`, so it is a candidate too.
+    .filter((icon) => (icon.purpose ?? 'any').split(/\s+/).includes('any'))
+    .filter((icon) => (icon.sizes ?? '').split(/\s+/).includes('any'))
+    .map(
+      (icon) =>
+        `${icon.src} has purpose="${icon.purpose ?? 'any'}" and sizes="${icon.sizes ?? ''}" — ` +
+        'Chromium picks it as the install icon, fails to size it, and reports no-acceptable-icon ' +
+        'instead of falling back to the rasters'
+    );
+
+  expect(offenders, offenders.join('\n  ')).toEqual([]);
+});

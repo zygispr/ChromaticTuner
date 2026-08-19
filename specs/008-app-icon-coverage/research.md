@@ -202,6 +202,13 @@ manifest icon declared `sizes: "any"` can make PWA installability fail outright
 so this is recorded as a thing to observe, not as a finding. Adding the rasters is the correct action
 whether or not the bug is real, and V75 checks installability on a real Chromium either way.
 
+> **Observed, and it is a finding** (T041 — see "What the release gates found" in `tasks.md`). The app
+> did not install in Chromium at all. The trigger is narrower than reported: any icon whose `purpose`
+> includes `any` declaring the `any` **size** keyword — Chromium picks it, cannot size it, and does not
+> fall back to the rasters. The last sentence above is therefore too optimistic: adding the rasters did
+> not rescue it. `/icon.svg` now declares `512x512`; `/icon-maskable.svg` keeps `any`, which is safe
+> because installability never considers a maskable-only icon.
+
 ---
 
 ## D8 — Deliberately out of scope, each with the reason

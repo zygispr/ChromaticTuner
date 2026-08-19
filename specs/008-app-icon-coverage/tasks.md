@@ -840,21 +840,91 @@ to rediscover:
 
 ### Release gates (manual, real hardware — not merge gates)
 
-These cannot run on CI and are run before a submission, not before a merge. **None of T037–T042 has
-been run**: each needs either a real device or a person looking at a home screen, and neither is
-available to an automated session. They are the two obligations this feature recorded from the start as
-things no gate can see. What *is* proved automatically, and what these still owe, is worth being precise
-about — T020 has already shown that a native project regenerated from scratch produces the mark rather
-than the white square, on both platforms, decoded pixel by pixel. What remains unproved is only what
-the OS does with those bytes: masking, downscaling, and whether the result reads as a tuner at a
-fingernail's width.
+These cannot run on CI and are run before a submission, not before a merge. Each needs either a real
+device or a person looking at a home screen. **All but T038 have now been run** — see "What the release
+gates found" below. They were the obligations this feature recorded from the start as things no gate can
+see, and one of them (T041) duly found a defect that every automated gate had passed.
 
-- [ ] T037 V79 — iOS home screen (FR-171, SC-074, SC-075): `rm -rf apps/mobile/ios && pnpm --filter @chromatic-tuner/mobile prebuild && pnpm --filter @chromatic-tuner/mobile ios`. The tile is the mark on the app's background, masked once to iOS's superellipse — no double-rounded corners, no white or black fill at the edges. Check the app switcher and a Spotlight result for the same mark
+- [X] T037 V79 — iOS home screen (FR-171, SC-074, SC-075): `rm -rf apps/mobile/ios && pnpm --filter @chromatic-tuner/mobile prebuild && pnpm --filter @chromatic-tuner/mobile ios`. The tile is the mark on the app's background, masked once to iOS's superellipse — no double-rounded corners, no white or black fill at the edges. Check the app switcher and a Spotlight result for the same mark
 - [ ] T038 V80 — Android launcher (FR-174): `rm -rf apps/mobile/android && pnpm --filter @chromatic-tuner/mobile android`. Verify against **at least two mask shapes**: the mark stays uncropped and the background reaches every edge with no transparent corner. With themed icons on, expect the **full-colour** icon — no monochrome layer ships, by design (D8)
-- [ ] T039 V81 — Add to Home Screen in Safari on a real iPhone or iPad (FR-176, SC-074). The tile is the mark: not a page screenshot, not the mark on a black field, not double-rounded. Three separate failure modes with three separate causes, all three plausible in a file browser
-- [ ] T040 V82 — Legibility at the smallest size (SC-075): the installed app beside other apps, at reading distance, without reading labels, on both a light and a dark wallpaper
-- [ ] T041 V83 — Chromium installability (research D7, open risk): install the web app from a Chromium-based browser and confirm it installs with the mark. Recorded because an SVG manifest icon declared `sizes: "any"` is reported to break installability and this manifest declares exactly that; the tracker entry could not be read, so this is an observation to make, not a finding
-- [ ] T042 Record the outcome of T037–T041 in this file, including which Android mask shapes were checked and which devices and OS versions were used
+- [X] T039 V81 — Add to Home Screen in Safari on a real iPhone or iPad (FR-176, SC-074). The tile is the mark: not a page screenshot, not the mark on a black field, not double-rounded. Three separate failure modes with three separate causes, all three plausible in a file browser
+- [X] T040 V82 — Legibility at the smallest size (SC-075): the installed app beside other apps, at reading distance, without reading labels, on both a light and a dark wallpaper
+- [X] T041 V83 — Chromium installability (research D7, open risk): install the web app from a Chromium-based browser and confirm it installs with the mark. Recorded because an SVG manifest icon declared `sizes: "any"` is reported to break installability and this manifest declares exactly that; the tracker entry could not be read, so this is an observation to make, not a finding
+- [X] T042 Record the outcome of T037–T041 in this file, including which Android mask shapes were checked and which devices and OS versions were used
+
+---
+
+### What the release gates found (T042)
+
+**Device and build.** Žygimanto iPhone 15 (`iPhone15,4`), iOS 26.6. Built from `008-app-icon-coverage`
+at `6416096`, after `expo prebuild --platform ios` regenerated the native project from
+`app.config.ts` — the generated `App-Icon-1024x1024@1x.png` came back byte-identical (10783 bytes) to
+the previous prebuild, which is T020's "regenerating reproduces it exactly" (FR-175) observed once more
+on a different day. **Release** configuration, so the JS is embedded and no Metro server is involved,
+signed with the personal team `GS5A35R34C`. Before installing, the icon was read out of the built
+bundle rather than trusted: `ChromaticTuner.app/AppIcon60x60@2x.png`, 120×120, the mark.
+
+- **T037 — iOS home screen: pass.** The tile is the mark on the app's background, masked once. The same
+  mark appears in the app switcher and in a Spotlight result. No Android equivalent was run (T038).
+- **T038 — Android launcher: not run.** No Android device, emulator, SDK or `adb` on this machine, so
+  the two-mask-shape check has no way to happen here. Deferred deliberately; this is the one release
+  gate this feature still owes, and it covers the icon path with the more subtle failure mode — the
+  adaptive layering in D3.
+- **T039 — Add to Home Screen in Safari: pass.** The tile is the mark, not a page screenshot and not
+  the mark on a black field.
+- **T040 — Legibility at the smallest size: pass**, on both a light and a dark wallpaper.
+- **T041 — Chromium installability: FAILED, then fixed.** See below.
+
+#### T041 — D7's open risk was real, and it was worse than the report suggested
+
+D7 recorded a suspicion that an SVG manifest icon declared `sizes: "any"` could break installability,
+and could not read the tracker entry to confirm it. It is real. **The web app did not install in
+Chromium at all**: `Page.getInstallabilityErrors` on Chromium 151 returned
+`no-acceptable-icon { minimum-icon-size-in-pixels: 144 }` — this, for a manifest naming a 192 and a 512
+that the same browser had just decoded at full size, in a run where two known-installable PWAs
+(`excalidraw.com`, `squoosh.app`) both returned no errors, which is what proves the method was
+answering rather than stubbed.
+
+The first isolation attempt was **wrong and worth recording as a trap**: rewriting the manifest with a
+Playwright route gave the same failure for every variant, including a single 192×192 PNG, which would
+have exonerated the icons. The service worker precaches `/manifest.webmanifest`, so it served the
+original bytes every time and no variant was ever tested. Redone by serving one build from separate
+origins that differed only in the `icons` array:
+
+| `icons`                                          | installs |
+| ------------------------------------------------ | -------- |
+| the four that shipped                            | **no**   |
+| the two PNGs alone                               | yes      |
+| the PNGs listed _first_, then the SVGs           | **no**   |
+| `icon.svg` alone (`purpose: any`, `sizes: any`)  | **no**   |
+| `icon-maskable.svg` alone (`purpose: maskable`)  | yes      |
+| both SVGs at `sizes: "512x512"`                  | yes      |
+| both SVGs at `sizes: "any 512x512"`              | **no**   |
+
+So the trigger is narrower and nastier than "an SVG with `sizes: any`". It is an icon that is a
+**candidate for installation** — `purpose` containing `any`, which is also what the spec defaults to
+when `purpose` is absent — declaring the `any` **size** keyword. Chromium selects it, cannot prove it
+clears the 144px floor, and then does not fall back to the rasters. Listing the PNGs first does not
+help, and pairing `any` with a concrete size does not help. A `maskable`-only icon may keep `any`,
+because installability never considers one.
+
+**The fix** is one word in `webManifest()`: `/icon.svg` is `sizes: '512x512'`, which is what its
+`viewBox` already says it is, and an SVG still scales to every other slot. `/icon-maskable.svg` keeps
+`any` on the evidence above. Rebuilt and re-measured on the shipped output: installable, with the mark.
+
+**Why the automated gates missed it, and what now stops it.** Every icon gate this feature built asks
+whether an icon is *present, resolvable, correctly sized and correctly coloured* — and all of them
+passed, because every one of those things was true. None asked whether the set was *acceptable to an
+installer*, which is a property of the collection rather than of any icon in it. The regression gate is
+in `apps/web/e2e/metadata.spec.ts` (the location D9 assigns web icon-format gates): no icon whose
+`purpose` includes `any` may declare the `any` size keyword. It was observed red against the shipped
+manifest, naming `/icon.svg`, before the fix. It is asserted statically rather than by driving a real
+install, because the measurement above needs a deprecated CDP method and a built service worker, while
+the property worth defending is a one-line manifest fact a future edit could quietly reintroduce.
+
+This also revises D7's closing sentence. "Adding the rasters is the correct action whether or not the
+bug is real" was true but incomplete: adding rasters does **not** rescue a manifest that still declares
+`sizes: "any"` on a `purpose: any` icon — the rasters sat there unused while the app refused to install.
 
 ---
 

@@ -520,7 +520,23 @@ function webManifest(): string {
        * correct for both uses when the mark is inside the safe zone.
        */
       icons: [
-        { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+        /*
+         * `512x512`, not `any` — D7's open risk, measured and confirmed (T041).
+         *
+         * An icon that is a candidate for installation (`purpose` containing
+         * `any`) must not declare the `any` **size** keyword: Chromium selects
+         * it, cannot prove it clears the 144px floor, and reports
+         * `no-acceptable-icon` instead of falling back to the rasters below —
+         * so the app does not install at all. Measured on Chromium 151 by
+         * serving one build from several origins differing only in this array;
+         * `metadata.spec.ts` carries the full table and the gate.
+         *
+         * Both SVGs are `viewBox="0 0 512 512"`, so this is what they are, and
+         * an SVG still scales to every other slot. `icon-maskable.svg` keeps
+         * `any` legitimately: installability never considers a maskable-only
+         * icon, and that was measured too.
+         */
+        { src: '/icon.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'any' },
         { src: '/icon-maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
         { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
         { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
