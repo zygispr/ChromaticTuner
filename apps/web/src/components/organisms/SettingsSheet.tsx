@@ -86,6 +86,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
   const {
     a4Hz,
     accidentalStyle,
+    appearance,
     appearancePreference,
     isNonStandardReference,
     persistenceFailed,
@@ -101,6 +102,19 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
 
   /** The containment surface the Tab handler measures focus against (K4). */
   const sheetRef = useRef<HTMLElement>(null);
+
+  /** The covering layer whose paint iOS Safari's toolbar tint is sampled from. */
+  const backdropRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * The appearance the bars were last sampled against, or `null` while closed.
+   *
+   * Opening the sheet already re-samples both bars — a fixed layer starting to
+   * paint is one of the two events that does — so the first run after `open`
+   * records and does nothing. Nudging there would blink the sheet on the frame
+   * it appears, for no gain.
+   */
+  const sampledAppearance = useRef<typeof appearance | null>(null);
 
   /**
    * Whether the gesture currently in flight has stayed on the backdrop.
@@ -231,6 +245,85 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
     };
   }, [open]);
 
+  /**
+   * iOS Safari's status bar and bottom toolbar follow the appearance (reported
+   * defect: both kept the OLD colours until the sheet was closed).
+   *
+   * Safari tints those two bars by SAMPLING what the page paints at the top and
+   * bottom edges of the viewport. `<meta name="theme-color">` is not the way
+   * out: Safari 26 ignores it outright — measured in the iOS 26.5 simulator, a
+   * page declaring `theme-color: #ff0000` still tinted to its white body — and
+   * adding one would be a tag that looks like the fix while changing nothing.
+   *
+   * Each bar is sampled independently from whatever covers ITS edge, and that
+   * sample is frozen for as long as a `position: fixed` element covers it. It is
+   * re-taken only on a frame where that element stops or starts painting. The
+   * backdrop below is exactly such an element, which is why an appearance change
+   * repaints every pixel this app draws and moves neither bar, and why closing
+   * the sheet fixes it: removing the layer is the other half of the same event.
+   *
+   * Everything cheaper was measured and none of it works — repainting the
+   * backdrop (even to a garish pink), shrinking it clear of both edges,
+   * `opacity: 0`, translating it off-screen, `position: absolute`, toggling the
+   * scroll lock, and adding a transient transparent fixed layer above it all
+   * leave the tint frozen. Only ceasing to paint re-samples. `visibility` rather
+   * than `display` for that: it keeps the sheet's layout, so nothing reflows and
+   * the scroll position underneath cannot move.
+   *
+   * Hiding an element blurs what is inside it, so focus is captured and put back
+   * across the gap (K7) — without that, the next Tab restarts from the top of
+   * the page, behind the tuner. The restore targets the same control the user
+   * just pressed, so the ring never appears to move.
+   *
+   * Deliberately NOT gated on a Safari sniff. One frame is invisible everywhere,
+   * and a browser check would make the one engine CI can run the one engine that
+   * never executes this — see the mechanism assertion in `appearance.spec.ts`.
+   *
+   * Keyed on the RESOLVED appearance, not the preference: "Match device" while
+   * the OS flips repaints the page without the preference changing at all, and
+   * that stale bar looks exactly the same to the person holding the phone.
+   */
+  useEffect(() => {
+    if (!open) {
+      sampledAppearance.current = null;
+      return;
+    }
+
+    if (sampledAppearance.current === null) {
+      sampledAppearance.current = appearance;
+      return;
+    }
+
+    if (sampledAppearance.current === appearance) return;
+    sampledAppearance.current = appearance;
+
+    const backdrop = backdropRef.current;
+    if (!backdrop) return;
+
+    const active = document.activeElement as HTMLElement | null;
+    backdrop.style.visibility = 'hidden';
+
+    // Two frames, not one: the first only schedules, and the hidden state has to
+    // survive a painted frame for Safari to sample anything.
+    let restore = 0;
+    const scheduled = requestAnimationFrame(() => {
+      restore = requestAnimationFrame(() => {
+        backdrop.style.visibility = '';
+        // `preventScroll` for the same reason the opener restore uses it
+        // (FR-140): putting focus back must not move the page.
+        if (active && document.contains(active)) active.focus({ preventScroll: true });
+      });
+    });
+
+    // A sheet closed, or an appearance changed again, mid-nudge must not leave
+    // the backdrop hidden — the frames it was waiting for will never be paid.
+    return () => {
+      cancelAnimationFrame(scheduled);
+      cancelAnimationFrame(restore);
+      backdrop.style.visibility = '';
+    };
+  }, [open, appearance]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -294,6 +387,7 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
 
   return (
     <div
+      ref={backdropRef}
       data-testid="settings-backdrop"
       onPointerDown={(event) => {
         gestureStayedOnBackdrop.current = event.target === event.currentTarget;

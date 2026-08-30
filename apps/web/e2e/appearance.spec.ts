@@ -707,3 +707,68 @@ for (const scheme of ['light', 'dark'] as const) {
     ).toEqual([]);
   });
 }
+
+/**
+ * Reported defect: on iOS Safari the status bar and the bottom toolbar keep the
+ * OLD appearance until the settings sheet is closed.
+ *
+ * Safari tints those two bars by SAMPLING what the page paints at the top and
+ * bottom edges of the viewport — `<meta name="theme-color">` is not an escape
+ * hatch, because Safari 26 ignores it outright (measured in the iOS 26.5
+ * simulator: a page declaring `theme-color: #ff0000` still tinted to its white
+ * body). Each bar is sampled independently, and the sample for an edge is
+ * FROZEN for as long as a `position: fixed` element covers it: it is re-taken
+ * only on a frame where that element stops or starts painting there.
+ *
+ * The settings backdrop is exactly such an element, so changing appearance
+ * inside it repaints every pixel the app draws and moves neither bar. Measured
+ * against the whole space of cheaper nudges, and none of them work: repainting
+ * the backdrop (even to a garish pink), shrinking it off both edges, `opacity:
+ * 0`, translating it off-screen, `position: absolute`, toggling the scroll lock,
+ * and adding a transient transparent fixed layer above it ALL leave the tint
+ * frozen. Only ceasing to paint the covering element re-samples that edge —
+ * `visibility: hidden` and `display: none` are the two that do it, and
+ * `visibility` is the one that keeps the sheet's layout, so nothing reflows.
+ *
+ * Hence: one frame of `visibility: hidden` on the backdrop. It costs focus —
+ * hiding an element blurs what is inside it — so focus is captured and restored
+ * across the gap, which K7 requires and which this test is half of.
+ *
+ * Chromium cannot see the defect (it has no sampled toolbar), but it can see
+ * the MECHANISM, which is the part this repo owns and the part a refactor would
+ * break. Asserted here rather than reviewed, because the whole failure is
+ * invisible on every engine CI runs.
+ */
+test('an appearance change inside the sheet drops the backdrop for one frame, without losing focus', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/');
+  await waitForNote(page, 'E');
+  await openSettings(page);
+
+  // Recorded from before the click, and consecutive duplicates collapsed:
+  // React rewrites the backdrop's `style` attribute on its own schedule, so the
+  // number of notifications is not ours to predict — the sequence of distinct
+  // values is.
+  await page.evaluate(() => {
+    const backdrop = document.querySelector('[data-testid="settings-backdrop"]')!;
+    const seen: string[] = [getComputedStyle(backdrop).visibility];
+    (window as unknown as { __visibility: string[] }).__visibility = seen;
+    new MutationObserver(() => {
+      const now = getComputedStyle(backdrop).visibility;
+      if (now !== seen[seen.length - 1]) seen.push(now);
+    }).observe(backdrop, { attributes: true, attributeFilter: ['style'] });
+  });
+
+  await page.getByTestId('appearance-dark').click();
+
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __visibility: string[] }).__visibility))
+    .toEqual(['visible', 'hidden', 'visible']);
+
+  // K7. A blur that is never undone leaves the next Tab restarting from the top
+  // of the page, behind the tuner — the exact failure the sheet's own cleanup
+  // exists to prevent.
+  await expect(page.getByTestId('appearance-dark')).toBeFocused();
+});
