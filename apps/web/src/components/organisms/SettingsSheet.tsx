@@ -246,6 +246,50 @@ export function SettingsSheet({ open, onClose }: SettingsSheetProps) {
   }, [open]);
 
   /**
+   * Nothing outside the app's root paints while the sheet is open (reported
+   * defect: changing appearance flashed the words "Free Online Guitar Tuner").
+   *
+   * `003`'s supporting content sits AFTER `#root` in the document, and on a
+   * desktop browser "below the fold" means off-screen. It does not on iOS
+   * Safari 26: `#root` reserves `100dvh`, the dynamic viewport ends above the
+   * floating bottom toolbar, and that toolbar is TRANSLUCENT — so the first
+   * line below the fold, the page's `<h1>`, is on screen the whole time,
+   * blurred through the glass. The backdrop covers it while the sheet is up;
+   * the appearance nudge below uncovers it for two frames, and the heading pops
+   * from blurred to crisp and back. Measured in the iOS 26.5 simulator.
+   *
+   * So the content is hidden for the sheet's lifetime rather than patched into
+   * the nudge: the nudge is not the only thing that can uncover it, and content
+   * behind a modal has no business painting — or being reachable — either way.
+   *
+   * Everything outside `#root` rather than the two ids `index.html` happens to
+   * carry today. The rule is "the app's root is what shows"; naming the
+   * children would make this silently wrong the next time the document grows
+   * one. `visibility` and not `display`, for the reason the scroll lock above
+   * does not fix the body: hiding removes the box, the document shortens, and
+   * the scroll position FR-140 preserves is gone.
+   */
+  useEffect(() => {
+    if (!open) return;
+
+    const root = document.getElementById('root');
+    const outside = Array.from(document.body.children).filter(
+      (child): child is HTMLElement => child !== root && child instanceof HTMLElement
+    );
+
+    // Captured rather than assumed empty, the same reason the scroll lock
+    // captures the styles it overwrites (K11).
+    const previous = outside.map((el) => el.style.visibility);
+    for (const el of outside) el.style.visibility = 'hidden';
+
+    return () => {
+      outside.forEach((el, index) => {
+        el.style.visibility = previous[index]!;
+      });
+    };
+  }, [open]);
+
+  /**
    * iOS Safari's status bar and bottom toolbar follow the appearance (reported
    * defect: both kept the OLD colours until the sheet was closed).
    *

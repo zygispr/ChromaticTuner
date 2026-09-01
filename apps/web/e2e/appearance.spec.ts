@@ -772,3 +772,53 @@ test('an appearance change inside the sheet drops the backdrop for one frame, wi
   // exists to prevent.
   await expect(page.getByTestId('appearance-dark')).toBeFocused();
 });
+
+/**
+ * Reported defect: on iOS Safari, changing the appearance inside the settings
+ * sheet flashes the words "Free Online Guitar Tuner" for a frame.
+ *
+ * The `<h1>` is `003`'s supporting content, which sits AFTER `#root` in the
+ * document — below the fold, and on a desktop browser that means off-screen.
+ * It is not off-screen on iOS Safari 26: `#root` reserves `100dvh`, the
+ * dynamic viewport ends above the floating bottom toolbar, and the toolbar is
+ * translucent — so the first line of content below the fold is on screen at all
+ * times, blurred through the glass. The sheet's backdrop normally covers it.
+ * The appearance nudge above hides that backdrop for two frames, which is
+ * exactly what uncovers it: the heading pops from blurred to crisp and back.
+ * Measured in the iOS 26.5 simulator against a page carrying this structure.
+ *
+ * The fix is that nothing outside the app's root paints while the sheet is
+ * open, which is what this asserts. Chromium cannot see the flash — it has no
+ * translucent toolbar and the content is genuinely off-screen — but it can see
+ * that property, the same division of labour as the nudge test above.
+ */
+test('nothing outside the app root paints while the settings sheet is open', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/');
+  await waitForNote(page, 'E');
+
+  const visibility = (testId: string) =>
+    page.getByTestId(testId).evaluate((el) => getComputedStyle(el).visibility);
+
+  await openSettings(page);
+
+  expect(await visibility('site-content'), 'the supporting content paints behind the sheet').toBe(
+    'hidden'
+  );
+  expect(await visibility('scroll-cue'), 'the scroll cue paints behind the sheet').toBe('hidden');
+
+  // Still hidden across the appearance change, which is the frame the defect
+  // was reported on: the backdrop is gone for two frames there, so this is the
+  // only thing standing between the heading and the screen.
+  await page.getByTestId('appearance-dark').click();
+  expect(await visibility('site-content'), 'the appearance change uncovered the content').toBe(
+    'hidden'
+  );
+
+  // And returns with the sheet. A restore that never happens is a page that
+  // loses its content the first time anyone opens the settings.
+  await page.getByTestId('settings-close').click();
+  await expect(page.getByTestId('settings-sheet')).toBeHidden();
+  expect(await visibility('site-content'), 'the content did not come back').toBe('visible');
+  expect(await visibility('scroll-cue'), 'the scroll cue did not come back').toBe('visible');
+});
